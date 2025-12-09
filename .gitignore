@@ -1,0 +1,21 @@
+# Node
+node_modules
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-lock.yaml
+.DS_Store
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Build
+dist
+build
+
+# Python (если потом понадобится)
+__pycache__/
+*.pyc
+.venv
