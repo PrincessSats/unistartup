@@ -28,7 +28,7 @@ function App() {
   if (!profile) {
     return (
       <div style={{ padding: 24 }}>
-        <h1>UniStartup</h1>
+        <h1>Hacknet</h1>
         <AuthForm />
       </div>
     );
