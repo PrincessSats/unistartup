@@ -1,3 +1,6 @@
+-- Расширение для GIST индексов
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
 -- 1. Пользователи (авторизация)
 CREATE TABLE users (
     id              BIGSERIAL PRIMARY KEY,
@@ -49,8 +52,8 @@ CREATE TABLE user_tariffs (
     CONSTRAINT user_tariffs_one_active
         EXCLUDE USING gist (
             user_id WITH =,
-            tstzrange(valid_from, COALESCE(valid_to, 'infinity')) WITH &&
-        )
+            tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz)) WITH &&
+    )
 );
 -- 4.2. Knowledge base по уязвимостям
 CREATE TABLE kb_entries (
