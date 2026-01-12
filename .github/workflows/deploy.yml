@@ -82,6 +82,16 @@ jobs:
 
       - name: Sync to Object Storage
         run: |
+          # Удаляем все старые файлы из bucket
+          echo "Cleaning bucket..."
+          ~/yandex-cloud/bin/yc storage s3api list-objects --bucket hacknet-frontend --output json | \
+            jq -r '.Contents[]?.Key' | \
+            while read key; do
+              if [ ! -z "$key" ]; then
+                ~/yandex-cloud/bin/yc storage s3api delete-object --bucket hacknet-frontend --key "$key"
+              fi
+            done
+          
           cd frontend/build
           
           # Функция для определения Content-Type
