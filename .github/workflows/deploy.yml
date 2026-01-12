@@ -82,13 +82,17 @@ jobs:
 
       - name: Sync to Object Storage
         run: |
-          # Удаляем все старые файлы из bucket
+          # Удаляем все старые файлы из bucket (исправленная команда)
           echo "Cleaning bucket..."
-          ~/yandex-cloud/bin/yc storage s3api list-objects --bucket hacknet-frontend --output json | \
-            jq -r '.Contents[]?.Key' | \
-            while read key; do
+          ~/yandex-cloud/bin/yc storage s3api list-objects \
+            --bucket hacknet-frontend \
+            --query 'Contents[].Key' \
+            --format json | jq -r '.[]' | while read key; do
               if [ ! -z "$key" ]; then
-                ~/yandex-cloud/bin/yc storage s3api delete-object --bucket hacknet-frontend --key "$key"
+                echo "Deleting $key"
+                ~/yandex-cloud/bin/yc storage s3api delete-object \
+                  --bucket hacknet-frontend \
+                  --key "$key"
               fi
             done
           
