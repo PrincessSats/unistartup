@@ -34,13 +34,11 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center px-4">
       <div className="w-full max-w-md">
         {/* Логотип */}
         <div className="flex justify-center mb-8">
-          <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center">
-            <span className="text-black text-2xl font-bold">+</span>
-          </div>
+          <img src="/logo.png" alt="HackNet" className="w-12 h-12" />
         </div>
 
         {/* Заголовок */}

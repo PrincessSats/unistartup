@@ -42,7 +42,7 @@ function Welcome() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
         <div className="text-white text-xl">Загрузка...</div>
       </div>
     );
@@ -50,22 +50,22 @@ function Welcome() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
         <div className="text-red-500 text-xl">{error}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-[#0B0A10] text-white">
       {/* Header с кнопкой выхода */}
       <header className="bg-zinc-900 border-b border-zinc-800">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           {/* Логотип */}
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-black text-xl font-bold">+</span>
-            </div>
+            <div className="flex justify-center mb-8">
+          <img src="/logo.png" alt="HackNet" className="w-12 h-12" />
+        </div>
             <span className="text-xl font-semibold">HackNet</span>
           </div>
 
