@@ -70,14 +70,23 @@ jobs:
 
       - name: Install AWS CLI
         run: |
-          sudo apt-get update
-          sudo apt-get install -y awscli
+          pip install awscli
 
       - name: Configure AWS CLI for Yandex S3
         run: |
           aws configure set aws_access_key_id ${{ secrets.YC_AWS_ACCESS_KEY }}
           aws configure set aws_secret_access_key ${{ secrets.YC_AWS_SECRET_KEY }}
           aws configure set region ru-central1
+
+      - name: Sync to S3 with correct MIME types
+        working-directory: ./frontend/build
+        run: |
+          # Загружаем все файлы с автоопределением Content-Type
+          aws s3 sync . s3://hacknet-frontend \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --acl public-read \
+            --delete \
+            --content-type-by-extension
 
       - name: Sync to S3 with correct MIME types
         working-directory: ./frontend/build
