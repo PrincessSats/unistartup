@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Welcome from './pages/Welcome';
@@ -19,7 +19,7 @@ function PublicRoute({ children }) {
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         {/* Главная страница - редирект */}
         <Route 
@@ -65,7 +65,7 @@ function App() {
           element={<Navigate to="/" />} 
         />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 
