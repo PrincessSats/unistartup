@@ -41,7 +41,7 @@ jobs:
           revision-memory: 512Mb
           revision-core-fraction: 100
           revision-concurrency: 1
-          revision-execution-timeout: 30s
+          revision-execution-timeout: 60s
           revision-env: |
             DB_HOST=${{ secrets.DB_HOST }}
             DB_PORT=${{ secrets.DB_PORT }}
