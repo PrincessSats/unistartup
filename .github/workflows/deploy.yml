@@ -49,3 +49,41 @@ jobs:
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
+
+deploy-frontend:
+    runs-on: ubuntu-latest
+    needs: build-and-deploy-backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies and build
+        working-directory: ./frontend
+        env:
+          REACT_APP_API_URL: https://bbaaran2sgmrhuof32h4.containers.yandexcloud.net
+        run: |
+          npm ci --legacy-peer-deps
+          npm run build
+
+      - name: Setup Yandex Cloud CLI
+        uses: yc-actions/yc-cli-install@v1
+
+      - name: Authenticate to Yandex Cloud
+        run: |
+          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      - name: Upload to Object Storage
+        run: |
+          yc storage bucket update hacknet-frontend --public-read
+          cd frontend/build
+          for file in $(find . -type f); do
+            yc storage s3api put-object --bucket hacknet-frontend --key "${file#./}" --body "$file" --content-type "$(file -b --mime-type $file)"
+          done
