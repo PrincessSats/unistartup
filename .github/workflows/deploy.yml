@@ -1,0 +1,51 @@
+name: Deploy to Yandex Cloud
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: cr.yandex
+  BACKEND_IMAGE_NAME: hacknet-backend
+
+jobs:
+  build-and-deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Yandex Cloud Container Registry
+        uses: yc-actions/yc-cr-login@v1
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+
+      - name: Build and push Backend Docker image
+        working-directory: ./backend
+        run: |
+          docker build -t ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} \
+            -t ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest .
+          docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+
+      - name: Deploy to Yandex Cloud Serverless Containers
+        uses: yc-actions/yc-sls-container-deploy@v2
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          container-name: hacknet-backend
+          folder-id: ${{ secrets.YC_FOLDER_ID }}
+          revision-image-url: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+          revision-service-account-id: ${{ secrets.YC_SA_ID }}
+          revision-cores: 1
+          revision-memory: 512Mb
+          revision-core-fraction: 100
+          revision-concurrency: 1
+          revision-execution-timeout: 30s
+          revision-env: |
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
