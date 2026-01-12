@@ -11,11 +11,11 @@ const api = axios.create({
   },
 });
 
-// Добавляем токен к каждому запросу (если есть)
+// Добавляем токен к каждому запросу (используем X-Auth-Token вместо Authorization)
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers['X-Auth-Token'] = token;  // Изменили заголовок!
   }
   return config;
 });
