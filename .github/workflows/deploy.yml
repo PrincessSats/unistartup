@@ -81,16 +81,6 @@ jobs:
       - name: Sync to S3 with correct MIME types
         working-directory: ./frontend/build
         run: |
-          # Загружаем все файлы с автоопределением Content-Type
-          aws s3 sync . s3://hacknet-frontend \
-            --endpoint-url=https://storage.yandexcloud.net \
-            --acl public-read \
-            --delete \
-            --content-type-by-extension
-
-      - name: Sync to S3 with correct MIME types
-        working-directory: ./frontend/build
-        run: |
           # HTML файлы
           find . -name "*.html" -type f | while read file; do
             aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
