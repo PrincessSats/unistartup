@@ -68,50 +68,38 @@ jobs:
           npm ci --legacy-peer-deps
           CI=false npm run build
 
-      - name: Install Yandex Cloud CLI
+      - name: Install AWS CLI
         run: |
-          curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
-          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
+          sudo apt-get update
+          sudo apt-get install -y awscli
 
-      - name: Authenticate to Yandex Cloud
+      - name: Configure AWS CLI for Yandex S3
         run: |
-          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > key.json
-          ~/yandex-cloud/bin/yc config profile create sa-profile
-          ~/yandex-cloud/bin/yc config set service-account-key key.json
-          ~/yandex-cloud/bin/yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          aws configure set aws_access_key_id ${{ secrets.YC_AWS_ACCESS_KEY }}
+          aws configure set aws_secret_access_key ${{ secrets.YC_AWS_SECRET_KEY }}
+          aws configure set region ru-central1
 
-      - name: Sync to Object Storage
+      - name: Sync to S3 with correct MIME types
+        working-directory: ./frontend/build
         run: |
-          cd frontend/build
+          aws s3 sync . s3://hacknet-frontend \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --acl public-read \
+            --delete \
+            --exclude "*" \
+            --include "*.html" --content-type "text/html" \
+            --include "*.css" --content-type "text/css" \
+            --include "*.js" --content-type "application/javascript" \
+            --include "*.json" --content-type "application/json" \
+            --include "*.png" --content-type "image/png" \
+            --include "*.jpg" --content-type "image/jpeg" \
+            --include "*.svg" --content-type "image/svg+xml" \
+            --include "*.ico" --content-type "image/x-icon"
           
-          # Функция для определения Content-Type
-          get_content_type() {
-            case "$1" in
-              *.html) echo "text/html" ;;
-              *.css) echo "text/css" ;;
-              *.js) echo "application/javascript" ;;
-              *.json) echo "application/json" ;;
-              *.png) echo "image/png" ;;
-              *.jpg|*.jpeg) echo "image/jpeg" ;;
-              *.gif) echo "image/gif" ;;
-              *.svg) echo "image/svg+xml" ;;
-              *.ico) echo "image/x-icon" ;;
-              *.woff) echo "font/woff" ;;
-              *.woff2) echo "font/woff2" ;;
-              *.ttf) echo "font/ttf" ;;
-              *) echo "application/octet-stream" ;;
-            esac
-          }
-          
-          # Загружаем все файлы с правильными Content-Type
-          find . -type f | while read file; do
-            filepath="${file#./}"
-            contenttype=$(get_content_type "$file")
-            echo "Uploading $filepath as $contenttype"
-            ~/yandex-cloud/bin/yc storage s3api put-object \
-              --bucket hacknet-frontend \
-              --key "$filepath" \
-              --body "$file" \
-              --acl public-read \
-              --content-type "$contenttype"
-          done
+          # Upload all files with correct types
+          aws s3 cp . s3://hacknet-frontend \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --recursive \
+            --acl public-read \
+            --metadata-directive REPLACE \
+            --content-type-by-extension
