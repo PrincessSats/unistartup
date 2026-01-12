@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Базовый URL вашего backend
-const API_URL = 'http://localhost:8000';
+// Базовый URL YC backend
+const API_URL = 'https://bbaaran2sgmrhuof32h4.containers.yandexcloud.net';
 
 // Создаем axios instance
 const api = axios.create({
