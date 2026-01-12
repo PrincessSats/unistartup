@@ -91,24 +91,57 @@ jobs:
       - name: Sync to S3 with correct MIME types
         working-directory: ./frontend/build
         run: |
-          aws s3 sync . s3://hacknet-frontend \
-            --endpoint-url=https://storage.yandexcloud.net \
-            --acl public-read \
-            --delete \
-            --exclude "*" \
-            --include "*.html" --content-type "text/html" \
-            --include "*.css" --content-type "text/css" \
-            --include "*.js" --content-type "application/javascript" \
-            --include "*.json" --content-type "application/json" \
-            --include "*.png" --content-type "image/png" \
-            --include "*.jpg" --content-type "image/jpeg" \
-            --include "*.svg" --content-type "image/svg+xml" \
-            --include "*.ico" --content-type "image/x-icon"
+          # HTML файлы
+          find . -name "*.html" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "text/html"
+          done
           
-          # Upload all files with correct types
-          aws s3 cp . s3://hacknet-frontend \
-            --endpoint-url=https://storage.yandexcloud.net \
-            --recursive \
-            --acl public-read \
-            --metadata-directive REPLACE \
-            --content-type-by-extension
+          # CSS файлы
+          find . -name "*.css" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "text/css"
+          done
+          
+          # JS файлы
+          find . -name "*.js" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "application/javascript"
+          done
+          
+          # JSON файлы
+          find . -name "*.json" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "application/json"
+          done
+          
+          # PNG изображения
+          find . -name "*.png" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "image/png"
+          done
+          
+          # ICO файлы
+          find . -name "*.ico" -type f | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read \
+              --content-type "image/x-icon"
+          done
+          
+          # Остальные файлы
+          find . -type f ! -name "*.html" ! -name "*.css" ! -name "*.js" ! -name "*.json" ! -name "*.png" ! -name "*.ico" | while read file; do
+            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
+              --endpoint-url=https://storage.yandexcloud.net \
+              --acl public-read
+          done
