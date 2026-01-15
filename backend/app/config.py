@@ -15,19 +15,21 @@ class Settings(BaseSettings):
     
     # JWT токены
     SECRET_KEY: str
-    ALGORITHM: str = "HS256"  # Алгоритм шифрования токенов
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30  # Токен живет 30 минут
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    
+    # Yandex Object Storage (S3-совместимое хранилище)
+    S3_ACCESS_KEY: str = ""
+    S3_SECRET_KEY: str = ""
+    S3_BUCKET_NAME: str = ""
+    S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
+    S3_REGION: str = "ru-central1"
     
     class Config:
-        env_file = ".env"  # Откуда читать настройки
+        env_file = ".env"
     
     @property
     def database_url(self) -> str:
-        """
-        Создает строку подключения к БД
-        Формат: postgresql+asyncpg://user:password@host:port/database
-        """
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
-# Создаем объект настроек (используем везде в приложении)
 settings = Settings()

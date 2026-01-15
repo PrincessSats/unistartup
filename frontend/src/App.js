@@ -2,68 +2,40 @@ import React from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Welcome from './pages/Welcome';
+import Profile from './pages/Profile';
+import Layout from './components/Layout';
 import { authAPI } from './services/api';
 
-// Защищенный маршрут (только для авторизованных)
 function ProtectedRoute({ children }) {
   const isAuth = authAPI.isAuthenticated();
   return isAuth ? children : <Navigate to="/login" />;
 }
 
-// Публичный маршрут (только для неавторизованных)
 function PublicRoute({ children }) {
   const isAuth = authAPI.isAuthenticated();
-  return !isAuth ? children : <Navigate to="/welcome" />;
+  return !isAuth ? children : <Navigate to="/profile" />;
 }
 
 function App() {
   return (
     <HashRouter>
       <Routes>
-        {/* Главная страница - редирект */}
-        <Route 
-          path="/" 
-          element={
-            authAPI.isAuthenticated() 
-              ? <Navigate to="/welcome" /> 
-              : <Navigate to="/login" />
-          } 
-        />
+        <Route path="/" element={authAPI.isAuthenticated() ? <Navigate to="/profile" /> : <Navigate to="/login" />} />
 
-        {/* Публичные страницы */}
-        <Route 
-          path="/login" 
-          element={
-            <PublicRoute>
-              <Login />
-            </PublicRoute>
-          } 
-        />
-        <Route 
-          path="/register" 
-          element={
-            <PublicRoute>
-              <Register />
-            </PublicRoute>
-          } 
-        />
+        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-        {/* Защищенные страницы */}
-        <Route 
-          path="/welcome" 
-          element={
-            <ProtectedRoute>
-              <Welcome />
-            </ProtectedRoute>
-          } 
-        />
+        <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+        
+        <Route path="/home" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Главная — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/championship" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Чемпионат — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/education" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Обучение — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/rating" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Рейтинг — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/knowledge" element={<ProtectedRoute><Layout><div className="text-white text-2xl">База знаний — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/faq" element={<ProtectedRoute><Layout><div className="text-white text-2xl">FAQ — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Админка — скоро будет</div></Layout></ProtectedRoute>} />
 
-        {/* 404 - несуществующие страницы */}
-        <Route 
-          path="*" 
-          element={<Navigate to="/" />} 
-        />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </HashRouter>
   );
