@@ -29,36 +29,27 @@ jobs:
           docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
 
-      - name: Install Yandex Cloud CLI
-        run: |
-          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
-          echo "$HOME/yandex-cloud/bin" >> $GITHUB_PATH
-
-      - name: Authenticate YC CLI
-        run: |
-          echo '${{ secrets.YC_SA_JSON_CREDENTIALS }}' > sa-key.json
-          yc config profile create github-actions
-          yc config set service-account-key sa-key.json
-          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
-
-      - name: Deploy Backend with Async Enabled
-        run: |
-          yc serverless container deploy \
-            --name hacknet-backend \
-            --image ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} \
-            --service-account-name ${{ secrets.YC_SA_NAME }} \
-            --async \
-            --cores 1 \
-            --memory 512M \
-            --core-fraction 100 \
-            --concurrency 1 \
-            --execution-timeout 60s \
-            --env DB_HOST=${{ secrets.DB_HOST }} \
-            --env DB_PORT=${{ secrets.DB_PORT }} \
-            --env DB_NAME=${{ secrets.DB_NAME }} \
-            --env DB_USER=${{ secrets.DB_USER }} \
-            --env DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-            --env SECRET_KEY=${{ secrets.SECRET_KEY }}
+      - name: Deploy to Yandex Cloud Serverless Containers
+        uses: yc-actions/yc-sls-container-deploy@v2
+        with:
+          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          container-name: hacknet-backend
+          folder-id: ${{ secrets.YC_FOLDER_ID }}
+          revision-image-url: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
+          revision-service-account-id: ${{ secrets.YC_SA_ID }}
+          revision-cores: 1
+          revision-memory: 512Mb
+          revision-core-fraction: 100
+          revision-concurrency: 1
+          revision-execution-timeout: 60s
+          revision-env: |
+            DB_HOST=${{ secrets.DB_HOST }}
+            DB_PORT=${{ secrets.DB_PORT }}
+            DB_NAME=${{ secrets.DB_NAME }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            SECRET_KEY=${{ secrets.SECRET_KEY }}
+      
 
   deploy-frontend:
     runs-on: ubuntu-latest
