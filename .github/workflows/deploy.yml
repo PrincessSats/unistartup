@@ -50,7 +50,7 @@ jobs:
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
-            REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
+            REACT_APP_API_BASE_URL=${{ secrets.REACT_APP_API_BASE_URL }}
 
   deploy-frontend:
     runs-on: ubuntu-latest
