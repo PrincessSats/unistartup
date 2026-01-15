@@ -37,6 +37,7 @@ jobs:
           folder-id: ${{ secrets.YC_FOLDER_ID }}
           revision-image-url: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
           revision-service-account-id: ${{ secrets.YC_SA_ID }}
+          revision-async: true 
           revision-cores: 1
           revision-memory: 512Mb
           revision-core-fraction: 100
@@ -49,6 +50,7 @@ jobs:
             DB_USER=${{ secrets.DB_USER }}
             DB_PASSWORD=${{ secrets.DB_PASSWORD }}
             SECRET_KEY=${{ secrets.SECRET_KEY }}
+            REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
 
   deploy-frontend:
     runs-on: ubuntu-latest
