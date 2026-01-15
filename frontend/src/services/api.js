@@ -1,7 +1,16 @@
+// frontend/src/services/api.js
+
 import axios from 'axios';
 
-// Базовый URL YC backend
-const API_URL = 'https://bbaaran2sgmrhuof32h4.containers.yandexcloud.net/';
+// local or prod env
+const API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+
+export const getProfile = (token) =>
+  fetch(`${API_URL}/profile`, {
+    headers: {
+      'X-Auth-Token': token,
+    },
+  });
 
 // Создаем axios instance
 const api = axios.create({
@@ -15,14 +24,13 @@ const api = axios.create({
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
-    config.headers['X-Auth-Token'] = token;  // Изменили заголовок!
+    config.headers['X-Auth-Token'] = token;
   }
   return config;
 });
 
-// API методы
+// API методы авторизации
 export const authAPI = {
-  // Регистрация
   register: async (email, username, password) => {
     const response = await api.post('/auth/register', {
       email,
@@ -32,25 +40,21 @@ export const authAPI = {
     return response.data;
   },
 
-  // Вход
   login: async (email, password) => {
     const response = await api.post('/auth/login', {
       email,
       password,
     });
-    // Сохраняем токен
     if (response.data.access_token) {
       localStorage.setItem('token', response.data.access_token);
     }
     return response.data;
   },
 
-  // Выход
   logout: () => {
     localStorage.removeItem('token');
   },
 
-  // Проверка авторизации
   isAuthenticated: () => {
     return !!localStorage.getItem('token');
   },
@@ -58,15 +62,56 @@ export const authAPI = {
 
 // Запросы к защищенным endpoints
 export const userAPI = {
-  // Получить welcome страницу
   getWelcome: async () => {
     const response = await api.get('/welcome');
     return response.data;
   },
 
-  // Получить админ панель
   getAdmin: async () => {
     const response = await api.get('/admin');
+    return response.data;
+  },
+};
+
+// API профиля (НОВОЕ)
+export const profileAPI = {
+  // Получить профиль
+  getProfile: async () => {
+    const response = await api.get('/profile');
+    return response.data;
+  },
+
+  // Обновить username
+  updateUsername: async (username) => {
+    const response = await api.put('/profile', { username });
+    return response.data;
+  },
+
+  // Обновить email
+  updateEmail: async (newEmail) => {
+    const response = await api.put('/profile/email', { new_email: newEmail });
+    return response.data;
+  },
+
+  // Сменить пароль
+  changePassword: async (currentPassword, newPassword) => {
+    const response = await api.put('/profile/password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
+
+  // Загрузить аватарку
+  uploadAvatar: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await api.post('/profile/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
     return response.data;
   },
 };
