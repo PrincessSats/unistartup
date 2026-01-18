@@ -411,7 +411,7 @@ function Profile() {
 
       {/* Модалка редактирования аватара и никнейма */}
       {showAvatarModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <h3 className="text-white text-xl font-semibold mb-6">Редактировать профиль</h3>
             
@@ -501,8 +501,9 @@ function Profile() {
       )}
 
       {/* Модалка редактирования email */}
+      {/* Модалка редактирования email */}
       {showEmailModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <h3 className="text-white text-xl font-semibold mb-6">Изменить email</h3>
             
@@ -545,7 +546,7 @@ function Profile() {
 
       {/* Модалка смены пароля */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-zinc-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <h3 className="text-white text-xl font-semibold mb-6">Сменить пароль</h3>
             
