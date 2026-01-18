@@ -15,9 +15,6 @@ export const getProfile = (token) =>
 // Создаем axios instance
 const api = axios.create({
   baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // Добавляем токен к каждому запросу (используем X-Auth-Token вместо Authorization)
@@ -107,11 +104,7 @@ export const profileAPI = {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await api.post('/profile/avatar', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const response = await api.post('/profile/avatar', formData);
     return response.data;
   },
 };

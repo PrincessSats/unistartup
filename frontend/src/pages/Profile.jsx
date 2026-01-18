@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI, userAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 
 function Profile() {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ function Profile() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   
   // Временные значения для редактирования
   const [editUsername, setEditUsername] = useState('');
@@ -26,13 +27,26 @@ function Profile() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const getErrorMessage = (err, fallback) => {
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) {
+      return detail.map((item) => item?.msg || item?.message || String(item)).join(', ');
+    }
+    if (detail && typeof detail === 'object') {
+      return detail.msg || detail.message || fallback;
+    }
+    return fallback;
+  };
+
   useEffect(() => {
     const fetchUserData = async () => {
       try {
-        const data = await userAPI.getWelcome();
+        const data = await profileAPI.getProfile();
         setUserData(data);
-        setEditUsername(data?.user?.username || '');
-        setEditEmail(data?.user?.email || '');
+        setEditUsername(data?.username || '');
+        setEditEmail(data?.email || '');
+
       } catch (err) {
         if (err.response?.status === 401) {
           authAPI.logout();
@@ -81,26 +95,30 @@ function Profile() {
 
   // Сохранение аватарки и никнейма
   const handleSaveAvatar = async () => {
+    setIsSavingAvatar(true);
     try {
       setError('');
-      // TODO: Отправка на сервер
-      // await userAPI.updateProfile({ username: editUsername, avatar: editAvatar });
-      
-      // Пока просто обновляем локально
-      setUserData(prev => ({
-        ...prev,
-        user: {
-          ...prev.user,
-          username: editUsername,
-          avatar: editAvatarPreview
-        }
-      }));
-      
+      let updatedProfile = userData;
+
+      if (editAvatar) {
+        updatedProfile = await profileAPI.uploadAvatar(editAvatar);
+      }
+
+      if (editUsername && editUsername !== updatedProfile?.username) {
+        updatedProfile = await profileAPI.updateUsername(editUsername);
+      }
+
+      setUserData(updatedProfile);
+      setEditAvatarPreview(null);
+      setEditAvatar(null);
+      window.dispatchEvent(new CustomEvent('profile-updated', { detail: updatedProfile }));
       setSuccess('Профиль обновлён!');
       setShowAvatarModal(false);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Ошибка сохранения');
+      setError(getErrorMessage(err, 'Ошибка сохранения'));
+    } finally {
+      setIsSavingAvatar(false);
     }
   };
 
@@ -108,19 +126,18 @@ function Profile() {
   const handleSaveEmail = async () => {
     try {
       setError('');
-      // TODO: Отправка на сервер
-      // await userAPI.updateEmail({ email: editEmail });
-      
+      await profileAPI.updateEmail(editEmail);
+
       setUserData(prev => ({
         ...prev,
-        user: { ...prev.user, email: editEmail }
+        email: editEmail
       }));
       
       setSuccess('Email обновлён!');
       setShowEmailModal(false);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Ошибка сохранения');
+      setError(getErrorMessage(err, 'Ошибка сохранения'));
     }
   };
 
@@ -137,9 +154,8 @@ function Profile() {
     
     try {
       setError('');
-      // TODO: Отправка на сервер
-      // await userAPI.changePassword({ currentPassword, newPassword });
-      
+      await profileAPI.changePassword(currentPassword, newPassword);
+
       setSuccess('Пароль изменён!');
       setShowPasswordModal(false);
       setCurrentPassword('');
@@ -147,7 +163,7 @@ function Profile() {
       setConfirmPassword('');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setError('Ошибка смены пароля');
+      setError(getErrorMessage(err, 'Ошибка смены пароля'));
     }
   };
 
@@ -159,8 +175,8 @@ function Profile() {
     );
   }
 
-  const user = userData?.user;
-  const avatarUrl = user?.avatar || editAvatarPreview;
+  const user = userData;
+  const avatarUrl = editAvatarPreview || userData?.avatar_url;
 
   return (
     <div>
@@ -219,12 +235,12 @@ function Profile() {
               
               <div className="flex justify-between items-center bg-zinc-800 rounded-xl px-4 py-3">
                 <span className="text-gray-300">Чемпионат</span>
-                <span className="text-white font-semibold text-lg">522</span>
+                <span className="text-white font-semibold text-lg">{user?.contest_rating ?? 0}</span>
               </div>
               
               <div className="flex justify-between items-center bg-zinc-800 rounded-xl px-4 py-3">
                 <span className="text-gray-300">Обучение</span>
-                <span className="text-white font-semibold text-lg">21465</span>
+                <span className="text-white font-semibold text-lg">{user?.practice_rating ?? 0}</span>
               </div>
             </div>
           </div>
@@ -421,7 +437,9 @@ function Profile() {
                 </div>
                 
                 {/* Кнопка загрузки */}
-                <label className="absolute -bottom-2 -right-2 p-2 bg-purple-500 rounded-lg hover:bg-purple-600 transition-colors cursor-pointer">
+                <label
+                  className={`absolute -bottom-2 -right-2 p-2 bg-purple-500 rounded-lg hover:bg-purple-600 transition-colors cursor-pointer ${isSavingAvatar ? 'opacity-60 pointer-events-none' : ''}`}
+                >
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
@@ -432,6 +450,11 @@ function Profile() {
                     className="hidden" 
                   />
                 </label>
+                {isSavingAvatar && (
+                  <div className="absolute inset-0 rounded-xl bg-black/40 backdrop-blur-sm flex items-center justify-center">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                  </div>
+                )}
               </div>
             </div>
             
@@ -457,15 +480,20 @@ function Profile() {
                   setEditAvatar(null);
                   setError('');
                 }}
-                className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors"
+                className="flex-1 px-4 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={isSavingAvatar}
               >
                 Отмена
               </button>
               <button
                 onClick={handleSaveAvatar}
-                className="flex-1 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl transition-colors"
+                className="flex-1 px-4 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={isSavingAvatar}
               >
-                Сохранить
+                {isSavingAvatar && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white" />
+                )}
+                {isSavingAvatar ? 'Загрузка...' : 'Сохранить'}
               </button>
             </div>
           </div>

@@ -35,6 +35,18 @@ function Layout({ children }) {
     fetchUserData();
   }, [navigate]);
 
+  useEffect(() => {
+    const handleProfileUpdated = (event) => {
+      setUserData((prev) => ({
+        ...(prev || {}),
+        ...(event?.detail || {}),
+      }));
+    };
+
+    window.addEventListener('profile-updated', handleProfileUpdated);
+    return () => window.removeEventListener('profile-updated', handleProfileUpdated);
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
