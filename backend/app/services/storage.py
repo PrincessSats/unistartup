@@ -65,6 +65,7 @@ async def upload_avatar(file_bytes: bytes, user_id: int) -> str:
             Key=file_name,
             Body=compressed,
             ContentType='image/jpeg',
+            ACL='public-read',
         )
     except ClientError as e:
         raise ValueError(f"Ошибка загрузки в хранилище: {str(e)}")

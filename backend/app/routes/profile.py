@@ -14,14 +14,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+import inspect
 
 from app.database import get_db
-from app.models.user import User, UserProfile
+from app.models.user import User, UserProfile, UserRating
 from app.auth.security import hash_password, verify_password
 from app.auth.dependencies import get_current_user
 from app.services.storage import upload_avatar, delete_avatar
 
 router = APIRouter(prefix="/profile", tags=["Профиль"])
+
+
+async def _maybe_await(value):
+    """Позволяет вызывать как sync, так и async функции сервиса storage."""
+    if inspect.isawaitable(value):
+        return await value
+    return value
 
 
 # ========== Схемы (Pydantic модели) ==========
@@ -34,6 +42,8 @@ class ProfileResponse(BaseModel):
     role: str
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    contest_rating: int = 0
+    practice_rating: int = 0
     
     class Config:
         from_attributes = True
@@ -60,11 +70,22 @@ class MessageResponse(BaseModel):
     message: str
 
 
+async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int]:
+    result = await db.execute(
+        select(UserRating).where(UserRating.user_id == user_id)
+    )
+    rating = result.scalar_one_or_none()
+    if not rating:
+        return 0, 0
+    return rating.contest_rating, rating.practice_rating
+
+
 # ========== Эндпоинты ==========
 
 @router.get("", response_model=ProfileResponse)
 async def get_profile(
-    current_user_data: tuple = Depends(get_current_user)
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Получить свой профиль.
@@ -72,13 +93,17 @@ async def get_profile(
     """
     user, profile = current_user_data
     
+    contest_rating, practice_rating = await _get_ratings(db, user.id)
+
     return ProfileResponse(
         id=user.id,
         email=user.email,
         username=profile.username,
         role=profile.role,
         bio=profile.bio,
-        avatar_url=profile.avatar_url
+        avatar_url=profile.avatar_url,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating
     )
 
 
@@ -93,6 +118,13 @@ async def update_profile(
     Проверяем что новый username не занят другим пользователем.
     """
     user, profile = current_user_data
+    user_id = user.id
+
+    # Важно: get_current_user часто возвращает объекты из другого DB-сешена.
+    # Перезагружаем их в текущем `db`, иначе commit/refresh могут не сработать.
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
     
     # Проверяем что username не занят
     result = await db.execute(
@@ -112,13 +144,17 @@ async def update_profile(
     await db.commit()
     await db.refresh(profile)
     
+    contest_rating, practice_rating = await _get_ratings(db, user.id)
+
     return ProfileResponse(
         id=user.id,
         email=user.email,
         username=profile.username,
         role=profile.role,
         bio=profile.bio,
-        avatar_url=profile.avatar_url
+        avatar_url=profile.avatar_url,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating
     )
 
 
@@ -133,6 +169,13 @@ async def update_email(
     Проверяем что новый email не занят.
     """
     user, profile = current_user_data
+    user_id = user.id
+
+    # Перезагружаем в текущем `db`
+    user = await db.get(User, user_id)
+    # profile тут не обязателен, но оставим одинаковый подход
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
     
     # Проверяем что email не занят
     result = await db.execute(
@@ -165,6 +208,12 @@ async def update_password(
     Требуем текущий пароль для безопасности.
     """
     user, profile = current_user_data
+    user_id = user.id
+
+    # Перезагружаем в текущем `db`
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
     
     # Проверяем текущий пароль
     if not verify_password(data.current_password, user.password_hash):
@@ -204,6 +253,12 @@ async def upload_user_avatar(
     5. Сохраняем новый URL в профиле
     """
     user, profile = current_user_data
+    user_id = user.id
+
+    # Перезагружаем в текущем `db`
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
     
     # Проверяем тип файла
     if not file.content_type or not file.content_type.startswith('image/'):
@@ -227,7 +282,7 @@ async def upload_user_avatar(
     
     try:
         # Загружаем новую аватарку
-        new_avatar_url = await upload_avatar(file_bytes, user.id)
+        new_avatar_url = await _maybe_await(upload_avatar(file_bytes, user.id))
         
         # Обновляем профиль
         profile.avatar_url = new_avatar_url
@@ -236,21 +291,31 @@ async def upload_user_avatar(
         
         # Удаляем старую аватарку (не критично если не удалится)
         if old_avatar_url:
-            await delete_avatar(old_avatar_url)
+            await _maybe_await(delete_avatar(old_avatar_url))
         
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
+    except Exception as e:
+        # На проде лучше логировать, но сейчас важнее увидеть причину.
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Ошибка загрузки аватара: {type(e).__name__}: {e}"
+        )
     
+    contest_rating, practice_rating = await _get_ratings(db, user.id)
+
     return ProfileResponse(
         id=user.id,
         email=user.email,
         username=profile.username,
         role=profile.role,
         bio=profile.bio,
-        avatar_url=profile.avatar_url
+        avatar_url=profile.avatar_url,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating
     )
 
 print("✅ Profile router инициализирован")

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.database import get_db
-from app.models.user import User, UserProfile
+from app.models.user import User, UserProfile, UserRating
 from app.schemas.user import UserRegister, UserLogin, Token, UserResponse
 from app.auth.security import hash_password, verify_password, create_access_token
 
@@ -56,6 +56,12 @@ async def register(
         role="participant"  # По умолчанию обычный участник
     )
     db.add(new_profile)
+
+    # Создаем стартовые рейтинги
+    new_rating = UserRating(
+        user_id=new_user.id
+    )
+    db.add(new_rating)
     await db.commit()
     await db.refresh(new_user)
     

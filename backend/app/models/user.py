@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Text, Boolean, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, Text, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import relationship
@@ -19,6 +19,7 @@ class User(Base):
     
     # Связь с профилем (один к одному)
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    rating = relationship("UserRating", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
 class UserProfile(Base):
     """
@@ -37,3 +38,16 @@ class UserProfile(Base):
     
     # Связь с пользователем
     user = relationship("User", back_populates="profile")
+
+class UserRating(Base):
+    """
+    Рейтинги пользователя (чемпионат и практика).
+    """
+    __tablename__ = "user_ratings"
+    
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    contest_rating = Column(Integer, nullable=False, default=0)
+    practice_rating = Column(Integer, nullable=False, default=0)
+    last_updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    
+    user = relationship("User", back_populates="rating")
