@@ -52,7 +52,7 @@ jobs:
             --container-name hacknet-backend \
             --image "$IMAGE_URL" \
             --cores 1 \
-            --memory 512Mb \
+            --memory 512MB \
             --concurrency 1 \
             --execution-timeout 60s \
             --service-account-id ${{ secrets.YC_SA_ID }} \
