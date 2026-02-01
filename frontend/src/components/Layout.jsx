@@ -64,10 +64,10 @@ function Layout({ children }) {
     <div className="min-h-screen bg-[#0B0A10] flex">
       <Sidebar isAdmin={isAdmin} />
 
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col border border-white/[0.09]">
         <Header username={username} avatarUrl={avatarUrl} />  {/* ← передаём avatarUrl */}
 
-        <main className="flex-1 p-6">
+        <main className="flex-1 px-8 pt-4 pb-8">
           {children}
         </main>
       </div>

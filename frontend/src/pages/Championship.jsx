@@ -1,0 +1,333 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { contestAPI } from '../services/api';
+
+const formatDate = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const formatted = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+  return formatted.replace('.', '');
+};
+
+const formatDaysLeft = (daysLeft) => {
+  if (daysLeft <= 0) return 'Срок завершен';
+  const mod10 = daysLeft % 10;
+  const mod100 = daysLeft % 100;
+  let noun = 'дней';
+  if (mod10 === 1 && mod100 !== 11) noun = 'день';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) noun = 'дня';
+  return `Осталось ${daysLeft} ${noun}`;
+};
+
+function Championship() {
+  const [contest, setContest] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const fetchContest = async () => {
+      try {
+        setError('');
+        const data = await contestAPI.getActiveContest();
+        setContest(data);
+      } catch (err) {
+        setError('Не удалось загрузить чемпионат. Попробуйте позже.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchContest();
+  }, []);
+
+  const daysLeftLabel = useMemo(() => {
+    return formatDaysLeft(contest?.days_left ?? 0);
+  }, [contest?.days_left]);
+
+  const startLabel = useMemo(() => formatDate(contest?.start_at), [contest?.start_at]);
+  const endLabel = useMemo(() => formatDate(contest?.end_at), [contest?.end_at]);
+
+  const tasksTotal = contest?.tasks_total ?? 0;
+  const tasksSolved = contest?.tasks_solved ?? 0;
+  const progressPercent = tasksTotal ? Math.round((tasksSolved / tasksTotal) * 100) : 0;
+
+  const knowledgeAreas = contest?.knowledge_areas?.length
+    ? contest.knowledge_areas
+    : ['Стеганография', 'Реверс-инжиниринг'];
+
+  const featuredTask = contest?.featured_task;
+  const taskDescription = featuredTask?.description || contest?.description || '';
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64 font-sans-figma">
+        <div className="text-white/70 text-lg">Загрузка...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64 font-sans-figma">
+        <div className="text-white/70 text-lg">{error}</div>
+      </div>
+    );
+  }
+
+  const isPublic = contest?.is_public !== false;
+
+  return (
+    <div className="font-sans-figma text-white">
+      <div className="relative">
+        <div className={isPublic ? '' : 'blur-[6px] pointer-events-none select-none'}>
+          <div className="flex flex-col gap-6">
+            <section className="relative overflow-hidden rounded-[16px] border border-white/[0.06] px-8 pt-8 pb-6">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute left-0 top-0 h-[301px] w-[492px] bg-[radial-gradient(ellipse_at_top_left,_rgba(155,107,255,0.18),_rgba(11,10,16,0)_70%)]" />
+                <div className="absolute right-0 top-0 h-[375px] w-[551px] bg-[radial-gradient(ellipse_at_top_right,_rgba(155,107,255,0.12),_rgba(11,10,16,0)_70%)]" />
+              </div>
+
+              <div className="relative flex justify-end">
+                <button className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-white/[0.05] px-4 text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.08]">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h8m-8 0l4-4m-4 4l4 4M14 6h4a2 2 0 012 2v10a2 2 0 01-2 2h-4" />
+                  </svg>
+                  Поделиться
+                </button>
+              </div>
+
+              <div className="relative mt-6 flex flex-col items-center gap-4 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-[16px] bg-white/[0.03]">
+                  <svg className="h-10 w-10 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 14h4v4h-4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 22h8" />
+                  </svg>
+                </div>
+
+                <span className="inline-flex items-center rounded-[8px] border border-[#3FD18A]/10 bg-[#3FD18A]/10 px-3 py-1 text-[14px] leading-[20px] tracking-[0.04em] text-[#3FD18A]">
+                  {daysLeftLabel}
+                </span>
+
+                <h2 className="text-[36px] leading-[44px] tracking-[0.02em] font-medium">
+                  {contest?.title || 'Чемпионат'}
+                </h2>
+                <p className="max-w-[560px] text-[20px] leading-[24px] tracking-[0.02em] text-white/60">
+                  {contest?.description || 'Описание чемпионата скоро появится.'}
+                </p>
+              </div>
+
+              <div className="relative mt-6 flex flex-col items-center justify-between gap-6 md:flex-row">
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-white/[0.05] px-4 text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.08]"
+                  disabled={!contest?.prev_contest_id}
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Предыдущий чемпионат
+                </button>
+                <button
+                  className="inline-flex h-11 items-center gap-2 rounded-[8px] bg-white/[0.05] px-4 text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.08]"
+                  disabled={!contest?.next_contest_id}
+                >
+                  Следующий чемпионат
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </section>
+
+            <div className="flex items-center gap-2 rounded-[12px] border border-white/[0.06] bg-white/[0.02] px-3 py-2">
+              <button className="h-14 rounded-[10px] bg-white/[0.05] px-6 text-[18px] leading-[24px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.08]">
+                Описание
+              </button>
+              <button className="h-14 rounded-[10px] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white/60 transition-colors duration-300 ease-in-out hover:text-white">
+                Итоги
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-16 xl:flex-row">
+              <div className="flex-1">
+                <div className="flex flex-col gap-8">
+                  <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="max-w-[944px]">
+                      <h3 className="text-[26px] leading-[32px] tracking-[0.02em]">Описание</h3>
+                      <p className="mt-4 text-[18px] leading-[24px] tracking-[0.04em] text-white/60">
+                        {taskDescription || 'Описание задания появится позже.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-3">
+                      <div
+                        className="relative h-[76px] w-[76px] rounded-full p-[6px]"
+                        style={{
+                          background: `conic-gradient(#9B6BFF 0deg, #9B6BFF ${progressPercent * 3.6}deg, rgba(255,255,255,0.03) ${progressPercent * 3.6}deg, rgba(255,255,255,0.03) 360deg)`,
+                        }}
+                      >
+                        <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0B0A10] text-[14px] leading-[16px] text-white">
+                          {tasksSolved} / {tasksTotal || '?'}
+                        </div>
+                      </div>
+                      <p className="max-w-[258px] text-center text-[12px] leading-[16px] text-white/60">
+                        Текущее количество найденных флагов. Общее количество покажем, когда найдешь все флаги
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
+                      <div>
+                        <div className="text-white/60">Начало</div>
+                        <div className="text-white">{startLabel || '—'}</div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-white/60">Конец</div>
+                        <div className="text-white">{endLabel || '—'}</div>
+                      </div>
+                    </div>
+
+                    <div className="relative h-2 rounded-full bg-white/[0.09]">
+                      <div className="absolute left-0 top-0 h-2 rounded-full bg-white/60" style={{ width: `${progressPercent}%` }} />
+                      <div className="absolute right-[12%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-[#0B0A10]" />
+                    </div>
+
+                    <div className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">Дедлайн</div>
+                  </div>
+
+                  <button className="inline-flex items-center gap-2 text-[18px] leading-[24px] tracking-[0.04em] text-white transition-colors duration-300 ease-in-out hover:text-white/80">
+                    <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+                    </svg>
+                    Перейти к заданию
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 5v14m0 0l7-7m-7 7l-7-7" />
+                    </svg>
+                  </button>
+
+                  <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                      <input
+                        type="text"
+                        placeholder="Введи флаг сюда"
+                        className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] leading-[20px] tracking-[0.04em] text-white placeholder:text-white/60 focus:outline-none focus:border-white/30"
+                      />
+                      <button className="inline-flex h-14 shrink-0 items-center gap-2 rounded-[10px] bg-white/[0.03] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white/40 transition-colors duration-300 ease-in-out hover:text-white/70">
+                        <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+                        </svg>
+                        Сдать флаг
+                      </button>
+                    </div>
+                    <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">Не могу решить</span>
+                  </div>
+                </div>
+              </div>
+
+              <aside className="flex w-full flex-col gap-8 xl:w-[420px]">
+                <button className="inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-[12px] bg-white/[0.03] text-[18px] leading-[22px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.06]">
+                  <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+                  </svg>
+                  Отправить решение
+                </button>
+
+                <div className="rounded-[12px] bg-white/[0.03] p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <div className="text-[18px] leading-[24px] tracking-[0.04em]">Оцени задание</div>
+                      <div className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">Оцени задание</div>
+                    </div>
+                    <div className="flex items-center gap-2 text-white/60">
+                      {[...Array(5)].map((_, index) => (
+                        <svg key={index} className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M11.48 3.499a.562.562 0 011.04 0l2.125 6.496a.563.563 0 00.535.385h6.65a.562.562 0 01.328 1.017l-5.381 3.91a.563.563 0 00-.203.62l2.125 6.496a.562.562 0 01-.862.63l-5.381-3.91a.563.563 0 00-.66 0l-5.381 3.91a.562.562 0 01-.862-.63l2.125-6.496a.563.563 0 00-.203-.62l-5.381-3.91a.562.562 0 01.328-1.017h6.65a.563.563 0 00.535-.385L11.48 3.5z"
+                          />
+                        </svg>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[20px] leading-[24px] tracking-[0.02em]">
+                  <span>Награда</span>
+                  <span className="flex items-center gap-2 font-mono-figma text-[18px] leading-[24px] text-white/60">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M11.48 3.499a.562.562 0 011.04 0l2.125 6.496a.563.563 0 00.535.385h6.65a.562.562 0 01.328 1.017l-5.381 3.91a.563.563 0 00-.203.62l2.125 6.496a.562.562 0 01-.862.63l-5.381-3.91a.563.563 0 00-.66 0l-5.381 3.91a.562.562 0 01-.862-.63l2.125-6.496a.563.563 0 00-.203-.62l-5.381-3.91a.562.562 0 01.328-1.017h6.65a.563.563 0 00.535-.385L11.48 3.5z"
+                      />
+                    </svg>
+                    {contest?.reward_points ?? 0}
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <div className="text-[20px] leading-[24px] tracking-[0.02em]">Область знаний</div>
+                  <div className="flex flex-wrap gap-3">
+                    {knowledgeAreas.map((area) => (
+                      <span
+                        key={area}
+                        className="inline-flex items-center rounded-[8px] border border-white/[0.09] bg-white/[0.05] px-3 py-1 text-[14px] leading-[20px] tracking-[0.04em] text-white"
+                      >
+                        {area}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[20px] leading-[24px] tracking-[0.02em]">
+                  <span>Участники</span>
+                  <span className="text-[18px] leading-[24px] tracking-[0.04em] text-white/60">
+                    {contest?.participants_count ?? 0}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-[20px] leading-[24px] tracking-[0.02em]">
+                  <span>Первая кровь</span>
+                  <span className="text-[18px] leading-[24px] tracking-[0.04em] text-white/60">
+                    {contest?.first_blood_username || '—'}
+                  </span>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+
+        {!isPublic && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="rounded-[20px] border border-white/[0.12] bg-white/[0.04] px-6 py-5 text-center backdrop-blur-[64px] transition-opacity duration-300 ease-in-out">
+              <h2 className="text-[24px] leading-[32px] font-medium">
+                Мы тут пока придумываем новые задания
+              </h2>
+              <p className="mt-2 text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
+                Скоро покажем свежий контент и новые испытания.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default Championship;
