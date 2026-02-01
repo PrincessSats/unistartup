@@ -109,4 +109,11 @@ export const profileAPI = {
   },
 };
 
+export const contestAPI = {
+  getActiveContest: async () => {
+    const response = await api.get('/contests/active');
+    return response.data;
+  },
+};
+
 export default api;

@@ -5,32 +5,46 @@ import { NavLink } from 'react-router-dom';
 const icons = {
   home: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10.5l9-7.5 9 7.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 9.5V20h14V9.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20v-6h6v6" />
     </svg>
   ),
   championship: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 14h4v4h-4z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 22h8" />
     </svg>
   ),
   education: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v16" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h11l-1.5 3L15 11H4" />
     </svg>
   ),
   rating: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 3l1.5 2M16 3l-1.5 2" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h10a4 4 0 014 4v2a6 6 0 01-6 6H9a6 6 0 01-6-6v-2a4 4 0 014-4z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 11h8M10 15h4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2 11h3M19 11h3" />
     </svg>
   ),
   knowledge: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V8z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2v6h6" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6M9 17h6" />
     </svg>
   ),
   faq: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.09 9a3 3 0 115.82 1c0 2-3 2-3 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 17h.01" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   ),
   admin: (
@@ -53,56 +67,60 @@ const menuItems = [
 
 function Sidebar({ isAdmin }) {
   return (
-    <aside className="w-64 bg-[#0B0A10] border-r border-zinc-800 min-h-screen flex flex-col">
-      {/* Логотип */}
-      <div className="p-6">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="HackNet" className="w-10 h-10" />
-          <span className="text-white text-xl font-semibold">Hacknet</span>
+    <aside className="w-[264px] bg-[#0B0A10] min-h-screen flex flex-col font-sans-figma">
+      <div className="flex flex-col gap-20 px-8 py-8">
+        {/* Логотип */}
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-[12px] bg-white flex items-center justify-center">
+            <img src="/logo.png" alt="HackNet" className="w-8 h-8" />
+          </div>
+          <span className="text-white text-[20px] leading-[24px] tracking-[0.02em]">
+            Hacknet
+          </span>
         </div>
+
+        {/* Навигация */}
+        <nav className="flex-1">
+          <ul className="flex flex-col gap-4">
+            {menuItems.map((item) => (
+              <li key={item.path}>
+                <NavLink
+                  to={item.path}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
+                      isActive
+                        ? 'bg-white/[0.05] text-white'
+                        : 'text-white/60 hover:text-[#9B6BFF] hover:bg-[#9B6BFF]/[0.12]'
+                    }`
+                  }
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </NavLink>
+              </li>
+            ))}
+
+            {/* Кнопка Админки — только для админов */}
+            {isAdmin && (
+              <li>
+                <NavLink
+                  to="/admin"
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
+                      isActive
+                        ? 'bg-white/[0.05] text-white'
+                        : 'text-white/60 hover:text-[#9B6BFF] hover:bg-[#9B6BFF]/[0.12]'
+                    }`
+                  }
+                >
+                  {icons.admin}
+                  <span>Админка</span>
+                </NavLink>
+              </li>
+            )}
+          </ul>
+        </nav>
       </div>
-
-      {/* Навигация */}
-      <nav className="flex-1 px-4">
-        <ul className="space-y-1">
-          {menuItems.map((item) => (
-            <li key={item.path}>
-              <NavLink
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-zinc-800 text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-zinc-800/50'
-                  }`
-                }
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </NavLink>
-            </li>
-          ))}
-
-          {/* Кнопка Админки — только для админов */}
-          {isAdmin && (
-            <li>
-              <NavLink
-                to="/admin"
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-purple-500/20 text-purple-400'
-                      : 'text-purple-400 hover:bg-purple-500/10'
-                  }`
-                }
-              >
-                {icons.admin}
-                <span>Админка</span>
-              </NavLink>
-            </li>
-          )}
-        </ul>
-      </nav>
     </aside>
   );
 }

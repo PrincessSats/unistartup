@@ -8,7 +8,7 @@ env/
 venv/
 .venv/
 backend/.env
-
+shit.json
 # Node
 node_modules/
 frontend/build/
@@ -19,7 +19,7 @@ frontend/.env
 .idea/
 *.swp
 *.swo
-
+project.md
 # OS
 .DS_Store
 Thumbs.db

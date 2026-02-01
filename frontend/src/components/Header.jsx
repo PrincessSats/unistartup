@@ -7,16 +7,11 @@ function Header({ username, avatarUrl }) {  // ← добавили avatarUrl
   const navigate = useNavigate();
 
   return (
-    <header className="h-16 bg-[#0B0A10] border-b border-zinc-800 flex items-center justify-between px-6">
+    <header className="h-[120px] bg-[#0D0D0D]/10 border-b border-white/[0.09] backdrop-blur-[128px] flex items-center justify-between px-8 font-sans-figma">
       {/* Поле поиска */}
-      <div className="flex-1 max-w-2xl">
-        <div className="relative">
-          <svg
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
+      <div className="flex-1 max-w-[1062px]">
+        <div className="flex items-center gap-4 h-14 px-5 rounded-[10px] bg-white/[0.03] border border-white/[0.09]">
+          <svg className="w-[22px] h-[22px] text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -24,25 +19,24 @@ function Header({ username, avatarUrl }) {  // ← добавили avatarUrl
               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
             />
           </svg>
-          
           <input
             type="text"
             placeholder="Ищи задания, обучающие материалы или пользователей..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl py-3 pl-12 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-zinc-700 transition-colors"
+            className="w-full bg-transparent text-[18px] leading-[24px] tracking-[0.04em] text-white placeholder:text-white/60 focus:outline-none"
           />
         </div>
       </div>
 
       {/* Правая часть */}
-      <div className="flex items-center gap-4 ml-6">
-        {/* Иконка чата */}
-        <button className="p-2 text-gray-400 hover:text-white transition-colors">
+      <div className="flex items-center gap-6 ml-8">
+        {/* Иконка поддержки */}
+        <button className="w-14 h-14 rounded-[10px] bg-white/[0.05] text-white/80 hover:text-white transition-colors flex items-center justify-center">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               strokeWidth={1.5}
-              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+              d="M18 10a6 6 0 10-12 0v1a2 2 0 01-2 2h-.5a1.5 1.5 0 00-1.5 1.5v2A1.5 1.5 0 003.5 18H6a2 2 0 002-2v-1a4 4 0 118 0v1a2 2 0 002 2h2.5a1.5 1.5 0 001.5-1.5v-2A1.5 1.5 0 0020.5 13H20a2 2 0 01-2-2v-1z"
             />
           </svg>
         </button>
@@ -50,16 +44,16 @@ function Header({ username, avatarUrl }) {  // ← добавили avatarUrl
         {/* Профиль */}
         <button
           onClick={() => navigate('/profile')}
-          className="flex items-center gap-3 hover:bg-zinc-800 rounded-lg px-3 py-2 transition-colors"
+          className="flex items-center gap-4"
         >
-          <span className="text-white font-medium">{username}</span>
-          
-          {/* Аватар — картинка или заглушка */}
-          <div className="w-10 h-10 bg-zinc-800 rounded-full flex items-center justify-center border border-zinc-700 overflow-hidden">
+          <span className="font-mono-figma text-white/60 text-[18px] leading-[24px] tracking-[0.02em]">
+            {username}
+          </span>
+          <div className="w-[54px] h-[54px] rounded-[10px] bg-[#9B6BFF] flex items-center justify-center overflow-hidden">
             {avatarUrl ? (
               <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
             ) : (
-              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"

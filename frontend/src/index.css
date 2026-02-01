@@ -1,3 +1,62 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --font-sans-figma: "Inter Tight", "Inter", "Helvetica", sans-serif;
+  --font-mono-figma: "Pitagon Sans Mono", "SFMono-Regular", Menlo, monospace;
+  --color-bg: #0B0A10;
+  --color-white: #FFFFFF;
+  --color-purple-600: #8452FF;
+  --color-purple-500: #9B6BFF;
+  --color-purple-400: #AB85FF;
+  --color-green: #3FD18A;
+  --color-red: #FF5A6E;
+  --color-orange: #F2C94C;
+  --color-silver: #C9CCD6;
+  --color-bronze: #B87333;
+}
+
+.font-sans-figma {
+  font-family: var(--font-sans-figma);
+}
+
+.font-mono-figma {
+  font-family: var(--font-mono-figma);
+}
+
+@keyframes kb-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes kb-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.kb-reveal {
+  animation: kb-fade-up 0.7s ease-out both;
+}
+
+.kb-float {
+  animation: kb-float 7s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kb-reveal,
+  .kb-float {
+    animation: none;
+  }
+}
