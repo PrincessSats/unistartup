@@ -5,6 +5,8 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Championship from './pages/Championship';
 import Knowledge from './pages/Knowledge';
+import Home from './pages/Home';
+import Rating from './pages/Rating';
 import Layout from './components/Layout';
 import { authAPI } from './services/api';
 
@@ -29,10 +31,10 @@ function App() {
 
         <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
         
-        <Route path="/home" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Главная — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
         <Route path="/championship" element={<ProtectedRoute><Layout><Championship /></Layout></ProtectedRoute>} />
         <Route path="/education" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Обучение — скоро будет</div></Layout></ProtectedRoute>} />
-        <Route path="/rating" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Рейтинг — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/rating" element={<ProtectedRoute><Layout><Rating /></Layout></ProtectedRoute>} />
         <Route path="/knowledge" element={<ProtectedRoute><Layout><Knowledge /></Layout></ProtectedRoute>} />
         <Route path="/faq" element={<ProtectedRoute><Layout><div className="text-white text-2xl">FAQ — скоро будет</div></Layout></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Админка — скоро будет</div></Layout></ProtectedRoute>} />

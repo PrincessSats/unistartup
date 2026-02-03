@@ -26,6 +26,7 @@ CREATE TABLE user_ratings (
     user_id             BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     contest_rating      INTEGER NOT NULL DEFAULT 0,
     practice_rating     INTEGER NOT NULL DEFAULT 0,
+    first_blood         INTEGER NOT NULL DEFAULT 0,
     last_updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -209,6 +210,5 @@ CREATE TABLE llm_generations (
 );
 
 CREATE INDEX idx_llm_generations_purpose ON llm_generations(purpose);
-
 
 

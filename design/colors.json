@@ -1,0 +1,4660 @@
+{
+  "meta": {
+    "source": "figma",
+    "file_key": "J8iTUVFUOPGR6EGNoCay4f",
+    "captured_at": "2026-01-24T10:06:22Z",
+    "root_node_id": "715:28269"
+  },
+  "tokens": {
+    "colors": {},
+    "radii": {},
+    "typography": {}
+  },
+  "tree": {
+    "id": "715:28269",
+    "name": "Цвета",
+    "type": "FRAME",
+    "box": {
+      "x": -38817.0,
+      "y": -6257.0,
+      "w": 620.0,
+      "h": 5382.0
+    },
+    "layout": {
+      "mode": "VERTICAL",
+      "padding": {
+        "t": 0,
+        "r": 0,
+        "b": 0,
+        "l": 0
+      },
+      "gap": 0,
+      "align_primary": null,
+      "align_counter": null,
+      "sizing_primary": null,
+      "sizing_counter": null
+    },
+    "style": {
+      "radii": [
+        64.0,
+        64.0,
+        16.0,
+        16.0
+      ]
+    },
+    "children": [
+      {
+        "id": "715:28270",
+        "name": "Typography",
+        "type": "FRAME",
+        "box": {
+          "x": -38817.0,
+          "y": -6257.0,
+          "w": 620.0,
+          "h": 257.0
+        },
+        "layout": {
+          "mode": "VERTICAL",
+          "padding": {
+            "t": 80.0,
+            "r": 128.0,
+            "b": 80.0,
+            "l": 128.0
+          },
+          "gap": 64.0,
+          "align_primary": null,
+          "align_counter": null,
+          "sizing_primary": null,
+          "sizing_counter": "FIXED"
+        },
+        "children": [
+          {
+            "id": "715:28271",
+            "name": "Title",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -6177.0,
+              "w": 364.0,
+              "h": 97.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 0,
+                "r": 0,
+                "b": 0,
+                "l": 0
+              },
+              "gap": 24.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "children": [
+              {
+                "id": "715:28272",
+                "name": "Component name",
+                "type": "TEXT",
+                "box": {
+                  "x": -38689.0,
+                  "y": -6177.0,
+                  "w": 223.0,
+                  "h": 97.0
+                },
+                "text": {
+                  "characters": "Цвета",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 80.0,
+                    "lineHeightPx": 96.796875,
+                    "letterSpacing": 1.6,
+                    "textAlignHorizontal": "CENTER",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "715:28273",
+        "name": "Typography",
+        "type": "FRAME",
+        "box": {
+          "x": -38817.0,
+          "y": -6000.0,
+          "w": 620.0,
+          "h": 5125.0
+        },
+        "layout": {
+          "mode": "VERTICAL",
+          "padding": {
+            "t": 128.0,
+            "r": 128.0,
+            "b": 128.0,
+            "l": 128.0
+          },
+          "gap": 0,
+          "align_primary": null,
+          "align_counter": null,
+          "sizing_primary": null,
+          "sizing_counter": null
+        },
+        "style": {
+          "fills": [
+            {
+              "type": "SOLID",
+              "color": "#0B0A10",
+              "opacity": 1
+            }
+          ]
+        },
+        "children": [
+          {
+            "id": "715:28274",
+            "name": "white",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -5872.0,
+              "w": 364.0,
+              "h": 696.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28275",
+                "name": "white",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -5840.0,
+                  "w": 78.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "white",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28276",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -5768.0,
+                  "w": 300.0,
+                  "h": 560.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28277",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5768.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28278",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5768.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28279",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5766.0,
+                          "w": 76.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28280",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5746.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28281",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5730.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28282",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5696.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28283",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5696.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.8799999952316284
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28284",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5694.0,
+                          "w": 69.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-700",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28285",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5674.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28286",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5658.0,
+                          "w": 21.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "88%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28287",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5624.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28288",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5624.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28289",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5622.0,
+                          "w": 71.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-600",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28290",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5602.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28291",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5586.0,
+                          "w": 21.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "60%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28292",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5552.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28293",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5552.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.4000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28294",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5550.0,
+                          "w": 71.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-500",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28295",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5530.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28296",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5514.0,
+                          "w": 21.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "40%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28297",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5480.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28298",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5480.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28299",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5478.0,
+                          "w": 71.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-400",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28300",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5458.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28301",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5442.0,
+                          "w": 20.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "14%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28302",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5408.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28303",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5408.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.09000000357627869
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28304",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5406.0,
+                          "w": 71.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-300",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28305",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5386.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28306",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5370.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "9%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28307",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5336.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28308",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5336.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.05000000074505806
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28309",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5334.0,
+                          "w": 70.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-200",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28310",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5314.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28311",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5298.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "5%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28312",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5264.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28313",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5264.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.029999999329447746
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28314",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5262.0,
+                          "w": 68.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "white-100",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28315",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5242.0,
+                          "w": 42.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FFFFFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28316",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5226.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "3%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28317",
+            "name": "black",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -5176.0,
+              "w": 364.0,
+              "h": 192.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28318",
+                "name": "black",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -5144.0,
+                  "w": 76.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "black",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28319",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -5072.0,
+                  "w": 300.0,
+                  "h": 56.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28320",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -5072.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28321",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -5072.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#0B0A10",
+                              "opacity": 1
+                            }
+                          ],
+                          "strokes": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "strokeWeight": 1.0,
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28322",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5070.0,
+                          "w": 75.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "black-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28323",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5050.0,
+                          "w": 43.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#0B0A10",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28324",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -5034.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28325",
+            "name": "purple",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -4984.0,
+              "w": 364.0,
+              "h": 408.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28326",
+                "name": "purple",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4952.0,
+                  "w": 90.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "purple",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28327",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4880.0,
+                  "w": 300.0,
+                  "h": 272.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28328",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4880.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28329",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4880.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#8452FF",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28330",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4878.0,
+                          "w": 77.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "purple-800",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28331",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4858.0,
+                          "w": 43.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#8452FF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28332",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4842.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28333",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4808.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28334",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4808.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#9B6BFF",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28335",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4806.0,
+                          "w": 82.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "purple-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28336",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4786.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#9B6BFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28337",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4770.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28338",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4736.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28339",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4736.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#AB85FF",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28340",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4734.0,
+                          "w": 75.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "purple-700",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28341",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4714.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#AB85FF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28342",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4698.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28343",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4664.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28344",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4664.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#9B6BFF",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28345",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4662.0,
+                          "w": 77.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "purple-300",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28346",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4642.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#9B6BFF",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28347",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4626.0,
+                          "w": 21.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "88%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28348",
+            "name": "red",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -4576.0,
+              "w": 364.0,
+              "h": 264.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28349",
+                "name": "red",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4544.0,
+                  "w": 47.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "red",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28350",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4472.0,
+                  "w": 300.0,
+                  "h": 128.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28351",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4472.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28352",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4472.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FF5A6E",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28353",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4470.0,
+                          "w": 61.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "red-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28354",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4450.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FF5A6E",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28355",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4434.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28356",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4400.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28357",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4400.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FF5A6E",
+                              "opacity": 0.09000000357627869
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28358",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4398.0,
+                          "w": 55.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "red-200",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28359",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4378.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#FF5A6E",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28360",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4362.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "9%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28361",
+            "name": "orange",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -4312.0,
+              "w": 364.0,
+              "h": 336.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28362",
+                "name": "orange",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4280.0,
+                  "w": 101.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "orange",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28363",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -4208.0,
+                  "w": 300.0,
+                  "h": 200.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28364",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4208.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28365",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4208.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#F2C94C",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28366",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4206.0,
+                          "w": 86.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "orange-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28367",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4186.0,
+                          "w": 46.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#F2C94C",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28368",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4170.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28369",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4136.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28370",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4136.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#F2C94C",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28371",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4134.0,
+                          "w": 81.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "orange-300",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28372",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4114.0,
+                          "w": 46.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#F2C94C",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28373",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4098.0,
+                          "w": 20.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "14%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28374",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -4064.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28375",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -4064.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#F2C94C",
+                              "opacity": 0.09000000357627869
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28376",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4062.0,
+                          "w": 80.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "orange-200",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28377",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4042.0,
+                          "w": 46.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#F2C94C",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28378",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -4026.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "9%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28379",
+            "name": "green",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -3976.0,
+              "w": 364.0,
+              "h": 336.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28380",
+                "name": "green",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3944.0,
+                  "w": 82.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "green",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28381",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3872.0,
+                  "w": 300.0,
+                  "h": 200.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28382",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3872.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28383",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3872.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#3FD18A",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28384",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3870.0,
+                          "w": 78.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "green-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28385",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3850.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#3FD18A",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28386",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3834.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28387",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3800.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28388",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3800.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#3FD18A",
+                              "opacity": 0.6000000238418579
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28389",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3798.0,
+                          "w": 72.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "green-500",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28390",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3778.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#3FD18A",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28391",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3762.0,
+                          "w": 21.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "60%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28392",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3728.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28393",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3728.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#3FD18A",
+                              "opacity": 0.09000000357627869
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28394",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3726.0,
+                          "w": 72.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "green-200",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28395",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3706.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#3FD18A",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28396",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3690.0,
+                          "w": 15.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "9%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28397",
+            "name": "silver",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -3640.0,
+              "w": 364.0,
+              "h": 264.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28398",
+                "name": "silver",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3608.0,
+                  "w": 74.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "silver",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28399",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3536.0,
+                  "w": 300.0,
+                  "h": 128.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28400",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3536.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28401",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3536.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#C9CCD6",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28402",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3534.0,
+                          "w": 74.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "silver-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28403",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3514.0,
+                          "w": 48.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#C9CCD6",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28404",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3498.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28405",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3464.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28406",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3464.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#C9CCD6",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28407",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3462.0,
+                          "w": 69.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "silver-300",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28408",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3442.0,
+                          "w": 48.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#C9CCD6",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28409",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3426.0,
+                          "w": 20.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "14%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28410",
+            "name": "bronze",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -3376.0,
+              "w": 364.0,
+              "h": 264.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28411",
+                "name": "bronze",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3344.0,
+                  "w": 99.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "bronze",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28412",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3272.0,
+                  "w": 300.0,
+                  "h": 128.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28413",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3272.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28414",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3272.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#B87333",
+                              "opacity": 1
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28415",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3270.0,
+                          "w": 86.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "bronze-main",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28416",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3250.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#B87333",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28417",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3234.0,
+                          "w": 26.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "100%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28418",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3200.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28419",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3200.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#B87333",
+                              "opacity": 0.14000000059604645
+                            }
+                          ],
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28420",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3198.0,
+                          "w": 80.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "bronze-300",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28421",
+                        "name": "Hex",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3178.0,
+                          "w": 44.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "#B87333",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      },
+                      {
+                        "id": "715:28422",
+                        "name": "Rgb",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3162.0,
+                          "w": 20.0,
+                          "h": 16.0
+                        },
+                        "text": {
+                          "characters": "14%",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 400,
+                            "fontSize": 10.0,
+                            "lineHeightPx": 16.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 0.6000000238418579
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28423",
+            "name": "bronze",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -3112.0,
+              "w": 364.0,
+              "h": 720.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28424",
+                "name": "gradient",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3080.0,
+                  "w": 118.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "gradient",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28425",
+                "name": "Swatches",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -3008.0,
+                  "w": 300.0,
+                  "h": 584.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 16.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28426",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -3008.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28427",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -3008.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28428",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -3006.0,
+                          "w": 37.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "violet",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28429",
+                    "name": "Снимок экрана 2026-01-21 в 15.30.03 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -2936.0,
+                      "w": 158.0,
+                      "h": 229.0
+                    }
+                  },
+                  {
+                    "id": "715:28430",
+                    "name": "Swatch",
+                    "type": "FRAME",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -2691.0,
+                      "w": 300.0,
+                      "h": 56.0
+                    },
+                    "children": [
+                      {
+                        "id": "715:28431",
+                        "name": "Swatch",
+                        "type": "FRAME",
+                        "box": {
+                          "x": -38657.0,
+                          "y": -2691.0,
+                          "w": 160.0,
+                          "h": 56.0
+                        },
+                        "style": {
+                          "radii": 12.0
+                        }
+                      },
+                      {
+                        "id": "715:28432",
+                        "name": "Name",
+                        "type": "TEXT",
+                        "box": {
+                          "x": -38481.0,
+                          "y": -2689.0,
+                          "w": 29.0,
+                          "h": 20.0
+                        },
+                        "text": {
+                          "characters": "blue",
+                          "style": {
+                            "fontFamily": "Inter",
+                            "fontPostScriptName": null,
+                            "fontWeight": 500,
+                            "fontSize": 14.0,
+                            "lineHeightPx": 20.0,
+                            "letterSpacing": 0.0,
+                            "textAlignHorizontal": "LEFT",
+                            "textAlignVertical": "TOP"
+                          }
+                        },
+                        "style": {
+                          "fills": [
+                            {
+                              "type": "SOLID",
+                              "color": "#FFFFFF",
+                              "opacity": 1
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "id": "715:28433",
+                    "name": "Снимок экрана 2026-01-21 в 15.30.58 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -2619.0,
+                      "w": 158.0,
+                      "h": 195.0
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "715:28434",
+            "name": "bronze",
+            "type": "FRAME",
+            "box": {
+              "x": -38689.0,
+              "y": -2392.0,
+              "w": 364.0,
+              "h": 1389.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 32.0,
+                "r": 32.0,
+                "b": 32.0,
+                "l": 32.0
+              },
+              "gap": 32.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "style": {
+              "fills": [
+                {
+                  "type": "SOLID",
+                  "color": "#0B0A10",
+                  "opacity": 1
+                }
+              ],
+              "radii": 12.0
+            },
+            "children": [
+              {
+                "id": "715:28435",
+                "name": "токены",
+                "type": "TEXT",
+                "box": {
+                  "x": -38657.0,
+                  "y": -2360.0,
+                  "w": 108.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "токены",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "LEFT",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "715:28436",
+                "name": "Frame 2136139169",
+                "type": "FRAME",
+                "box": {
+                  "x": -38657.0,
+                  "y": -2288.0,
+                  "w": 212.43701171875,
+                  "h": 1253.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": "FIXED"
+                },
+                "children": [
+                  {
+                    "id": "715:28437",
+                    "name": "Снимок экрана 2026-01-21 в 15.34.19 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -2288.0,
+                      "w": 212.43701171875,
+                      "h": 278.9249267578125
+                    }
+                  },
+                  {
+                    "id": "715:28438",
+                    "name": "Снимок экрана 2026-01-21 в 15.34.26 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -2009.0750732421875,
+                      "w": 212.43701171875,
+                      "h": 422.7118225097656
+                    }
+                  },
+                  {
+                    "id": "715:28439",
+                    "name": "Снимок экрана 2026-01-21 в 15.34.40 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -1586.36328125,
+                      "w": 212.43701171875,
+                      "h": 396.2247619628906
+                    }
+                  },
+                  {
+                    "id": "715:28440",
+                    "name": "Снимок экрана 2026-01-21 в 15.34.43 1",
+                    "type": "RECTANGLE",
+                    "box": {
+                      "x": -38657.0,
+                      "y": -1190.138427734375,
+                      "w": 212.43701171875,
+                      "h": 155.13848876953125
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

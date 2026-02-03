@@ -116,4 +116,13 @@ export const contestAPI = {
   },
 };
 
+export const ratingsAPI = {
+  getLeaderboard: async (kind = 'contest') => {
+    const response = await api.get('/ratings/leaderboard', {
+      params: { kind },
+    });
+    return response.data;
+  },
+};
+
 export default api;
