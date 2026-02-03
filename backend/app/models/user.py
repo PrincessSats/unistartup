@@ -48,6 +48,7 @@ class UserRating(Base):
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     contest_rating = Column(Integer, nullable=False, default=0)
     practice_rating = Column(Integer, nullable=False, default=0)
+    first_blood = Column(Integer, nullable=False, default=0)
     last_updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     
     user = relationship("User", back_populates="rating")

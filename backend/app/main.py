@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import auth, pages, profile, contests
+from app.routes import auth, pages, profile, contests, ratings
 
-print("✅ Роутеры загружены: auth, pages, profile, contests")  # ← добавь это
+print("✅ Роутеры загружены: auth, pages, profile, contests, ratings")  # ← добавь это
 app = FastAPI(
     title="HackNet Platform API",
     description="API для платформы по кибербезопасности",
@@ -21,6 +21,7 @@ app.include_router(auth.router)
 app.include_router(pages.router)
 app.include_router(profile.router)  # ← новый роутер
 app.include_router(contests.router)
+app.include_router(ratings.router)
 
 @app.get("/")
 async def root():

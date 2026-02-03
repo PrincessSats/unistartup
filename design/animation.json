@@ -1,0 +1,384 @@
+{
+  "meta": {
+    "source": "figma",
+    "file_key": "J8iTUVFUOPGR6EGNoCay4f",
+    "captured_at": "2026-01-24T10:05:55Z",
+    "root_node_id": "715:28063"
+  },
+  "tokens": {
+    "colors": {},
+    "radii": {},
+    "typography": {}
+  },
+  "tree": {
+    "id": "715:28063",
+    "name": "Анимация",
+    "type": "FRAME",
+    "box": {
+      "x": -37999.0,
+      "y": -6257.0,
+      "w": 993.0,
+      "h": 785.0
+    },
+    "layout": {
+      "mode": "VERTICAL",
+      "padding": {
+        "t": 0,
+        "r": 0,
+        "b": 0,
+        "l": 0
+      },
+      "gap": 0,
+      "align_primary": null,
+      "align_counter": null,
+      "sizing_primary": null,
+      "sizing_counter": null
+    },
+    "style": {
+      "radii": [
+        64.0,
+        64.0,
+        16.0,
+        16.0
+      ]
+    },
+    "children": [
+      {
+        "id": "715:28064",
+        "name": "Typography",
+        "type": "FRAME",
+        "box": {
+          "x": -37999.0,
+          "y": -6257.0,
+          "w": 993.0,
+          "h": 257.0
+        },
+        "layout": {
+          "mode": "VERTICAL",
+          "padding": {
+            "t": 80.0,
+            "r": 128.0,
+            "b": 80.0,
+            "l": 128.0
+          },
+          "gap": 64.0,
+          "align_primary": null,
+          "align_counter": null,
+          "sizing_primary": null,
+          "sizing_counter": "FIXED"
+        },
+        "children": [
+          {
+            "id": "715:28065",
+            "name": "Title",
+            "type": "FRAME",
+            "box": {
+              "x": -37871.0,
+              "y": -6177.0,
+              "w": 737.0,
+              "h": 97.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 0,
+                "r": 0,
+                "b": 0,
+                "l": 0
+              },
+              "gap": 24.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": "FIXED"
+            },
+            "children": [
+              {
+                "id": "715:28066",
+                "name": "Component name",
+                "type": "TEXT",
+                "box": {
+                  "x": -37871.0,
+                  "y": -6177.0,
+                  "w": 378.0,
+                  "h": 97.0
+                },
+                "text": {
+                  "characters": "Анимация",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 80.0,
+                    "lineHeightPx": 96.796875,
+                    "letterSpacing": 1.6,
+                    "textAlignHorizontal": "CENTER",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "715:28067",
+        "name": "Typography",
+        "type": "FRAME",
+        "box": {
+          "x": -37999.0,
+          "y": -6000.0,
+          "w": 993.0,
+          "h": 528.0
+        },
+        "layout": {
+          "mode": "VERTICAL",
+          "padding": {
+            "t": 128.0,
+            "r": 128.0,
+            "b": 128.0,
+            "l": 128.0
+          },
+          "gap": 64.0,
+          "align_primary": null,
+          "align_counter": null,
+          "sizing_primary": null,
+          "sizing_counter": null
+        },
+        "style": {
+          "fills": [
+            {
+              "type": "SOLID",
+              "color": "#0B0A10",
+              "opacity": 1
+            }
+          ]
+        },
+        "children": [
+          {
+            "id": "715:28068",
+            "name": "Title",
+            "type": "FRAME",
+            "box": {
+              "x": -37871.0,
+              "y": -5872.0,
+              "w": 737.0,
+              "h": 40.0
+            },
+            "layout": {
+              "mode": "VERTICAL",
+              "padding": {
+                "t": 0,
+                "r": 0,
+                "b": 0,
+                "l": 0
+              },
+              "gap": 24.0,
+              "align_primary": null,
+              "align_counter": null,
+              "sizing_primary": null,
+              "sizing_counter": null
+            },
+            "children": [
+              {
+                "id": "715:28069",
+                "name": "Component name",
+                "type": "TEXT",
+                "box": {
+                  "x": -37871.0,
+                  "y": -5872.0,
+                  "w": 737.0,
+                  "h": 40.0
+                },
+                "text": {
+                  "characters": "Единая для всех переходов между состояниями:",
+                  "style": {
+                    "fontFamily": "Inter Tight",
+                    "fontPostScriptName": "InterTight-Regular",
+                    "fontWeight": 400,
+                    "fontSize": 32.0,
+                    "lineHeightPx": 40.0,
+                    "letterSpacing": 0.64,
+                    "textAlignHorizontal": "CENTER",
+                    "textAlignVertical": "TOP"
+                  }
+                },
+                "style": {
+                  "fills": [
+                    {
+                      "type": "SOLID",
+                      "color": "#FFFFFF",
+                      "opacity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "id": "715:28070",
+            "name": "Frame 2136139066",
+            "type": "FRAME",
+            "box": {
+              "x": -37871.0,
+              "y": -5768.0,
+              "w": 737.0,
+              "h": 168.0
+            },
+            "layout": {
+              "mode": "HORIZONTAL",
+              "padding": {
+                "t": 0,
+                "r": 0,
+                "b": 0,
+                "l": 0
+              },
+              "gap": 131.0,
+              "align_primary": null,
+              "align_counter": "CENTER",
+              "sizing_primary": "FIXED",
+              "sizing_counter": null
+            },
+            "children": [
+              {
+                "id": "715:28071",
+                "name": "Title",
+                "type": "FRAME",
+                "box": {
+                  "x": -37871.0,
+                  "y": -5768.0,
+                  "w": 516.0,
+                  "h": 168.0
+                },
+                "layout": {
+                  "mode": "VERTICAL",
+                  "padding": {
+                    "t": 0,
+                    "r": 0,
+                    "b": 0,
+                    "l": 0
+                  },
+                  "gap": 24.0,
+                  "align_primary": null,
+                  "align_counter": null,
+                  "sizing_primary": null,
+                  "sizing_counter": null
+                },
+                "children": [
+                  {
+                    "id": "715:28072",
+                    "name": "Component name",
+                    "type": "TEXT",
+                    "box": {
+                      "x": -37871.0,
+                      "y": -5768.0,
+                      "w": 203.0,
+                      "h": 40.0
+                    },
+                    "text": {
+                      "characters": "Тип: transition",
+                      "style": {
+                        "fontFamily": "Inter Tight",
+                        "fontPostScriptName": "InterTight-Regular",
+                        "fontWeight": 400,
+                        "fontSize": 32.0,
+                        "lineHeightPx": 40.0,
+                        "letterSpacing": 0.64,
+                        "textAlignHorizontal": "LEFT",
+                        "textAlignVertical": "TOP"
+                      }
+                    },
+                    "style": {
+                      "fills": [
+                        {
+                          "type": "SOLID",
+                          "color": "#FFFFFF",
+                          "opacity": 1
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "715:28073",
+                    "name": "Component name",
+                    "type": "TEXT",
+                    "box": {
+                      "x": -37871.0,
+                      "y": -5704.0,
+                      "w": 328.0,
+                      "h": 40.0
+                    },
+                    "text": {
+                      "characters": "Длительность: 300ms",
+                      "style": {
+                        "fontFamily": "Inter Tight",
+                        "fontPostScriptName": "InterTight-Regular",
+                        "fontWeight": 400,
+                        "fontSize": 32.0,
+                        "lineHeightPx": 40.0,
+                        "letterSpacing": 0.64,
+                        "textAlignHorizontal": "LEFT",
+                        "textAlignVertical": "TOP"
+                      }
+                    },
+                    "style": {
+                      "fills": [
+                        {
+                          "type": "SOLID",
+                          "color": "#FFFFFF",
+                          "opacity": 1
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "id": "715:28074",
+                    "name": "Component name",
+                    "type": "TEXT",
+                    "box": {
+                      "x": -37871.0,
+                      "y": -5640.0,
+                      "w": 516.0,
+                      "h": 40.0
+                    },
+                    "text": {
+                      "characters": "Easing: ease-in-out (0.42, 0, 0.58, 1)",
+                      "style": {
+                        "fontFamily": "Inter Tight",
+                        "fontPostScriptName": "InterTight-Regular",
+                        "fontWeight": 400,
+                        "fontSize": 32.0,
+                        "lineHeightPx": 40.0,
+                        "letterSpacing": 0.64,
+                        "textAlignHorizontal": "LEFT",
+                        "textAlignVertical": "TOP"
+                      }
+                    },
+                    "style": {
+                      "fills": [
+                        {
+                          "type": "SOLID",
+                          "color": "#FFFFFF",
+                          "opacity": 1
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

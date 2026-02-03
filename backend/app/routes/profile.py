@@ -44,6 +44,7 @@ class ProfileResponse(BaseModel):
     avatar_url: Optional[str] = None
     contest_rating: int = 0
     practice_rating: int = 0
+    first_blood: int = 0
     
     class Config:
         from_attributes = True
@@ -70,14 +71,14 @@ class MessageResponse(BaseModel):
     message: str
 
 
-async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int]:
+async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int, int]:
     result = await db.execute(
         select(UserRating).where(UserRating.user_id == user_id)
     )
     rating = result.scalar_one_or_none()
     if not rating:
-        return 0, 0
-    return rating.contest_rating, rating.practice_rating
+        return 0, 0, 0
+    return rating.contest_rating, rating.practice_rating, rating.first_blood
 
 
 # ========== Эндпоинты ==========
@@ -93,7 +94,7 @@ async def get_profile(
     """
     user, profile = current_user_data
     
-    contest_rating, practice_rating = await _get_ratings(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
     return ProfileResponse(
         id=user.id,
@@ -103,7 +104,8 @@ async def get_profile(
         bio=profile.bio,
         avatar_url=profile.avatar_url,
         contest_rating=contest_rating,
-        practice_rating=practice_rating
+        practice_rating=practice_rating,
+        first_blood=first_blood
     )
 
 
@@ -144,7 +146,7 @@ async def update_profile(
     await db.commit()
     await db.refresh(profile)
     
-    contest_rating, practice_rating = await _get_ratings(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
     return ProfileResponse(
         id=user.id,
@@ -154,7 +156,8 @@ async def update_profile(
         bio=profile.bio,
         avatar_url=profile.avatar_url,
         contest_rating=contest_rating,
-        practice_rating=practice_rating
+        practice_rating=practice_rating,
+        first_blood=first_blood
     )
 
 
@@ -305,7 +308,7 @@ async def upload_user_avatar(
             detail=f"Ошибка загрузки аватара: {type(e).__name__}: {e}"
         )
     
-    contest_rating, practice_rating = await _get_ratings(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
     return ProfileResponse(
         id=user.id,
@@ -315,7 +318,8 @@ async def upload_user_avatar(
         bio=profile.bio,
         avatar_url=profile.avatar_url,
         contest_rating=contest_rating,
-        practice_rating=practice_rating
+        practice_rating=practice_rating,
+        first_blood=first_blood
     )
 
 print("✅ Profile router инициализирован")
