@@ -30,6 +30,13 @@ CREATE TABLE user_ratings (
     last_updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 3.1 Обратная связь
+CREATE TABLE feedback (
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    topic       TEXT NOT NULL,
+    message     TEXT NOT NULL
+);
+
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
     id                  BIGSERIAL PRIMARY KEY,
@@ -210,5 +217,4 @@ CREATE TABLE llm_generations (
 );
 
 CREATE INDEX idx_llm_generations_purpose ON llm_generations(purpose);
-
 

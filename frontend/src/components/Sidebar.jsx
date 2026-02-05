@@ -1,58 +1,24 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 
-// Иконки для меню (используем простые SVG)
+const iconAssets = {
+  home: 'https://www.figma.com/api/mcp/asset/5b999686-618b-4b69-a7b0-3bcc1ca8b52c',
+  championship: 'https://www.figma.com/api/mcp/asset/c97b5811-3f58-43a6-8440-4066e7758353',
+  education: 'https://www.figma.com/api/mcp/asset/1266fbcc-e7b5-423b-ab51-826960891d83',
+  rating: 'https://www.figma.com/api/mcp/asset/63d69515-1640-4d7a-a1a7-a1667a8394d7',
+  knowledge: 'https://www.figma.com/api/mcp/asset/672fc1c8-5d30-4e84-a6e6-8c1dfdf6d4fb',
+  faq: 'https://www.figma.com/api/mcp/asset/714934b3-a071-4ea1-83c2-483949b73670',
+  admin: 'https://www.figma.com/api/mcp/asset/7ef5f3be-8d99-4176-8e66-49568e7f8777',
+};
+
 const icons = {
-  home: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10.5l9-7.5 9 7.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 9.5V20h14V9.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 20v-6h6v6" />
-    </svg>
-  ),
-  championship: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 14h4v4h-4z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 22h8" />
-    </svg>
-  ),
-  education: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v16" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h11l-1.5 3L15 11H4" />
-    </svg>
-  ),
-  rating: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 3l1.5 2M16 3l-1.5 2" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h10a4 4 0 014 4v2a6 6 0 01-6 6H9a6 6 0 01-6-6v-2a4 4 0 014-4z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 11h8M10 15h4" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2 11h3M19 11h3" />
-    </svg>
-  ),
-  knowledge: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V8z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14 2v6h6" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6M9 17h6" />
-    </svg>
-  ),
-  faq: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.09 9a3 3 0 115.82 1c0 2-3 2-3 4" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 17h.01" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  ),
-  admin: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  ),
+  home: <img src={iconAssets.home} alt="" className="w-5 h-5" />,
+  championship: <img src={iconAssets.championship} alt="" className="w-5 h-5" />,
+  education: <img src={iconAssets.education} alt="" className="w-5 h-5" />,
+  rating: <img src={iconAssets.rating} alt="" className="w-5 h-5" />,
+  knowledge: <img src={iconAssets.knowledge} alt="" className="w-5 h-5" />,
+  faq: <img src={iconAssets.faq} alt="" className="w-5 h-5" />,
+  admin: <img src={iconAssets.admin} alt="" className="w-5 h-5" />,
 };
 
 // Пункты меню

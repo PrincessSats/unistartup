@@ -125,4 +125,11 @@ export const ratingsAPI = {
   },
 };
 
+export const feedbackAPI = {
+  submitFeedback: async (topic, message) => {
+    const response = await api.post('/feedback', { topic, message });
+    return response.data;
+  },
+};
+
 export default api;
