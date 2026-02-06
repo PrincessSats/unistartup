@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from app.database import get_db
 from app.models.user import User, UserProfile, UserRating
 from app.schemas.user import UserRegister, UserLogin, Token, UserResponse
@@ -112,5 +112,13 @@ async def login(
     
     # Создаем токен
     access_token = create_access_token(data={"sub": user.email})
+
+    # Обновляем время последнего входа (используем лёгкое обновление без загрузки профиля)
+    await db.execute(
+        update(UserProfile)
+        .where(UserProfile.user_id == user.id)
+        .values(last_login=func.now())
+    )
+    await db.commit()
     
     return Token(access_token=access_token, token_type="bearer")

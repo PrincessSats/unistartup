@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { feedbackAPI, profileAPI } from '../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { feedbackAPI, knowledgeAPI, profileAPI } from '../services/api';
 
 const assets = {
   trainingWeb: 'https://www.figma.com/api/mcp/asset/fc4f12da-20d3-4566-8900-ff0041cc9699',
@@ -81,12 +81,6 @@ const knowledgeAreas = [
   'Pentest',
   'Blue Team',
   'Network',
-];
-
-const knowledgeNews = [
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
 ];
 
 const taskNews = [
@@ -476,9 +470,9 @@ function NewsCard({ title, children, icon }) {
   );
 }
 
-function NewsItem({ title, meta }) {
-  return (
-    <div className="bg-white/[0.05] rounded-[12px] px-4 py-5">
+function NewsItem({ title, meta, to }) {
+  const content = (
+    <>
       <div className="text-[18px] leading-[24px] tracking-[0.72px] text-white truncate">
         {title}
       </div>
@@ -487,6 +481,20 @@ function NewsItem({ title, meta }) {
           {meta}
         </div>
       ) : null}
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className="bg-white/[0.05] rounded-[12px] px-4 py-5 transition hover:border hover:border-[#9B6BFF]/50">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="bg-white/[0.05] rounded-[12px] px-4 py-5">
+      {content}
     </div>
   );
 }
@@ -509,11 +517,32 @@ function TaskNewsItem({ title }) {
   );
 }
 
+function formatRelativeTime(value) {
+  if (!value) return 'Без даты';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Без даты';
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60000) return 'Только что';
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 60) return `${diffMin} мин назад`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} ч назад`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} дн назад`;
+}
+
+function getArticleTitle(entry) {
+  return entry?.ru_title || entry?.cve_id || entry?.source_id || 'Без названия';
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showFeedbackCard, setShowFeedbackCard] = useState(true);
+  const [knowledgeItems, setKnowledgeItems] = useState([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+  const [knowledgeError, setKnowledgeError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -543,6 +572,36 @@ export default function Home() {
     return () => {
       isMounted = false;
       window.removeEventListener('profile-updated', handleProfileUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchKnowledge = async () => {
+      try {
+        setKnowledgeError('');
+        const data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc' });
+        if (isMounted) {
+          setKnowledgeItems(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить статьи базы знаний', error);
+        const detail = error?.response?.data?.detail;
+        setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+        if (isMounted) {
+          setKnowledgeItems([]);
+        }
+      } finally {
+        if (isMounted) {
+          setKnowledgeLoading(false);
+        }
+      }
+    };
+
+    fetchKnowledge();
+
+    return () => {
+      isMounted = false;
     };
   }, []);
 
@@ -686,8 +745,22 @@ export default function Home() {
             </div>
 
             <NewsCard title="База знаний" icon={assets.doc}>
-              {knowledgeNews.map((item, index) => (
-                <NewsItem key={`${item}-${index}`} title={item} meta="45 мин назад" />
+              {knowledgeError && (
+                <NewsItem title={knowledgeError} meta="" />
+              )}
+              {knowledgeLoading && (
+                <NewsItem title="Загрузка статей..." meta="" />
+              )}
+              {!knowledgeLoading && !knowledgeError && knowledgeItems.length === 0 && (
+                <NewsItem title="Пока нет статей" meta="" />
+              )}
+              {!knowledgeLoading && !knowledgeError && knowledgeItems.length > 0 && knowledgeItems.map((item) => (
+                <NewsItem
+                  key={item.id}
+                  title={getArticleTitle(item)}
+                  meta={formatRelativeTime(item.created_at)}
+                  to={item?.id ? `/knowledge/${item.id}` : undefined}
+                />
               ))}
             </NewsCard>
 
