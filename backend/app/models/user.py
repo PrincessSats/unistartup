@@ -35,6 +35,7 @@ class UserProfile(Base):
     avatar_url = Column(Text, nullable=True)
     locale = Column(Text, default="ru-RU")
     timezone = Column(Text, default="Europe/Moscow")
+    last_login = Column(TIMESTAMP(timezone=True), nullable=True)
     
     # Связь с пользователем
     user = relationship("User", back_populates="profile")

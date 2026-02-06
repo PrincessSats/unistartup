@@ -70,6 +70,48 @@ export const userAPI = {
   },
 };
 
+export const adminAPI = {
+  getDashboard: async () => {
+    const response = await api.get('/admin');
+    return response.data;
+  },
+  createArticle: async (payload) => {
+    const response = await api.post('/admin/kb_entries', payload);
+    return response.data;
+  },
+  listArticles: async (params = {}) => {
+    const response = await api.get('/admin/kb_entries', { params });
+    return response.data;
+  },
+  updateArticle: async (entryId, payload) => {
+    const response = await api.put(`/admin/kb_entries/${entryId}`, payload);
+    return response.data;
+  },
+  fetchNvd24h: async () => {
+    const response = await api.post('/admin/nvd_sync');
+    return response.data;
+  },
+};
+
+export const knowledgeAPI = {
+  getEntries: async (params = {}) => {
+    const response = await api.get('/kb_entries', { params });
+    return response.data;
+  },
+  getEntry: async (entryId) => {
+    const response = await api.get(`/kb_entries/${entryId}`);
+    return response.data;
+  },
+  getComments: async (entryId, params = {}) => {
+    const response = await api.get(`/kb_entries/${entryId}/comments`, { params });
+    return response.data;
+  },
+  createComment: async (entryId, payload) => {
+    const response = await api.post(`/kb_entries/${entryId}/comments`, payload);
+    return response.data;
+  },
+};
+
 // API профиля (НОВОЕ)
 export const profileAPI = {
   // Получить профиль
