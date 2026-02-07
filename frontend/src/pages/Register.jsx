@@ -63,7 +63,11 @@ function Register() {
         navigate(target);
       }, 1200);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка регистрации');
+      if (!err.response) {
+        setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
+      } else {
+        setError(err.response?.data?.detail || 'Ошибка регистрации');
+      }
     } finally {
       setLoading(false);
     }

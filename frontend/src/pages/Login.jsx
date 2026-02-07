@@ -32,7 +32,11 @@ function Login() {
         navigate('/home');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка входа');
+      if (!err.response) {
+        setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
+      } else {
+        setError(err.response?.data?.detail || 'Ошибка входа');
+      }
     } finally {
       setLoading(false);
     }
