@@ -1,3 +1,7 @@
+import json
+from typing import Any
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -17,6 +21,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    SQL_ECHO: bool = False
+
+    # CORS
+    CORS_ALLOW_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ALLOW_CREDENTIALS: bool = False
+    CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+    CORS_ALLOW_HEADERS: list[str] = ["Authorization", "Content-Type", "X-Auth-Token"]
     
     # Yandex Object Storage (S3-совместимое хранилище)
     S3_ACCESS_KEY: str = ""
@@ -31,6 +42,24 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
+        extra = "ignore"
+
+    @field_validator("CORS_ALLOW_ORIGINS", "CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
+    @classmethod
+    def parse_cors_list(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return []
+            if value.startswith("["):
+                try:
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except json.JSONDecodeError:
+                    pass
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
     
     @property
     def database_url(self) -> str:

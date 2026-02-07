@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
+from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/feedback", tags=["Обратная связь"])
 
@@ -20,11 +21,18 @@ class FeedbackResponse(BaseModel):
 
 @router.post("", response_model=FeedbackResponse)
 async def submit_feedback(
+    request: Request,
     data: FeedbackRequest,
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     user, _profile = current_user_data
+    enforce_rate_limit(
+        request,
+        scope="feedback_submit",
+        subject=str(user.id),
+        rule=RateLimit(max_requests=10, window_seconds=60),
+    )
 
     topic = (data.topic or "").strip()
     message = (data.message or "").strip()
