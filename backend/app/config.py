@@ -24,11 +24,11 @@ class Settings(BaseSettings):
     SQL_ECHO: bool = False
 
     # CORS
-    CORS_ALLOW_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://storage.yandexcloud.net",
-    ]
+    CORS_ALLOW_ORIGINS: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://storage.yandexcloud.net"
+    )
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = (
         r"^https://[a-zA-Z0-9-]+\.website\.yandexcloud\.net$"
     )
@@ -51,9 +51,15 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"
 
-    @field_validator("CORS_ALLOW_ORIGINS", "CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
+    @field_validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
     @classmethod
     def parse_cors_list(cls, value: Any) -> Any:
+        return cls._parse_list(value)
+
+    @staticmethod
+    def _parse_list(value: Any) -> list[str]:
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
         if isinstance(value, str):
             value = value.strip()
             if not value:
@@ -66,7 +72,7 @@ class Settings(BaseSettings):
                 except json.JSONDecodeError:
                     pass
             return [item.strip() for item in value.split(",") if item.strip()]
-        return value
+        return [str(value).strip()] if str(value).strip() else []
 
     @field_validator("CORS_ALLOW_ORIGIN_REGEX", mode="before")
     @classmethod
@@ -74,6 +80,10 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @property
+    def cors_allow_origins(self) -> list[str]:
+        return self._parse_list(self.CORS_ALLOW_ORIGINS)
     
     @property
     def database_url(self) -> str:

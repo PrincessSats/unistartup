@@ -48,7 +48,7 @@ jobs:
         env:
           IMAGE_URL: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
         run: |
-          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_ORIGINS=${{ secrets.CORS_ALLOW_ORIGINS || 'https://storage.yandexcloud.net' }},CORS_ALLOW_ORIGIN_REGEX=${{ secrets.CORS_ALLOW_ORIGIN_REGEX || '^https://[a-zA-Z0-9-]+\\.website\\.yandexcloud\\.net$' }},CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }}"
+          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }}"
           yc serverless container revision deploy \
             --container-name hacknet-backend \
             --image "$IMAGE_URL" \
