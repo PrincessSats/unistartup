@@ -75,6 +75,38 @@ export const adminAPI = {
     const response = await api.get('/admin');
     return response.data;
   },
+  listTasks: async (params = {}) => {
+    const response = await api.get('/admin/tasks', { params });
+    return response.data;
+  },
+  generateTask: async (payload) => {
+    const response = await api.post('/admin/tasks/generate', payload);
+    return response.data;
+  },
+  createTask: async (payload) => {
+    const response = await api.post('/admin/tasks', payload);
+    return response.data;
+  },
+  updateTask: async (taskId, payload) => {
+    const response = await api.put(`/admin/tasks/${taskId}`, payload);
+    return response.data;
+  },
+  listContests: async () => {
+    const response = await api.get('/admin/contests');
+    return response.data;
+  },
+  getContest: async (contestId) => {
+    const response = await api.get(`/admin/contests/${contestId}`);
+    return response.data;
+  },
+  createContest: async (payload) => {
+    const response = await api.post('/admin/contests', payload);
+    return response.data;
+  },
+  updateContest: async (contestId, payload) => {
+    const response = await api.put(`/admin/contests/${contestId}`, payload);
+    return response.data;
+  },
   createArticle: async (payload) => {
     const response = await api.post('/admin/kb_entries', payload);
     return response.data;
@@ -87,6 +119,10 @@ export const adminAPI = {
     const response = await api.put(`/admin/kb_entries/${entryId}`, payload);
     return response.data;
   },
+  generateArticle: async (payload) => {
+    const response = await api.post('/admin/kb_entries/generate', payload);
+    return response.data;
+  },
   fetchNvd24h: async () => {
     const response = await api.post('/admin/nvd_sync');
     return response.data;
@@ -96,6 +132,14 @@ export const adminAPI = {
 export const knowledgeAPI = {
   getEntries: async (params = {}) => {
     const response = await api.get('/kb_entries', { params });
+    return response.data;
+  },
+  getEntriesPaged: async (params = {}) => {
+    const response = await api.get('/kb_entries/paged', { params });
+    return response.data;
+  },
+  getTags: async (params = {}) => {
+    const response = await api.get('/kb_entries/tags', { params });
     return response.data;
   },
   getEntry: async (entryId) => {
@@ -154,6 +198,18 @@ export const profileAPI = {
 export const contestAPI = {
   getActiveContest: async () => {
     const response = await api.get('/contests/active');
+    return response.data;
+  },
+  joinContest: async (contestId) => {
+    const response = await api.post(`/contests/${contestId}/join`);
+    return response.data;
+  },
+  getCurrentTask: async (contestId) => {
+    const response = await api.get(`/contests/${contestId}/current-task`);
+    return response.data;
+  },
+  submitFlag: async (contestId, payload) => {
+    const response = await api.post(`/contests/${contestId}/submit`, payload);
     return response.data;
   },
 };

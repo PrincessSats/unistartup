@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { adminAPI, authAPI } from '../services/api';
 
 const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
@@ -164,6 +164,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
   });
   const [editStatus, setEditStatus] = useState('idle');
   const [editError, setEditError] = useState('');
+  const [editGenerateStatus, setEditGenerateStatus] = useState('idle');
 
   useEffect(() => {
     if (!open) return;
@@ -198,6 +199,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
     });
     setEditStatus('idle');
     setEditError('');
+    setEditGenerateStatus('idle');
   }, [open]);
 
   const handleOverlayClick = (event) => {
@@ -284,6 +286,34 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
   };
 
   const canUpdate = editForm.source.trim().length > 0 && editStatus !== 'saving' && selectedId;
+
+  const handleGenerateArticle = async () => {
+    if (!editForm.raw_en_text.trim()) {
+      setEditError('Заполните Raw EN text для генерации');
+      return;
+    }
+    setEditGenerateStatus('generating');
+    setEditError('');
+    try {
+      const result = await adminAPI.generateArticle({
+        raw_en_text: editForm.raw_en_text.trim(),
+      });
+      setEditForm((prev) => ({
+        ...prev,
+        ru_title: result.ru_title || prev.ru_title,
+        ru_summary: result.ru_summary || prev.ru_summary,
+        ru_explainer: result.ru_explainer || prev.ru_explainer,
+        tags: Array.isArray(result.tags) && result.tags.length
+          ? result.tags.join(', ')
+          : prev.tags,
+      }));
+      setEditGenerateStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setEditError(typeof detail === 'string' ? detail : 'Не удалось сгенерировать поля');
+      setEditGenerateStatus('idle');
+    }
+  };
 
   const handleUpdate = async () => {
     if (!canUpdate) return;
@@ -543,6 +573,11 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
                       {editError}
                     </div>
                   )}
+                  {editGenerateStatus === 'generating' && (
+                    <div className="bg-white/5 border border-white/10 text-white/70 px-4 py-2 rounded-[12px] mb-4 text-sm">
+                      Отправляем в модель… это может занять до 20–40 секунд
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-white text-sm mb-2 block">Источник *</label>
@@ -653,6 +688,14 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
                     </button>
                     <button
                       type="button"
+                      onClick={handleGenerateArticle}
+                      disabled={editGenerateStatus === 'generating' || !editForm.raw_en_text.trim()}
+                      className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {editGenerateStatus === 'generating' ? 'Генерация...' : 'Отправить в модель'}
+                    </button>
+                    <button
+                      type="button"
                       onClick={handleUpdate}
                       disabled={!canUpdate}
                       className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8452FF] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
@@ -670,12 +713,789 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
   );
 }
 
+function CreateTaskModal({ open, onClose, onCreated }) {
+  const [generateForm, setGenerateForm] = useState({
+    difficulty: '3',
+    tags: '',
+    description: '',
+  });
+  const [taskForm, setTaskForm] = useState({
+    title: '',
+    category: 'misc',
+    difficulty: 3,
+    points: 200,
+    tags: '',
+    language: 'ru',
+    story: '',
+    participant_description: '',
+    state: 'draft',
+    task_kind: 'contest',
+    creation_solution: '',
+    llm_raw_response: null,
+  });
+  const [flags, setFlags] = useState([
+    { flag_id: 'main', format: 'FLAG{...}', expected_value: '', description: '' },
+  ]);
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setGenerateForm({ difficulty: '3', tags: '', description: '' });
+    setTaskForm({
+      title: '',
+      category: 'misc',
+      difficulty: 3,
+      points: 200,
+      tags: '',
+      language: 'ru',
+      story: '',
+      participant_description: '',
+      state: 'draft',
+      task_kind: 'contest',
+      creation_solution: '',
+      llm_raw_response: null,
+    });
+    setFlags([{ flag_id: 'main', format: 'FLAG{...}', expected_value: '', description: '' }]);
+    setStatus('idle');
+    setError('');
+  }, [open]);
+
+  const handleGenerate = async () => {
+    if (!generateForm.description.trim()) {
+      setError('Добавьте описание для генерации');
+      return;
+    }
+    setStatus('generating');
+    setError('');
+    try {
+      const payload = {
+        difficulty: Number(generateForm.difficulty || 1),
+        tags: generateForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+        description: generateForm.description.trim(),
+      };
+      const result = await adminAPI.generateTask(payload);
+      const data = result?.task || {};
+        setTaskForm((prev) => ({
+          ...prev,
+          title: data.title || '',
+          category: data.category || 'misc',
+          difficulty: data.difficulty ?? Number(generateForm.difficulty || 1),
+          points: data.points ?? (100 + (Number(data.difficulty || generateForm.difficulty || 1) - 1) * 50),
+          tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
+          language: data.language || 'ru',
+          story: data.story || '',
+          participant_description: data.participant_description || '',
+          state: data.state || 'draft',
+          creation_solution: data.creation_solution || '',
+          llm_raw_response: data.llm_raw_response || {
+            model: result.model,
+            raw_text: result.raw_text,
+            parsed: data,
+          },
+        }));
+      setStatus('generated');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось сгенерировать задачу');
+      setStatus('idle');
+    }
+  };
+
+  const handleSave = async () => {
+    if (!taskForm.title.trim()) {
+      setError('Заполните название задачи');
+      return;
+    }
+    if (flags.some((flag) => !flag.expected_value.trim())) {
+      setError('Укажите значение флага');
+      return;
+    }
+    setStatus('saving');
+    setError('');
+    try {
+      const payload = {
+        title: taskForm.title.trim(),
+        category: taskForm.category.trim(),
+        difficulty: Number(taskForm.difficulty || 1),
+        points: Number(taskForm.points || 0),
+        tags: taskForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+        language: taskForm.language || 'ru',
+        story: taskForm.story || null,
+        participant_description: taskForm.participant_description || null,
+        state: taskForm.state || 'draft',
+        task_kind: taskForm.task_kind || 'contest',
+        creation_solution: taskForm.creation_solution || null,
+        llm_raw_response: taskForm.llm_raw_response || null,
+        flags: flags.map((flag) => ({
+          flag_id: flag.flag_id || 'main',
+          format: flag.format || 'FLAG{...}',
+          expected_value: flag.expected_value,
+          description: flag.description || null,
+        })),
+      };
+      await adminAPI.createTask(payload);
+      setStatus('idle');
+      onCreated?.();
+      onClose();
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось создать задачу');
+      setStatus('idle');
+    }
+  };
+
+  const updateFlag = (index, field, value) => {
+    setFlags((prev) => prev.map((flag, idx) => (idx === index ? { ...flag, [field]: value } : flag)));
+  };
+
+  const addFlag = () => {
+    setFlags((prev) => [...prev, { flag_id: `flag${prev.length + 1}`, format: 'FLAG{...}', expected_value: '', description: '' }]);
+  };
+
+  const removeFlag = (index) => {
+    setFlags((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8">
+      <div className="w-full max-w-4xl bg-[#0B0A10] border border-white/10 rounded-[20px] p-6 text-white">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-[22px] leading-[28px]">Создание задачи</h3>
+            <p className="text-[14px] text-white/50 mt-1">Генерация через LLM + ручная правка</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white">Закрыть</button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div className="flex flex-col gap-4">
+            <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Параметры генерации</div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={generateForm.difficulty}
+                onChange={(e) => setGenerateForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Сложность 1-10"
+              />
+              <input
+                value={generateForm.tags}
+                onChange={(e) => setGenerateForm((prev) => ({ ...prev, tags: e.target.value }))}
+                className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Теги через запятую"
+              />
+            </div>
+            <textarea
+              value={generateForm.description}
+              onChange={(e) => setGenerateForm((prev) => ({ ...prev, description: e.target.value }))}
+              className="min-h-[120px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+              placeholder="Коротко опишите задачу"
+            />
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={status === 'generating'}
+              className="h-11 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] hover:bg-[#8452FF] disabled:opacity-60"
+            >
+              {status === 'generating' ? 'Генерация...' : 'Сгенерировать'}
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4">
+            <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Данные задачи</div>
+            <input
+              value={taskForm.title}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
+              className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              placeholder="Название задачи"
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={taskForm.category}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, category: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Категория"
+              />
+              <input
+                value={taskForm.tags}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, tags: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Теги"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                value={taskForm.difficulty}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Сложность"
+              />
+              <input
+                value={taskForm.points}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, points: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Очки"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <select
+                value={taskForm.task_kind}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, task_kind: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              >
+                <option value="contest">Contest</option>
+                <option value="practice">Practice</option>
+              </select>
+              <select
+                value={taskForm.state}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, state: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              >
+                <option value="draft">Draft</option>
+                <option value="ready">Ready</option>
+                <option value="published">Published</option>
+              </select>
+            </div>
+            <textarea
+              value={taskForm.participant_description}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, participant_description: e.target.value }))}
+              className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+              placeholder="Описание для участника"
+            />
+            <textarea
+              value={taskForm.story}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, story: e.target.value }))}
+              className="min-h-[80px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+              placeholder="Легенда (story)"
+            />
+            <textarea
+              value={taskForm.creation_solution}
+              onChange={(e) => setTaskForm((prev) => ({ ...prev, creation_solution: e.target.value }))}
+              className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+              placeholder="Решение для организаторов"
+            />
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Флаги</div>
+          <div className="flex flex-col gap-3 mt-3">
+            {flags.map((flag, index) => (
+              <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                <input
+                  value={flag.flag_id}
+                  onChange={(e) => updateFlag(index, 'flag_id', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="flag_id"
+                />
+                <input
+                  value={flag.format}
+                  onChange={(e) => updateFlag(index, 'format', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="FLAG{...}"
+                />
+                <input
+                  value={flag.expected_value}
+                  onChange={(e) => updateFlag(index, 'expected_value', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Значение"
+                />
+                <input
+                  value={flag.description}
+                  onChange={(e) => updateFlag(index, 'description', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Описание"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeFlag(index)}
+                  className="h-10 rounded-[10px] bg-white/5 text-white/60 hover:text-white"
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+            <button type="button" onClick={addFlag} className="self-start text-[14px] text-[#CBB6FF]">
+              + Добавить флаг
+            </button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mt-4 text-[14px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[12px] px-4 py-2">
+            {error}
+          </div>
+        )}
+
+        <div className="flex gap-3 mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors"
+          >
+            Закрыть
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={status === 'saving'}
+            className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8452FF] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {status === 'saving' ? 'Сохранение...' : 'Сохранить задачу'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ContestPlanningModal({ open, onClose }) {
+  const [contests, setContests] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+  const [selectedContestId, setSelectedContestId] = useState(null);
+  const [contestForm, setContestForm] = useState({
+    title: '',
+    description: '',
+    start_at: '',
+    end_at: '',
+    is_public: false,
+    leaderboard_visible: true,
+  });
+  const [selectedTasks, setSelectedTasks] = useState([]);
+  const [taskSearch, setTaskSearch] = useState('');
+  const [includeDrafts, setIncludeDrafts] = useState(false);
+
+  const loadData = async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const [contestList, taskList] = await Promise.all([
+        adminAPI.listContests(),
+        adminAPI.listTasks({ task_kind: 'contest' }),
+      ]);
+      setContests(contestList);
+      setTasks(taskList);
+      setStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить данные');
+      setStatus('idle');
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      loadData();
+      setSelectedContestId(null);
+      setContestForm({
+        title: '',
+        description: '',
+        start_at: '',
+        end_at: '',
+        is_public: false,
+        leaderboard_visible: true,
+      });
+      setSelectedTasks([]);
+      setTaskSearch('');
+      setIncludeDrafts(false);
+      setError('');
+    }
+  }, [open]);
+
+  const formatLocal = (value) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+
+  const handleEditContest = async (contestId) => {
+    setStatus('loading');
+    setError('');
+    try {
+      const data = await adminAPI.getContest(contestId);
+      setSelectedContestId(contestId);
+      setContestForm({
+        title: data.title || '',
+        description: data.description || '',
+        start_at: formatLocal(data.start_at),
+        end_at: formatLocal(data.end_at),
+        is_public: data.is_public,
+        leaderboard_visible: data.leaderboard_visible,
+      });
+      setSelectedTasks(
+        (data.tasks || []).map((task) => ({
+          task_id: task.task_id,
+          order_index: task.order_index,
+          base: task,
+          points_override: task.points_override ?? '',
+          override_title: task.override_title ?? '',
+          override_participant_description: task.override_participant_description ?? '',
+          override_tags: Array.isArray(task.override_tags) ? task.override_tags.join(', ') : '',
+          override_category: task.override_category ?? '',
+          override_difficulty: task.override_difficulty ?? '',
+        }))
+      );
+      setStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить контест');
+      setStatus('idle');
+    }
+  };
+
+  const addTask = (task) => {
+    if (selectedTasks.some((item) => item.task_id === task.id)) return;
+    setSelectedTasks((prev) => [
+      ...prev,
+      {
+        task_id: task.id,
+        order_index: prev.length,
+        base: task,
+        points_override: '',
+        override_title: '',
+        override_participant_description: '',
+        override_tags: '',
+        override_category: '',
+        override_difficulty: '',
+      },
+    ]);
+  };
+
+  const removeTask = (taskId) => {
+    setSelectedTasks((prev) => prev.filter((item) => item.task_id !== taskId));
+  };
+
+  const moveTask = (index, direction) => {
+    setSelectedTasks((prev) => {
+      const next = [...prev];
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next.map((item, idx) => ({ ...item, order_index: idx }));
+    });
+  };
+
+  const updateSelectedTask = (taskId, field, value) => {
+    setSelectedTasks((prev) =>
+      prev.map((item) => (item.task_id === taskId ? { ...item, [field]: value } : item))
+    );
+  };
+
+  const handleSave = async () => {
+    if (!contestForm.title.trim()) {
+      setError('Укажите название контеста');
+      return;
+    }
+    if (selectedTasks.length < 2 || selectedTasks.length > 10) {
+      setError('Контест должен содержать 2-10 задач');
+      return;
+    }
+    if (!contestForm.start_at || !contestForm.end_at) {
+      setError('Укажите даты начала и конца');
+      return;
+    }
+    setStatus('saving');
+    setError('');
+    try {
+      const tasksPayload = selectedTasks.map((task, index) => ({
+        task_id: task.task_id,
+        order_index: index,
+        points_override: task.points_override === '' ? null : Number(task.points_override),
+        override_title: task.override_title || null,
+        override_participant_description: task.override_participant_description || null,
+        override_tags: task.override_tags
+          ? task.override_tags.split(',').map((tag) => tag.trim()).filter(Boolean)
+          : null,
+        override_category: task.override_category || null,
+        override_difficulty: task.override_difficulty === '' ? null : Number(task.override_difficulty),
+      }));
+      const payload = {
+        title: contestForm.title.trim(),
+        description: contestForm.description || null,
+        start_at: new Date(contestForm.start_at).toISOString(),
+        end_at: new Date(contestForm.end_at).toISOString(),
+        is_public: contestForm.is_public,
+        leaderboard_visible: contestForm.leaderboard_visible,
+        tasks: tasksPayload,
+      };
+      if (selectedContestId) {
+        await adminAPI.updateContest(selectedContestId, payload);
+      } else {
+        await adminAPI.createContest(payload);
+      }
+      await loadData();
+      setStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось сохранить контест');
+      setStatus('idle');
+    }
+  };
+
+  if (!open) return null;
+
+  const filteredTasks = tasks.filter((task) => {
+    if (!includeDrafts && task.state === 'draft') return false;
+    if (!taskSearch.trim()) return true;
+    return task.title?.toLowerCase().includes(taskSearch.toLowerCase());
+  });
+
+  const activeContest = contests.find((contest) => contest.status === 'active');
+  const previousContests = contests.filter((contest) => contest.status === 'finished');
+  const upcomingContests = contests.filter((contest) => contest.status === 'upcoming');
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8">
+      <div className="w-full max-w-6xl bg-[#0B0A10] border border-white/10 rounded-[20px] p-6 text-white max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-[22px] leading-[28px]">Планирование контеста</h3>
+            <p className="text-[14px] text-white/50 mt-1">Соберите цепочку задач и настройте параметры</p>
+          </div>
+          <button onClick={onClose} className="text-white/60 hover:text-white">Закрыть</button>
+        </div>
+
+        {activeContest && (
+          <div className="mt-4 p-4 rounded-[16px] border border-white/10 bg-white/5">
+            <div className="text-[12px] uppercase tracking-[0.2em] text-white/40">Текущий контест</div>
+            <div className="text-[18px] mt-2">{activeContest.title}</div>
+            <div className="text-[13px] text-white/50 mt-1">
+              {formatDate(activeContest.start_at)} — {formatDate(activeContest.end_at)}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+          <div className="flex flex-col gap-4">
+            <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Контесты</div>
+            <div className="flex flex-col gap-3">
+              {upcomingContests.map((contest) => (
+                <button
+                  key={contest.id}
+                  onClick={() => handleEditContest(contest.id)}
+                  className="text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
+                >
+                  <div className="text-[16px]">{contest.title}</div>
+                  <div className="text-[12px] text-white/50">Скоро</div>
+                </button>
+              ))}
+              {previousContests.map((contest) => (
+                <button
+                  key={contest.id}
+                  onClick={() => handleEditContest(contest.id)}
+                  className="text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
+                >
+                  <div className="text-[16px]">{contest.title}</div>
+                  <div className="text-[12px] text-white/50">Завершен</div>
+                </button>
+              ))}
+              {upcomingContests.length === 0 && previousContests.length === 0 && (
+                <div className="text-[13px] text-white/50">Контестов пока нет</div>
+              )}
+            </div>
+          </div>
+
+          <div className="lg:col-span-2 flex flex-col gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <input
+                value={contestForm.title}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, title: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Название контеста"
+              />
+              <input
+                value={contestForm.description}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="Описание"
+              />
+              <input
+                type="datetime-local"
+                value={contestForm.start_at}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, start_at: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              />
+              <input
+                type="datetime-local"
+                value={contestForm.end_at}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, end_at: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              />
+            </div>
+            <div className="flex items-center gap-4 text-[14px] text-white/70">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={contestForm.is_public}
+                  onChange={(e) => setContestForm((prev) => ({ ...prev, is_public: e.target.checked }))}
+                />
+                Публичный
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={contestForm.leaderboard_visible}
+                  onChange={(e) => setContestForm((prev) => ({ ...prev, leaderboard_visible: e.target.checked }))}
+                />
+                Лидерборд виден
+              </label>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="flex flex-col gap-3">
+                <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Галерея задач</div>
+                <input
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Поиск по названию"
+                />
+                <label className="flex items-center gap-2 text-[12px] text-white/50">
+                  <input
+                    type="checkbox"
+                    checked={includeDrafts}
+                    onChange={(e) => setIncludeDrafts(e.target.checked)}
+                  />
+                  Показывать черновики
+                </label>
+                <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto pr-2">
+                  {filteredTasks.map((task) => (
+                    <div key={task.id} className="flex items-center justify-between gap-2 rounded-[12px] bg-white/5 px-3 py-2">
+                      <div>
+                        <div className="text-[14px]">{task.title}</div>
+                        <div className="text-[12px] text-white/50">{task.category} · {task.points} pts</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => addTask(task)}
+                        className="text-[12px] text-[#CBB6FF]"
+                      >
+                        Добавить
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Задачи контеста</div>
+                <div className="flex flex-col gap-3 max-h-[320px] overflow-y-auto pr-2">
+                  {selectedTasks.map((task, index) => (
+                    <div key={task.task_id} className="rounded-[12px] bg-white/5 p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-[14px]">{task.base?.title || `Task #${task.task_id}`}</div>
+                          <div className="text-[12px] text-white/50">Позиция {index + 1}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => moveTask(index, -1)} className="text-white/60">↑</button>
+                          <button onClick={() => moveTask(index, 1)} className="text-white/60">↓</button>
+                          <button onClick={() => removeTask(task.task_id)} className="text-rose-300">Удалить</button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 mt-3">
+                        <input
+                          value={task.override_title}
+                          onChange={(e) => updateSelectedTask(task.task_id, 'override_title', e.target.value)}
+                          className="h-9 rounded-[10px] bg-white/5 border border-white/10 px-2 text-white"
+                          placeholder="Override title"
+                        />
+                        <input
+                          value={task.points_override}
+                          onChange={(e) => updateSelectedTask(task.task_id, 'points_override', e.target.value)}
+                          className="h-9 rounded-[10px] bg-white/5 border border-white/10 px-2 text-white"
+                          placeholder="Points override"
+                        />
+                        <input
+                          value={task.override_category}
+                          onChange={(e) => updateSelectedTask(task.task_id, 'override_category', e.target.value)}
+                          className="h-9 rounded-[10px] bg-white/5 border border-white/10 px-2 text-white"
+                          placeholder="Override category"
+                        />
+                        <input
+                          value={task.override_difficulty}
+                          onChange={(e) => updateSelectedTask(task.task_id, 'override_difficulty', e.target.value)}
+                          className="h-9 rounded-[10px] bg-white/5 border border-white/10 px-2 text-white"
+                          placeholder="Override difficulty"
+                        />
+                      </div>
+                      <input
+                        value={task.override_tags}
+                        onChange={(e) => updateSelectedTask(task.task_id, 'override_tags', e.target.value)}
+                        className="mt-2 h-9 rounded-[10px] bg-white/5 border border-white/10 px-2 text-white"
+                        placeholder="Override tags"
+                      />
+                      <textarea
+                        value={task.override_participant_description}
+                        onChange={(e) => updateSelectedTask(task.task_id, 'override_participant_description', e.target.value)}
+                        className="mt-2 min-h-[80px] rounded-[10px] bg-white/5 border border-white/10 px-2 py-1 text-white"
+                        placeholder="Override description"
+                      />
+                    </div>
+                  ))}
+                  {selectedTasks.length === 0 && (
+                    <div className="text-[13px] text-white/50">Добавьте задачи из галереи</div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="text-[14px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[12px] px-4 py-2">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedContestId(null);
+                  setContestForm({
+                    title: '',
+                    description: '',
+                    start_at: '',
+                    end_at: '',
+                    is_public: false,
+                    leaderboard_visible: true,
+                  });
+                  setSelectedTasks([]);
+                }}
+                className="flex-1 h-11 rounded-[12px] bg-white/5 text-white/70"
+              >
+                Новый контест
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={status === 'saving'}
+                className="flex-1 h-11 rounded-[12px] bg-[#9B6BFF] text-white hover:bg-[#8452FF] disabled:opacity-60"
+              >
+                {status === 'saving' ? 'Сохранение...' : 'Сохранить контест'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Admin() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboard, setDashboard] = useState(null);
   const [error, setError] = useState('');
   const [isKbOpen, setIsKbOpen] = useState(false);
+  const [isTaskOpen, setIsTaskOpen] = useState(false);
+  const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
   const [isNvdRunning, setIsNvdRunning] = useState(false);
   const [nvdError, setNvdError] = useState('');
 
@@ -786,6 +1606,14 @@ function Admin() {
             </div>
             <button
               type="button"
+              onClick={() => setIsContestPlanningOpen(true)}
+              className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
+            >
+              Планирование контеста
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsTaskOpen(true)}
               className="h-10 px-4 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] transition-colors duration-200 hover:bg-[#8452FF]"
             >
               + Создать задачу
@@ -932,25 +1760,50 @@ function Admin() {
         )}
       >
         {lastArticle ? (
-          <div className="flex flex-col gap-4">
-            <div>
-              <div className="text-[20px] leading-[26px] text-white">
-                {lastArticle.ru_title || 'Без названия'}
-              </div>
-              {lastArticle.ru_summary && (
-                <div className="text-[14px] text-white/60 mt-2">
-                  {lastArticle.ru_summary}
+          lastArticle.id ? (
+            <Link
+              to={`/knowledge/${lastArticle.id}`}
+              className="flex flex-col gap-4 rounded-[14px] border border-white/5 bg-white/[0.02] p-4 transition hover:border-[#9B6BFF]/60"
+            >
+              <div>
+                <div className="text-[20px] leading-[26px] text-white">
+                  {lastArticle.ru_title || 'Без названия'}
                 </div>
-              )}
+                {lastArticle.ru_summary && (
+                  <div className="text-[14px] text-white/60 mt-2">
+                    {lastArticle.ru_summary}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4 text-[13px] text-white/50">
+                <span className="uppercase tracking-[0.2em] px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                  {lastArticle.source || 'Источник'}
+                </span>
+                <span>Дата: {formatDate(lastArticle.created_at)}</span>
+                {lastArticle.cve_id && <span>{lastArticle.cve_id}</span>}
+              </div>
+            </Link>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div>
+                <div className="text-[20px] leading-[26px] text-white">
+                  {lastArticle.ru_title || 'Без названия'}
+                </div>
+                {lastArticle.ru_summary && (
+                  <div className="text-[14px] text-white/60 mt-2">
+                    {lastArticle.ru_summary}
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-4 text-[13px] text-white/50">
+                <span className="uppercase tracking-[0.2em] px-2 py-1 rounded-full bg-white/5 border border-white/10">
+                  {lastArticle.source || 'Источник'}
+                </span>
+                <span>Дата: {formatDate(lastArticle.created_at)}</span>
+                {lastArticle.cve_id && <span>{lastArticle.cve_id}</span>}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-4 text-[13px] text-white/50">
-              <span className="uppercase tracking-[0.2em] px-2 py-1 rounded-full bg-white/5 border border-white/10">
-                {lastArticle.source || 'Источник'}
-              </span>
-              <span>Дата: {formatDate(lastArticle.created_at)}</span>
-              {lastArticle.cve_id && <span>{lastArticle.cve_id}</span>}
-            </div>
-          </div>
+          )
         ) : (
           <div className="text-[14px] text-white/50">
             Пока нет статей
@@ -963,6 +1816,15 @@ function Admin() {
         onClose={() => setIsKbOpen(false)}
         onCreated={() => loadDashboard()}
         onUpdated={() => loadDashboard()}
+      />
+      <CreateTaskModal
+        open={isTaskOpen}
+        onClose={() => setIsTaskOpen(false)}
+        onCreated={() => loadDashboard()}
+      />
+      <ContestPlanningModal
+        open={isContestPlanningOpen}
+        onClose={() => setIsContestPlanningOpen(false)}
       />
     </div>
   );

@@ -77,7 +77,8 @@ CREATE TABLE kb_entries (
     ru_explainer    TEXT,
     tags            TEXT[] DEFAULT '{}',  -- теги: ['web','xss','cve-2024-...']
     difficulty      INTEGER,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_kb_entries_cve_id   ON kb_entries(cve_id);
@@ -121,6 +122,7 @@ CREATE TABLE tasks (
     difficulty              INTEGER NOT NULL,    -- 1-10
     points                  INTEGER NOT NULL DEFAULT 100,
     tags                    TEXT[] DEFAULT '{}',
+    task_kind               TEXT NOT NULL DEFAULT 'contest', -- 'contest' | 'practice'
     language                TEXT NOT NULL DEFAULT 'ru',
     story                   TEXT,                -- сюжет
     participant_description TEXT,                -- текст для участника
@@ -159,6 +161,7 @@ CREATE TABLE task_materials (
 CREATE TABLE task_author_solutions (
     task_id                 BIGINT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
     summary                 TEXT,
+    creation_solution       TEXT,
     steps                   JSONB,   -- список шагов решения
     difficulty_rationale    TEXT,
     implementation_notes    TEXT
@@ -175,14 +178,31 @@ CREATE TABLE contests (
     leaderboard_visible BOOLEAN NOT NULL DEFAULT TRUE
 );
 
+-- 10.1 Участники чемпионата (вход/прогресс)
+CREATE TABLE contest_participants (
+    contest_id      BIGINT NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    joined_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_active_at  TIMESTAMPTZ,
+    completed_at    TIMESTAMPTZ,
+    PRIMARY KEY (contest_id, user_id)
+);
+
 -- 11. Связка задач с чемпионатами
 CREATE TABLE contest_tasks (
     contest_id      BIGINT NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
     task_id         BIGINT NOT NULL REFERENCES tasks(id),
     order_index     INTEGER NOT NULL DEFAULT 0,
     points_override INTEGER,
+    override_title  TEXT,
+    override_participant_description TEXT,
+    override_tags   TEXT[],
+    override_category TEXT,
+    override_difficulty INTEGER,
     PRIMARY KEY (contest_id, task_id)
 );
+
+CREATE UNIQUE INDEX idx_contest_tasks_order_unique ON contest_tasks(contest_id, order_index);
 
 -- 12. Сабмишены
 CREATE TABLE submissions (

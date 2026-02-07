@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 
 function Register() {
   const navigate = useNavigate();
@@ -57,8 +57,10 @@ function Register() {
       await authAPI.login(formData.email, formData.password);
       setSuccessName(formData.username || 'CyberNinja');
       setStep('success');
+      const profile = await profileAPI.getProfile();
+      const target = profile?.role === 'admin' ? '/admin' : '/home';
       setTimeout(() => {
-        navigate('/welcome');
+        navigate(target);
       }, 1200);
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка регистрации');

@@ -20,6 +20,7 @@ async def list_kb_entries(
     offset: int = Query(0, ge=0),
     order: str = Query("desc", pattern="^(asc|desc)$"),
     tag: Optional[str] = Query(None),
+    only_with_title: bool = Query(False),
 ):
     """
     Список записей базы знаний.
@@ -33,10 +34,11 @@ async def list_kb_entries(
 
     stmt = text(
         f"""
-        SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at
+        SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
         FROM kb_entries
         WHERE (:tag IS NULL OR :tag = ANY(tags))
-        ORDER BY created_at {order_sql}
+          AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+        ORDER BY COALESCE(updated_at, created_at) {order_sql}
         LIMIT :limit
         OFFSET :offset
         """
@@ -49,6 +51,7 @@ async def list_kb_entries(
                 "limit": limit,
                 "offset": offset,
                 "tag": tag_value,
+                "only_with_title": only_with_title,
             },
         )
     ).mappings().all()
@@ -65,9 +68,115 @@ async def list_kb_entries(
             tags=row.get("tags") or [],
             difficulty=row.get("difficulty"),
             created_at=row["created_at"],
+            updated_at=row.get("updated_at"),
         )
         for row in rows
     ]
+
+
+@router.get("/paged")
+async def list_kb_entries_paged(
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(15, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
+    tag: Optional[str] = Query(None),
+    only_with_title: bool = Query(True),
+):
+    """
+    Пагинация для базы знаний (с total).
+    """
+    _user, _profile = current_user_data
+
+    order_sql = "ASC" if order == "asc" else "DESC"
+    tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
+
+    count_stmt = text(
+        """
+        SELECT COUNT(*)
+        FROM kb_entries
+        WHERE (:tag IS NULL OR :tag = ANY(tags))
+          AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+        """
+    ).bindparams(bindparam("tag", type_=Text))
+
+    total = (
+        await db.execute(
+            count_stmt,
+            {"tag": tag_value, "only_with_title": only_with_title},
+        )
+    ).scalar_one() or 0
+
+    rows = (
+        await db.execute(
+            text(
+                f"""
+                SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
+                FROM kb_entries
+                WHERE (:tag IS NULL OR :tag = ANY(tags))
+                  AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+                ORDER BY COALESCE(updated_at, created_at) {order_sql}
+                LIMIT :limit
+                OFFSET :offset
+                """
+            ).bindparams(bindparam("tag", type_=Text)),
+            {"limit": limit, "offset": offset, "tag": tag_value, "only_with_title": only_with_title},
+        )
+    ).mappings().all()
+
+    items = [
+        KnowledgeEntry(
+            id=row["id"],
+            source=row["source"],
+            source_id=row.get("source_id"),
+            cve_id=row.get("cve_id"),
+            ru_title=row.get("ru_title"),
+            ru_summary=row.get("ru_summary"),
+            ru_explainer=row.get("ru_explainer"),
+            tags=row.get("tags") or [],
+            difficulty=row.get("difficulty"),
+            created_at=row["created_at"],
+            updated_at=row.get("updated_at"),
+        )
+        for row in rows
+    ]
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/tags")
+async def list_kb_tags(
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    only_with_title: bool = Query(True),
+):
+    """
+    Список всех тегов.
+    """
+    _user, _profile = current_user_data
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT DISTINCT unnest(tags) AS tag
+                FROM kb_entries
+                WHERE tags IS NOT NULL
+                  AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+                ORDER BY tag ASC
+                """
+            ),
+            {"only_with_title": only_with_title},
+        )
+    ).mappings().all()
+
+    return [row["tag"] for row in rows if row.get("tag")]
 
 
 @router.get("/{entry_id}", response_model=KnowledgeEntry)
@@ -83,7 +192,7 @@ async def get_kb_entry(
 
     stmt = text(
         """
-        SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at
+        SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
         FROM kb_entries
         WHERE id = :entry_id
         """
@@ -112,6 +221,7 @@ async def get_kb_entry(
         tags=row.get("tags") or [],
         difficulty=row.get("difficulty"),
         created_at=row["created_at"],
+        updated_at=row.get("updated_at"),
     )
 
 

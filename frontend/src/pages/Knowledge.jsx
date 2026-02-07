@@ -31,6 +31,15 @@ function estimateReadTime(text) {
   return Math.max(1, Math.round(words / 160));
 }
 
+function shortSummary(text) {
+  if (!text) return '';
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean);
+  return sentences.slice(0, 2).join(' ');
+}
+
 function getEntryTitle(entry) {
   return entry?.ru_title || entry?.cve_id || entry?.source_id || 'Без названия';
 }
@@ -41,6 +50,7 @@ function KnowledgeCard({ entry }) {
   const secondaryTag = tags[1];
   const gradient = tagGradients[primaryTag] || tagGradients.default;
   const readTime = estimateReadTime(entry?.ru_explainer || entry?.ru_summary);
+  const summary = shortSummary(entry?.ru_summary || entry?.ru_explainer || '');
 
   return (
     <Link
@@ -86,7 +96,7 @@ function KnowledgeCard({ entry }) {
             {getEntryTitle(entry)}
           </h3>
           <p className="text-[16px] leading-[20px] tracking-[0.64px] text-white/60">
-            {entry?.ru_summary || entry?.ru_explainer || 'Описание пока не добавлено'}
+            {summary || 'Описание пока не добавлено'}
           </p>
         </div>
       </div>
@@ -98,24 +108,49 @@ function Knowledge() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [entries, setEntries] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 15;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    setPage(1);
+  }, [sortOrder, categoryFilter]);
+
+  useEffect(() => {
     let isMounted = true;
+    const fetchTags = async () => {
+      try {
+        const data = await knowledgeAPI.getTags({ only_with_title: true });
+        if (isMounted) {
+          setCategories(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить теги базы знаний', error);
+        if (isMounted) {
+          setCategories([]);
+        }
+      }
+    };
+
     const fetchEntries = async () => {
       if (isMounted) {
         setLoading(true);
       }
       try {
         setError('');
-        const data = await knowledgeAPI.getEntries({
-          limit: 18,
+        const data = await knowledgeAPI.getEntriesPaged({
+          limit,
+          offset: (page - 1) * limit,
           order: sortOrder,
           tag: categoryFilter || undefined,
+          only_with_title: true,
         });
         if (isMounted) {
-          setEntries(Array.isArray(data) ? data : []);
+          setEntries(Array.isArray(data?.items) ? data.items : []);
+          setTotal(Number.isFinite(data?.total) ? data.total : 0);
         }
       } catch (error) {
         console.error('Не удалось загрузить статьи базы знаний', error);
@@ -123,6 +158,7 @@ function Knowledge() {
         setError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
         if (isMounted) {
           setEntries([]);
+          setTotal(0);
         }
       } finally {
         if (isMounted) {
@@ -131,20 +167,23 @@ function Knowledge() {
       }
     };
 
+    fetchTags();
     fetchEntries();
 
     return () => {
       isMounted = false;
     };
-  }, [sortOrder, categoryFilter]);
+  }, [sortOrder, categoryFilter, page]);
 
-  const categories = useMemo(() => {
-    const unique = new Set();
-    entries.forEach((entry) => {
-      (entry?.tags || []).forEach((tag) => unique.add(tag));
-    });
-    return Array.from(unique);
-  }, [entries]);
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+    }
+    const pages = new Set([1, totalPages, page - 1, page, page + 1]);
+    const filtered = Array.from(pages).filter((p) => p >= 1 && p <= totalPages);
+    return filtered.sort((a, b) => a - b);
+  }, [page, totalPages]);
 
   return (
     <div className="font-sans-figma text-white">
@@ -214,6 +253,47 @@ function Knowledge() {
           <KnowledgeCard key={entry.id} entry={entry} />
         ))}
       </div>
+
+      {!loading && !error && totalPages > 1 && (
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-white">
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page === 1}
+            className="h-9 rounded-[10px] border border-white/10 px-3 text-[13px] text-white/70 hover:text-white disabled:opacity-40"
+          >
+            Назад
+          </button>
+          {pageNumbers.map((pageNumber, index) => {
+            const prevPage = pageNumbers[index - 1];
+            const showGap = prevPage && pageNumber - prevPage > 1;
+            return (
+              <React.Fragment key={pageNumber}>
+                {showGap && <span className="px-2 text-white/40">…</span>}
+                <button
+                  type="button"
+                  onClick={() => setPage(pageNumber)}
+                  className={`h-9 rounded-[10px] border px-3 text-[13px] ${
+                    pageNumber === page
+                      ? 'border-[#9B6BFF] bg-[#9B6BFF]/20 text-white'
+                      : 'border-white/10 text-white/70 hover:text-white'
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              </React.Fragment>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page === totalPages}
+            className="h-9 rounded-[10px] border border-white/10 px-3 text-[13px] text-white/70 hover:text-white disabled:opacity-40"
+          >
+            Вперёд
+          </button>
+        </div>
+      )}
     </div>
   );
 }

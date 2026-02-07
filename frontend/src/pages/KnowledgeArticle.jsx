@@ -88,9 +88,6 @@ function RelatedCard({ entry }) {
           <h3 className="text-[20px] leading-[24px] tracking-[0.4px]">
             {getEntryTitle(entry)}
           </h3>
-          <p className="text-[16px] leading-[20px] tracking-[0.64px] text-white/60">
-            {entry?.ru_summary || entry?.ru_explainer || 'Описание пока не добавлено'}
-          </p>
         </div>
       </div>
     </Link>
@@ -262,7 +259,7 @@ export default function KnowledgeArticle() {
   }
 
   const tags = Array.isArray(entry.tags) ? entry.tags : [];
-  const readTime = estimateReadTime(entry.ru_explainer || entry.ru_summary);
+  const readTime = estimateReadTime(entry.ru_explainer);
   const trimmedComment = commentBody.trim();
   const canSubmitComment = trimmedComment.length > 0 && trimmedComment.length <= 2000;
 
@@ -327,9 +324,6 @@ export default function KnowledgeArticle() {
               <h1 className="text-[29px] leading-[36px] tracking-[0.58px] font-medium">
                 {getEntryTitle(entry)}
               </h1>
-              <p className="text-[16px] leading-[20px] tracking-[0.64px] text-white/70">
-                {entry?.ru_summary || entry?.ru_explainer || 'Описание пока не добавлено'}
-              </p>
             </div>
 
             <span className="inline-flex w-fit rounded-[10px] border border-white/10 bg-white/10 px-4 py-1.5 text-[14px] text-white/70">
