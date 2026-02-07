@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
@@ -24,7 +24,14 @@ class Settings(BaseSettings):
     SQL_ECHO: bool = False
 
     # CORS
-    CORS_ALLOW_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ALLOW_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://storage.yandexcloud.net",
+    ]
+    CORS_ALLOW_ORIGIN_REGEX: Optional[str] = (
+        r"^https://[a-zA-Z0-9-]+\.website\.yandexcloud\.net$"
+    )
     CORS_ALLOW_CREDENTIALS: bool = False
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list[str] = ["Authorization", "Content-Type", "X-Auth-Token"]
@@ -59,6 +66,13 @@ class Settings(BaseSettings):
                 except json.JSONDecodeError:
                     pass
             return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("CORS_ALLOW_ORIGIN_REGEX", mode="before")
+    @classmethod
+    def normalize_optional_regex(cls, value: Any) -> Any:
+        if isinstance(value, str) and not value.strip():
+            return None
         return value
     
     @property
