@@ -33,7 +33,7 @@ class SecuritySettingsTests(unittest.TestCase):
             CORS_ALLOW_METHODS="GET,POST",
             CORS_ALLOW_HEADERS='["Authorization", "Content-Type"]',
         )
-        self.assertEqual(settings.CORS_ALLOW_ORIGINS, ["https://a.example", "https://b.example"])
+        self.assertEqual(settings.cors_allow_origins, ["https://a.example", "https://b.example"])
         self.assertEqual(settings.CORS_ALLOW_METHODS, ["GET", "POST"])
         self.assertEqual(settings.CORS_ALLOW_HEADERS, ["Authorization", "Content-Type"])
 
