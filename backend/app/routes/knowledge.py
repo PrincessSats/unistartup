@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import Text, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +8,7 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.schemas.comments import KBComment, KBCommentCreate
 from app.schemas.knowledge import KnowledgeEntry
+from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/kb_entries", tags=["Knowledge Base"])
 
@@ -298,6 +299,7 @@ async def list_kb_comments(
 
 @router.post("/{entry_id}/comments", response_model=KBComment, status_code=status.HTTP_201_CREATED)
 async def create_kb_comment(
+    request: Request,
     entry_id: int,
     data: KBCommentCreate,
     current_user_data: tuple = Depends(get_current_user),
@@ -307,6 +309,12 @@ async def create_kb_comment(
     Создать комментарий к статье.
     """
     user, _profile = current_user_data
+    enforce_rate_limit(
+        request,
+        scope="kb_comment_create",
+        subject=f"{user.id}:{entry_id}",
+        rule=RateLimit(max_requests=20, window_seconds=60),
+    )
 
     body = (data.body or "").strip()
     if not body:
