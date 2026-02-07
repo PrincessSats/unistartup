@@ -15,6 +15,7 @@ from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 import inspect
+import logging
 
 from app.database import get_db
 from app.models.user import User, UserProfile, UserRating
@@ -23,6 +24,7 @@ from app.auth.dependencies import get_current_user
 from app.services.storage import upload_avatar, delete_avatar
 
 router = APIRouter(prefix="/profile", tags=["Профиль"])
+logger = logging.getLogger(__name__)
 
 
 async def _maybe_await(value):
@@ -90,7 +92,7 @@ async def get_profile(
 ):
     """
     Получить свой профиль.
-    Требует авторизации (X-Auth-Token в заголовке).
+    Требует авторизации (Authorization: Bearer).
     """
     user, profile = current_user_data
     
@@ -301,11 +303,11 @@ async def upload_user_avatar(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
-    except Exception as e:
-        # На проде лучше логировать, но сейчас важнее увидеть причину.
+    except Exception:
+        logger.exception("Avatar upload failed for user_id=%s", user.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Ошибка загрузки аватара: {type(e).__name__}: {e}"
+            detail="Ошибка загрузки аватара. Попробуйте позже."
         )
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
@@ -321,5 +323,3 @@ async def upload_user_avatar(
         practice_rating=practice_rating,
         first_blood=first_blood
     )
-
-print("✅ Profile router инициализирован")
