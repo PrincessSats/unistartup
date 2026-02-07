@@ -3,10 +3,10 @@ from sqlalchemy.orm import declarative_base
 from app.config import settings
 
 # Движок для подключения к БД
-# echo=True - показывает SQL запросы в консоли (удобно для отладки)
+# SQL echo включается только через env (SQL_ECHO=true) для безопасного prod-default.
 engine = create_async_engine(
     settings.database_url,
-    echo=True,
+    echo=settings.SQL_ECHO,
     future=True
 )
 
