@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,18 +15,27 @@ app = FastAPI(
     version="1.0.0"
 )
 
+allow_origins = settings.cors_allow_origins
 allow_credentials = settings.CORS_ALLOW_CREDENTIALS
-if allow_credentials and "*" in settings.CORS_ALLOW_ORIGINS:
+if allow_credentials and "*" in allow_origins:
     logger.warning(
         "Unsafe CORS config detected: wildcard origin with credentials. "
         "Forcing allow_credentials=False."
     )
     allow_credentials = False
 
+allow_origin_regex = settings.CORS_ALLOW_ORIGIN_REGEX
+if allow_origin_regex:
+    try:
+        re.compile(allow_origin_regex)
+    except re.error:
+        logger.exception("Invalid CORS_ALLOW_ORIGIN_REGEX=%r. Ignoring it.", allow_origin_regex)
+        allow_origin_regex = None
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ALLOW_ORIGINS,
-    allow_origin_regex=settings.CORS_ALLOW_ORIGIN_REGEX,
+    allow_origins=allow_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=allow_credentials,
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
