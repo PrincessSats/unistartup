@@ -15,7 +15,6 @@ if (!API_URL) {
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
     headers: {
-      Authorization: `Bearer ${token}`,
       'X-Auth-Token': token,
     },
   });
@@ -25,11 +24,12 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// Добавляем токен к каждому запросу (Bearer + legacy X-Auth-Token).
+// Добавляем токен к защищенным запросам (не к /auth/*).
 api.interceptors.request.use((config) => {
+  const requestPath = String(config.url || '');
+  const isAuthRequest = requestPath.startsWith('/auth/');
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (token && !isAuthRequest) {
     config.headers['X-Auth-Token'] = token;
   }
   return config;
