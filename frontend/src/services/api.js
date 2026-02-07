@@ -8,6 +8,7 @@ const API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
     headers: {
+      Authorization: `Bearer ${token}`,
       'X-Auth-Token': token,
     },
   });
@@ -17,10 +18,11 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// Добавляем токен к каждому запросу (используем X-Auth-Token вместо Authorization)
+// Добавляем токен к каждому запросу (Bearer + legacy X-Auth-Token).
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Auth-Token'] = token;
   }
   return config;

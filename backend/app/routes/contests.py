@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,7 @@ from app.database import get_db
 from app.auth.dependencies import get_current_user
 from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag
 from app.models.user import UserProfile
+from app.security.rate_limit import RateLimit, enforce_rate_limit
 from app.schemas.contest import (
     ContestSummary,
     FeaturedTask,
@@ -59,20 +60,26 @@ async def get_active_contest(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    user, _profile = current_user_data
+    user, profile = current_user_data
+    is_admin = profile.role == "admin"
 
-    result = await db.execute(
+    active_query = (
         select(Contest)
         .where(Contest.start_at <= func.now(), Contest.end_at >= func.now())
         .order_by(Contest.start_at.desc())
         .limit(1)
     )
+    if not is_admin:
+        active_query = active_query.where(Contest.is_public.is_(True))
+
+    result = await db.execute(active_query)
     contest = result.scalar_one_or_none()
 
     if contest is None:
-        result = await db.execute(
-            select(Contest).order_by(Contest.start_at.desc()).limit(1)
-        )
+        latest_query = select(Contest).order_by(Contest.start_at.desc()).limit(1)
+        if not is_admin:
+            latest_query = latest_query.where(Contest.is_public.is_(True))
+        result = await db.execute(latest_query)
         contest = result.scalar_one_or_none()
 
     if contest is None:
@@ -182,11 +189,13 @@ async def join_contest(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user, _profile = current_user_data
+    user, profile = current_user_data
 
     contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
     if contest is None:
         raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
 
     existing = (
         await db.execute(
@@ -219,11 +228,13 @@ async def get_current_task(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user, _profile = current_user_data
+    user, profile = current_user_data
 
     contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
     if contest is None:
         raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
 
     now = datetime.now(timezone.utc)
     if _ensure_utc(contest.start_at) > now or _ensure_utc(contest.end_at) < now:
@@ -301,16 +312,25 @@ async def get_current_task(
 
 @router.post("/{contest_id}/submit", response_model=ContestSubmissionResponse)
 async def submit_flag(
+    request: Request,
     contest_id: int,
     payload: ContestSubmissionRequest,
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    user, _profile = current_user_data
+    user, profile = current_user_data
+    enforce_rate_limit(
+        request,
+        scope="contest_submit_flag",
+        subject=f"{user.id}:{contest_id}",
+        rule=RateLimit(max_requests=30, window_seconds=60),
+    )
 
     contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
     if contest is None:
         raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
 
     now = datetime.now(timezone.utc)
     if _ensure_utc(contest.start_at) > now or _ensure_utc(contest.end_at) < now:

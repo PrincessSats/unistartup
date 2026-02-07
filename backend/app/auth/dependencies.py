@@ -7,22 +7,32 @@ from app.models.user import User, UserProfile
 from app.auth.security import decode_access_token
 
 async def get_current_user(
-    x_auth_token: Optional[str] = Header(None),  # Читаем X-Auth-Token
+    authorization: Optional[str] = Header(None),
+    x_auth_token: Optional[str] = Header(None),  # Legacy fallback
     db: AsyncSession = Depends(get_db)
 ) -> tuple[User, UserProfile]:
     """
     Получает текущего авторизованного пользователя.
-    Читает токен из заголовка X-Auth-Token
+    Читает токен из Authorization: Bearer <token>
+    (X-Auth-Token поддерживается как legacy fallback).
     """
     
-    if not x_auth_token:
+    token: Optional[str] = None
+    if authorization:
+        scheme, _, credentials = authorization.partition(" ")
+        if scheme.lower() == "bearer" and credentials.strip():
+            token = credentials.strip()
+    if token is None and x_auth_token:
+        token = x_auth_token.strip()
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Токен не предоставлен"
         )
     
     # Расшифровываем токен
-    payload = decode_access_token(x_auth_token)
+    payload = decode_access_token(token)
     
     if payload is None:
         raise HTTPException(
