@@ -96,7 +96,9 @@ async def login(
         request,
         scope="auth_login_ip",
         subject="any",
-        rule=RateLimit(max_requests=20, window_seconds=60),
+        # Serverless/edge can collapse clients to shared source IP.
+        # Keep IP guard but with a safer high threshold to reduce false positives.
+        rule=RateLimit(max_requests=200, window_seconds=60),
     )
     enforce_rate_limit(
         request,
