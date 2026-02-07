@@ -63,6 +63,9 @@ function Register() {
         navigate(target);
       }, 1200);
     } catch (err) {
+      if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else
       if (!err.response) {
         setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
       } else {

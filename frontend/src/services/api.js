@@ -3,7 +3,14 @@
 import axios from 'axios';
 
 // local or prod env
-const API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_URL = process.env.REACT_APP_API_BASE_URL || (isLocalhost ? 'http://localhost:8000' : '');
+
+if (!API_URL) {
+  // Helps catch broken cloud builds where REACT_APP_API_BASE_URL was not provided.
+  // eslint-disable-next-line no-console
+  console.error('REACT_APP_API_BASE_URL is not configured for this build');
+}
 
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
@@ -31,6 +38,9 @@ api.interceptors.request.use((config) => {
 // API методы авторизации
 export const authAPI = {
   register: async (email, username, password) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
     const response = await api.post('/auth/register', {
       email,
       username,
@@ -40,6 +50,9 @@ export const authAPI = {
   },
 
   login: async (email, password) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
     const response = await api.post('/auth/login', {
       email,
       password,
