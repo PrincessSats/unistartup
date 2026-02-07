@@ -15,3 +15,4 @@ class KnowledgeEntry(BaseModel):
     tags: List[str] = []
     difficulty: Optional[int] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None

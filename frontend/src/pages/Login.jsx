@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 
 function Login() {
   const navigate = useNavigate();
@@ -25,7 +25,12 @@ function Login() {
 
     try {
       await authAPI.login(formData.email, formData.password);
-      navigate('/welcome');
+      const profile = await profileAPI.getProfile();
+      if (profile?.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка входа');
     } finally {

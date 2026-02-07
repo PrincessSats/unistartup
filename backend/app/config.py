@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     S3_BUCKET_NAME: str = ""
     S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
     S3_REGION: str = "ru-central1"
+
+    # Yandex Cloud LLM
+    YANDEX_CLOUD_API_KEY: str = ""
+    YANDEX_CLOUD_FOLDER: str = ""
     
     class Config:
         env_file = ".env"
