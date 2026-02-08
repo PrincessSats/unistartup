@@ -1,6 +1,7 @@
 from fastapi import Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import InterfaceError as SAInterfaceError
 from typing import Optional
 from app.database import get_db
 from app.models.user import User, UserProfile
@@ -48,13 +49,25 @@ async def get_current_user(
             detail="Невалидный токен"
         )
     
-    # Ищем пользователя в БД
-    result = await db.execute(
-        select(User, UserProfile)
-        .join(UserProfile, User.id == UserProfile.user_id)
-        .where(User.email == email)
-    )
-    user_data = result.first()
+    # Ищем пользователя в БД. Retry once on stale pooled connection in serverless env.
+    user_data = None
+    for attempt in range(2):
+        try:
+            result = await db.execute(
+                select(User, UserProfile)
+                .join(UserProfile, User.id == UserProfile.user_id)
+                .where(User.email == email)
+            )
+            user_data = result.first()
+            break
+        except SAInterfaceError as exc:
+            await db.rollback()
+            if attempt == 0 and "connection is closed" in str(exc).lower():
+                continue
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Временная ошибка подключения к БД. Повторите запрос.",
+            ) from exc
     
     if user_data is None:
         raise HTTPException(
