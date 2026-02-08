@@ -35,27 +35,38 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _build_client() -> OpenAI:
-    if not settings.YANDEX_CLOUD_API_KEY or not settings.YANDEX_CLOUD_FOLDER:
-        raise ArticleGenerationError("Missing YANDEX_CLOUD_API_KEY or YANDEX_CLOUD_FOLDER")
+    api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
+    folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+    missing: list[str] = []
+    if not api_key:
+        missing.append("YANDEX_CLOUD_API_KEY (or YANDEX_API_KEY / YC_API_KEY)")
+    if not folder:
+        missing.append("YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID / YC_FOLDER_ID)")
+    if missing:
+        raise ArticleGenerationError(f"Missing Yandex LLM config: {', '.join(missing)}")
     return OpenAI(
-        api_key=settings.YANDEX_CLOUD_API_KEY,
+        api_key=api_key,
         base_url="https://llm.api.cloud.yandex.net/v1",
-        project=settings.YANDEX_CLOUD_FOLDER,
+        project=folder,
     )
 
 
 def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> dict[str, Any]:
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
-    model_name = f"gpt://{settings.YANDEX_CLOUD_FOLDER}/qwen3-235b-a22b-fp8/latest"
+    folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+    model_name = f"gpt://{folder}/qwen3-235b-a22b-fp8/latest"
     logger.info("KB generation started (model=%s, chars=%s)", model_name, len(raw_en_text))
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": prompt_text},
-            {"role": "user", "content": raw_en_text},
-        ],
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": prompt_text},
+                {"role": "user", "content": raw_en_text},
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise ArticleGenerationError(f"Yandex model request failed: {exc}") from exc
     text = (response.choices[0].message.content or "").strip()
     logger.info("KB generation completed (chars=%s)", len(text))
     cleaned = _strip_code_fence(text)
