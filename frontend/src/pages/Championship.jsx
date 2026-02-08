@@ -28,6 +28,7 @@ function Championship() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [joined, setJoined] = useState(false);
+  const [contestInactive, setContestInactive] = useState(false);
   const [taskState, setTaskState] = useState(null);
   const [flagValue, setFlagValue] = useState('');
   const [submitStatus, setSubmitStatus] = useState('idle');
@@ -39,13 +40,18 @@ function Championship() {
         setError('');
         const data = await contestAPI.getActiveContest();
         setContest(data);
+        setContestInactive(false);
         if (data?.id) {
           try {
             const current = await contestAPI.getCurrentTask(data.id);
             setTaskState(current);
             setJoined(true);
           } catch (err) {
-            if (err?.response?.status === 403) {
+            if (err?.response?.status === 400) {
+              setContestInactive(true);
+              setJoined(false);
+              setTaskState(null);
+            } else if (err?.response?.status === 403) {
               setJoined(false);
             } else {
               setError('Не удалось загрузить текущую задачу.');
@@ -138,11 +144,12 @@ function Championship() {
   }
 
   const isPublic = contest?.is_public !== false;
+  const shouldBlurContent = !isPublic || contestInactive;
 
   return (
     <div className="font-sans-figma text-white">
       <div className="relative">
-        <div className={isPublic ? '' : 'blur-[6px] pointer-events-none select-none'}>
+        <div className={shouldBlurContent ? 'blur-[6px] pointer-events-none select-none' : ''}>
           <div className="flex flex-col gap-6">
             <section className="relative overflow-hidden rounded-[16px] border border-white/[0.06] px-8 pt-8 pb-6">
               <div className="pointer-events-none absolute inset-0">
@@ -401,7 +408,7 @@ function Championship() {
           </div>
         </div>
 
-        {!isPublic && (
+        {shouldBlurContent && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="rounded-[20px] border border-white/[0.12] bg-white/[0.04] px-6 py-5 text-center backdrop-blur-[64px] transition-opacity duration-300 ease-in-out">
               <h2 className="text-[24px] leading-[32px] font-medium">
