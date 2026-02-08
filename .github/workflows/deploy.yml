@@ -38,31 +38,28 @@ jobs:
       - name: Configure YC CLI
         env:
           YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          YC_FOLDER_ID: ${{ secrets.YC_FOLDER_ID }}
+          YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
         run: |
           echo "$YC_SA_JSON_CREDENTIALS" > /tmp/yc-sa.json
           yc config set service-account-key /tmp/yc-sa.json
-          yc config set folder-id "$YC_FOLDER_ID"
+          if [ -z "$YANDEX_CLOUD_FOLDER" ]; then
+            echo "Missing required secret: YANDEX_CLOUD_FOLDER"
+            exit 1
+          fi
+          yc config set folder-id "$YANDEX_CLOUD_FOLDER"
 
       - name: Deploy to Yandex Cloud Serverless Containers
         env:
           IMAGE_URL: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
           YANDEX_CLOUD_API_KEY: ${{ secrets.YANDEX_CLOUD_API_KEY }}
-          YC_API_KEY: ${{ secrets.YC_API_KEY }}
           YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
-          YANDEX_CLOUD_FOLDER_ID: ${{ secrets.YANDEX_CLOUD_FOLDER_ID }}
-          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
-          YC_FOLDER_ID_SECRET: ${{ secrets.YC_FOLDER_ID }}
         run: |
-          LLM_API_KEY="${YANDEX_CLOUD_API_KEY:-$YC_API_KEY}"
-          LLM_FOLDER="${YANDEX_CLOUD_FOLDER:-${YANDEX_CLOUD_FOLDER_ID:-${YANDEX_FOLDER_ID:-$YC_FOLDER_ID_SECRET}}}"
-
-          if [ -z "$LLM_API_KEY" ] || [ -z "$LLM_FOLDER" ]; then
-            echo "Missing LLM secrets. Set YANDEX_CLOUD_API_KEY (or YC_API_KEY) and YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID / YC_FOLDER_ID)."
+          if [ -z "$YANDEX_CLOUD_API_KEY" ] || [ -z "$YANDEX_CLOUD_FOLDER" ]; then
+            echo "Missing required secrets: YANDEX_CLOUD_API_KEY and/or YANDEX_CLOUD_FOLDER"
             exit 1
           fi
 
-          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }},YANDEX_CLOUD_API_KEY=${LLM_API_KEY},YANDEX_CLOUD_FOLDER=${LLM_FOLDER}"
+          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }},YANDEX_CLOUD_API_KEY=${YANDEX_CLOUD_API_KEY},YANDEX_CLOUD_FOLDER=${YANDEX_CLOUD_FOLDER}"
           yc serverless container revision deploy \
             --container-name hacknet-backend \
             --image "$IMAGE_URL" \
