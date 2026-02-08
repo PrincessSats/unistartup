@@ -159,7 +159,20 @@ jobs:
         working-directory: ./frontend/build
         run: |
           set -euo pipefail
+          # Static hashed assets: long cache
           aws s3 sync . "s3://${{ env.FRONTEND_BUCKET_NAME }}" \
             --delete \
             --endpoint-url=https://storage.yandexcloud.net \
-            --acl public-read
+            --acl public-read \
+            --exclude "*.html" \
+            --exclude "*.json" \
+            --cache-control "public, max-age=31536000, immutable"
+
+          # Entry points/manifests: no cache, so UI changes appear immediately after deploy
+          aws s3 sync . "s3://${{ env.FRONTEND_BUCKET_NAME }}" \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --acl public-read \
+            --exclude "*" \
+            --include "*.html" \
+            --include "*.json" \
+            --cache-control "no-cache, no-store, must-revalidate"
