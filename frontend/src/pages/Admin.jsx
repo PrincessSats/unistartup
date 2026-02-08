@@ -1488,6 +1488,205 @@ function ContestPlanningModal({ open, onClose }) {
   );
 }
 
+function PromptManagerModal({ open, onClose }) {
+  const [prompts, setPrompts] = useState([]);
+  const [selectedCode, setSelectedCode] = useState('');
+  const [editorValue, setEditorValue] = useState('');
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+
+  const loadPrompts = useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const data = await adminAPI.listPrompts();
+      const list = Array.isArray(data) ? data : [];
+      setPrompts(list);
+      if (list.length > 0) {
+        const preferred = list.find((item) => item.code === 'task_prompt') || list[0];
+        setSelectedCode(preferred.code);
+        setEditorValue(preferred.content || '');
+      } else {
+        setSelectedCode('');
+        setEditorValue('');
+      }
+      setStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить промпты');
+      setPrompts([]);
+      setSelectedCode('');
+      setEditorValue('');
+      setStatus('idle');
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    loadPrompts();
+  }, [open, loadPrompts]);
+
+  const selectedPrompt = useMemo(
+    () => prompts.find((item) => item.code === selectedCode) || null,
+    [prompts, selectedCode]
+  );
+
+  const handleSelect = (prompt) => {
+    setSelectedCode(prompt.code);
+    setEditorValue(prompt.content || '');
+    setError('');
+  };
+
+  const handleSave = async () => {
+    if (!selectedPrompt) return;
+    if (!editorValue.trim()) {
+      setError('Промпт не может быть пустым');
+      return;
+    }
+    setStatus('saving');
+    setError('');
+    try {
+      const updated = await adminAPI.updatePrompt(selectedPrompt.code, { content: editorValue });
+      setPrompts((prev) =>
+        prev.map((item) => (item.code === updated.code ? { ...item, ...updated } : item))
+      );
+      setEditorValue(updated.content || '');
+      setStatus('idle');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось сохранить промпт');
+      setStatus('idle');
+    }
+  };
+
+  const hasChanges = selectedPrompt
+    ? editorValue.trim() !== (selectedPrompt.content || '').trim()
+    : false;
+
+  const handleOverlayClick = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-[#0B0A10] border border-white/[0.09] rounded-[20px] p-8 w-full max-w-6xl mx-4 font-sans-figma">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-white text-[24px] leading-[32px] font-medium">Prompt Manager</h3>
+            <p className="text-white/60 text-[14px] mt-2">
+              Изменения применяются к следующей генерации без деплоя
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors"
+          >
+            Закрыть
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-2 rounded-[12px] mb-4 text-sm">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
+          <div className="border border-white/[0.08] rounded-[16px] p-4 max-h-[560px] overflow-y-auto">
+            <div className="text-[14px] text-white/60 mb-3">Промпты</div>
+            {status === 'loading' && (
+              <div className="text-[14px] text-white/40">Загрузка...</div>
+            )}
+            {status !== 'loading' && prompts.length === 0 && (
+              <div className="text-[14px] text-white/40">Промпты не найдены</div>
+            )}
+            <div className="flex flex-col gap-2">
+              {prompts.map((prompt) => (
+                <button
+                  key={prompt.code}
+                  type="button"
+                  onClick={() => handleSelect(prompt)}
+                  className={`text-left rounded-[12px] px-3 py-3 border transition ${
+                    selectedCode === prompt.code
+                      ? 'border-[#9B6BFF]/60 bg-[#9B6BFF]/10 text-white'
+                      : 'border-white/10 bg-white/[0.02] text-white/70 hover:border-[#9B6BFF]/40'
+                  }`}
+                >
+                  <div className="text-[14px] text-white">{prompt.title}</div>
+                  <div className="text-[12px] text-white/50 mt-1">{prompt.code}</div>
+                  <div className="mt-2 text-[11px]">
+                    {prompt.is_overridden ? (
+                      <span className="px-2 py-1 rounded-full bg-[#9B6BFF]/20 text-[#CBB6FF] border border-[#9B6BFF]/30">
+                        DB override
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 rounded-full bg-white/10 text-white/60 border border-white/10">
+                        Built-in default
+                      </span>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="border border-white/[0.08] rounded-[16px] p-5">
+            {!selectedPrompt ? (
+              <div className="text-white/50 text-[14px]">Выберите промпт для редактирования</div>
+            ) : (
+              <>
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div>
+                    <div className="text-[16px] text-white">{selectedPrompt.title}</div>
+                    <div className="text-[13px] text-white/50 mt-1">
+                      {selectedPrompt.description || 'Описание не задано'}
+                    </div>
+                  </div>
+                  <div className="text-[12px] text-white/40">
+                    Updated: {formatDateTime(selectedPrompt.updated_at)}
+                  </div>
+                </div>
+                <textarea
+                  value={editorValue}
+                  onChange={(e) => setEditorValue(e.target.value)}
+                  className="w-full min-h-[420px] bg-white/[0.03] border border-white/[0.09] rounded-[10px] px-4 py-3 text-white/80 focus:outline-none focus:border-white/30 font-mono text-[13px]"
+                  placeholder="Введите системный промпт"
+                />
+                <div className="flex gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setEditorValue(selectedPrompt.content || '')}
+                    disabled={!hasChanges || status === 'saving'}
+                    className="h-11 px-4 rounded-[10px] bg-white/[0.03] hover:bg-white/[0.06] text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Сбросить
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={!hasChanges || status === 'saving'}
+                    className="h-11 px-4 rounded-[10px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {status === 'saving' ? 'Сохранение...' : 'Сохранить промпт'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Admin() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -1496,6 +1695,7 @@ function Admin() {
   const [isKbOpen, setIsKbOpen] = useState(false);
   const [isTaskOpen, setIsTaskOpen] = useState(false);
   const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
+  const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
   const [isNvdRunning, setIsNvdRunning] = useState(false);
   const [nvdError, setNvdError] = useState('');
 
@@ -1610,6 +1810,13 @@ function Admin() {
               className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
             >
               Планирование контеста
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPromptManagerOpen(true)}
+              className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
+            >
+              Prompt Manager
             </button>
             <button
               type="button"
@@ -1825,6 +2032,10 @@ function Admin() {
       <ContestPlanningModal
         open={isContestPlanningOpen}
         onClose={() => setIsContestPlanningOpen(false)}
+      />
+      <PromptManagerModal
+        open={isPromptManagerOpen}
+        onClose={() => setIsPromptManagerOpen(false)}
       />
     </div>
   );

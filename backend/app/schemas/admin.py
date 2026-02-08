@@ -83,6 +83,19 @@ class AdminArticleGenerateResponse(BaseModel):
     raw_text: str
 
 
+class AdminPromptTemplate(BaseModel):
+    code: str
+    title: str
+    description: Optional[str] = None
+    content: str
+    is_overridden: bool = False
+    updated_at: Optional[datetime] = None
+
+
+class AdminPromptUpdateRequest(BaseModel):
+    content: str
+
+
 class AdminTaskFlag(BaseModel):
     flag_id: str
     format: str

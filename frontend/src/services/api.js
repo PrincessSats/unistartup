@@ -27,7 +27,16 @@ const api = axios.create({
 // Добавляем токен к защищенным запросам (не к /auth/*).
 api.interceptors.request.use((config) => {
   const requestPath = String(config.url || '');
-  const isAuthRequest = requestPath.startsWith('/auth/');
+  let pathname = requestPath;
+  if (requestPath.includes('://')) {
+    try {
+      pathname = new URL(requestPath).pathname;
+    } catch {
+      pathname = requestPath;
+    }
+  }
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  const isAuthRequest = normalizedPath === '/auth' || normalizedPath.startsWith('/auth/');
   const token = localStorage.getItem('token');
   if (token && !isAuthRequest) {
     config.headers['X-Auth-Token'] = token;
@@ -104,6 +113,14 @@ export const adminAPI = {
   },
   updateTask: async (taskId, payload) => {
     const response = await api.put(`/admin/tasks/${taskId}`, payload);
+    return response.data;
+  },
+  listPrompts: async () => {
+    const response = await api.get('/admin/prompts');
+    return response.data;
+  },
+  updatePrompt: async (code, payload) => {
+    const response = await api.put(`/admin/prompts/${code}`, payload);
     return response.data;
   },
   listContests: async () => {

@@ -269,3 +269,14 @@ CREATE TABLE llm_generations (
 );
 
 CREATE INDEX idx_llm_generations_purpose ON llm_generations(purpose);
+
+-- 18. Управление промптами для LLM
+CREATE TABLE prompt_templates (
+    code            TEXT PRIMARY KEY,         -- код: 'task_prompt', 'article_prompt'
+    title           TEXT NOT NULL,            -- человекочитаемое имя в админке
+    description     TEXT,                     -- описание назначения промпта
+    content         TEXT NOT NULL,            -- полный текст промпта
+    updated_by      BIGINT REFERENCES users(id),
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);

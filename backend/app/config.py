@@ -1,8 +1,11 @@
 import json
+from pathlib import Path
 from typing import Any, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
+
+ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
 
 class Settings(BaseSettings):
     """
@@ -46,9 +49,11 @@ class Settings(BaseSettings):
     # Yandex Cloud LLM
     YANDEX_CLOUD_API_KEY: str = ""
     YANDEX_CLOUD_FOLDER: str = ""
+    PROMPTS_DIR: str = ""
     
     class Config:
-        env_file = ".env"
+        # Load backend/.env regardless of process working directory.
+        env_file = ENV_FILE_PATH
         extra = "ignore"
 
     @field_validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")

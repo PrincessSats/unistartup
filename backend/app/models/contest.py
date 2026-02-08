@@ -128,3 +128,15 @@ class LlmGeneration(Base):
     task_id = Column(BigInteger, ForeignKey("tasks.id"))
     created_by = Column(BigInteger, ForeignKey("users.id"))
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class PromptTemplate(Base):
+    __tablename__ = "prompt_templates"
+
+    code = Column(Text, primary_key=True)
+    title = Column(Text, nullable=False)
+    description = Column(Text)
+    content = Column(Text, nullable=False)
+    updated_by = Column(BigInteger, ForeignKey("users.id"))
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
