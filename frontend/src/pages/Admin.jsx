@@ -1376,6 +1376,24 @@ function ContestPlanningModal({ open, onClose }) {
     }
   };
 
+  const handleEndContestNow = async (contestId) => {
+    const confirmed = window.confirm('Завершить чемпионат сейчас? Время окончания будет установлено на текущий момент.');
+    if (!confirmed) return;
+    setStatus('saving');
+    setError('');
+    try {
+      await adminAPI.endContestNow(contestId);
+      await loadData();
+      if (selectedContestId === contestId) {
+        await handleEditContest(contestId);
+      }
+      setStatus('idle');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось завершить контест'));
+      setStatus('idle');
+    }
+  };
+
   const handleDeleteTaskFromGallery = async (task) => {
     const taskTitle = task?.title || `#${task?.id}`;
     const confirmed = window.confirm(`Удалить задачу "${taskTitle}"? Это действие нельзя отменить.`);
@@ -1406,6 +1424,9 @@ function ContestPlanningModal({ open, onClose }) {
   });
 
   const activeContest = contests.find((contest) => contest.status === 'active');
+  const selectedContestMeta = selectedContestId
+    ? contests.find((contest) => contest.id === selectedContestId)
+    : null;
   const previousContests = contests.filter((contest) => contest.status === 'finished');
   const upcomingContests = contests.filter((contest) => contest.status === 'upcoming');
 
@@ -1424,13 +1445,22 @@ function ContestPlanningModal({ open, onClose }) {
           <div className="mt-4 p-4 rounded-[16px] border border-white/10 bg-white/5">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[12px] uppercase tracking-[0.2em] text-white/40">Текущий контест</div>
-              <button
-                type="button"
-                onClick={() => handleDeleteContest(activeContest.id)}
-                className="px-3 h-8 rounded-[10px] border border-rose-400/40 bg-rose-500/15 text-rose-200 text-[12px]"
-              >
-                Удалить
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleEndContestNow(activeContest.id)}
+                  className="px-3 h-8 rounded-[10px] border border-amber-300/40 bg-amber-400/15 text-amber-100 text-[12px]"
+                >
+                  Завершить сейчас
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteContest(activeContest.id)}
+                  className="px-3 h-8 rounded-[10px] border border-rose-400/40 bg-rose-500/15 text-rose-200 text-[12px]"
+                >
+                  Удалить
+                </button>
+              </div>
             </div>
             <div className="text-[18px] mt-2">{activeContest.title}</div>
             <div className="text-[13px] text-white/50 mt-1">
@@ -1648,6 +1678,16 @@ function ContestPlanningModal({ open, onClose }) {
             )}
 
             <div className="flex gap-3">
+              {selectedContestMeta?.status === 'active' && (
+                <button
+                  type="button"
+                  onClick={() => handleEndContestNow(selectedContestMeta.id)}
+                  disabled={status === 'saving'}
+                  className="flex-1 h-11 rounded-[12px] bg-amber-400/15 border border-amber-300/40 text-amber-100 disabled:opacity-60"
+                >
+                  Завершить сейчас
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {

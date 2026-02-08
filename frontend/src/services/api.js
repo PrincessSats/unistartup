@@ -143,6 +143,10 @@ export const adminAPI = {
     const response = await api.put(`/admin/contests/${contestId}`, payload);
     return response.data;
   },
+  endContestNow: async (contestId) => {
+    const response = await api.post(`/admin/contests/${contestId}/end`);
+    return response.data;
+  },
   deleteContest: async (contestId) => {
     const response = await api.delete(`/admin/contests/${contestId}`);
     return response.data;

@@ -1271,6 +1271,33 @@ async def update_admin_contest(
     return await get_admin_contest(contest_id, current_user_data, db)
 
 
+@router.post("/admin/contests/{contest_id}/end", response_model=AdminContestResponse)
+async def end_admin_contest_now(
+    contest_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Принудительно завершить контест текущим временем.
+    """
+    _user, _profile = current_user_data
+
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контест не найден")
+
+    now = datetime.now(timezone.utc)
+
+    # Keep schedule consistent for edge cases (e.g. future contest ended manually).
+    if contest.start_at and contest.start_at > now:
+        contest.start_at = now
+    contest.end_at = now
+
+    await db.commit()
+
+    return await get_admin_contest(contest_id, current_user_data, db)
+
+
 @router.delete("/admin/contests/{contest_id}")
 async def delete_admin_contest(
     contest_id: int,
