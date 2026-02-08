@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import text, select, func, delete
+from sqlalchemy import text, select, func, delete, update
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
@@ -12,9 +12,11 @@ from app.models.user import User, UserProfile
 from app.models.contest import (
     Contest,
     ContestTask,
+    ContestParticipant,
     Task,
     TaskFlag,
     TaskAuthorSolution,
+    Submission,
     LlmGeneration,
     PromptTemplate,
 )
@@ -486,6 +488,53 @@ async def update_kb_entry(
     return AdminArticle(**row)
 
 
+@router.delete("/admin/kb_entries/{entry_id}")
+async def delete_kb_entry(
+    entry_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Удалить запись базы знаний.
+    Связанные ссылки в задачах/LLM-логах обнуляются, чтобы не ломать FK.
+    """
+    _user, _profile = current_user_data
+
+    row = (
+        await db.execute(
+            text("SELECT id FROM kb_entries WHERE id = :entry_id"),
+            {"entry_id": entry_id},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Статья не найдена")
+
+    try:
+        await db.execute(
+            update(Task)
+            .where(Task.kb_entry_id == entry_id)
+            .values(kb_entry_id=None)
+        )
+        await db.execute(
+            update(LlmGeneration)
+            .where(LlmGeneration.kb_entry_id == entry_id)
+            .values(kb_entry_id=None)
+        )
+        await db.execute(
+            text("DELETE FROM kb_entries WHERE id = :entry_id"),
+            {"entry_id": entry_id},
+        )
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось удалить статью: {exc}",
+        ) from exc
+
+    return {"ok": True, "deleted_id": entry_id}
+
+
 @router.post("/admin/kb_entries/generate", response_model=AdminArticleGenerateResponse)
 async def generate_kb_entry_fields(
     data: AdminArticleGenerateRequest,
@@ -868,6 +917,43 @@ async def update_admin_task(
     return _task_to_response(task, flags, solution.creation_solution if solution else None)
 
 
+@router.delete("/admin/tasks/{task_id}")
+async def delete_admin_task(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Удалить задачу и связанные сущности.
+    """
+    _user, _profile = current_user_data
+
+    exists = (await db.execute(select(Task.id).where(Task.id == task_id))).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+    try:
+        await db.execute(delete(ContestTask).where(ContestTask.task_id == task_id))
+        await db.execute(delete(Submission).where(Submission.task_id == task_id))
+        await db.execute(delete(TaskFlag).where(TaskFlag.task_id == task_id))
+        await db.execute(delete(TaskAuthorSolution).where(TaskAuthorSolution.task_id == task_id))
+        await db.execute(
+            update(LlmGeneration)
+            .where(LlmGeneration.task_id == task_id)
+            .values(task_id=None)
+        )
+        await db.execute(delete(Task).where(Task.id == task_id))
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось удалить задачу: {exc}",
+        ) from exc
+
+    return {"ok": True, "deleted_id": task_id}
+
+
 @router.get("/admin/prompts", response_model=list[AdminPromptTemplate])
 async def list_admin_prompts(
     current_user_data: tuple = Depends(get_current_admin),
@@ -1183,3 +1269,34 @@ async def update_admin_contest(
     await db.commit()
 
     return await get_admin_contest(contest_id, current_user_data, db)
+
+
+@router.delete("/admin/contests/{contest_id}")
+async def delete_admin_contest(
+    contest_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Удалить контест и связанные сущности.
+    """
+    _user, _profile = current_user_data
+
+    exists = (await db.execute(select(Contest.id).where(Contest.id == contest_id))).scalar_one_or_none()
+    if exists is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контест не найден")
+
+    try:
+        await db.execute(delete(ContestTask).where(ContestTask.contest_id == contest_id))
+        await db.execute(delete(ContestParticipant).where(ContestParticipant.contest_id == contest_id))
+        await db.execute(delete(Submission).where(Submission.contest_id == contest_id))
+        await db.execute(delete(Contest).where(Contest.id == contest_id))
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Не удалось удалить контест: {exc}",
+        ) from exc
+
+    return {"ok": True, "deleted_id": contest_id}
