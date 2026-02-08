@@ -900,25 +900,34 @@ function CreateTaskModal({ open, onClose, onCreated }) {
           <div className="flex flex-col gap-4">
             <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Параметры генерации</div>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                value={generateForm.difficulty}
-                onChange={(e) => setGenerateForm((prev) => ({ ...prev, difficulty: e.target.value }))}
-                className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Сложность 1-10"
-              />
-              <input
-                value={generateForm.tags}
-                onChange={(e) => setGenerateForm((prev) => ({ ...prev, tags: e.target.value }))}
-                className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Теги через запятую"
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Сложность</label>
+                <input
+                  value={generateForm.difficulty}
+                  onChange={(e) => setGenerateForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                  className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Например: 3"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Теги</label>
+                <input
+                  value={generateForm.tags}
+                  onChange={(e) => setGenerateForm((prev) => ({ ...prev, tags: e.target.value }))}
+                  className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Например: web, xss"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Описание для генерации</label>
+              <textarea
+                value={generateForm.description}
+                onChange={(e) => setGenerateForm((prev) => ({ ...prev, description: e.target.value }))}
+                className="min-h-[120px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                placeholder="Коротко опишите задачу"
               />
             </div>
-            <textarea
-              value={generateForm.description}
-              onChange={(e) => setGenerateForm((prev) => ({ ...prev, description: e.target.value }))}
-              className="min-h-[120px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
-              placeholder="Коротко опишите задачу"
-            />
             <button
               type="button"
               onClick={handleGenerate}
@@ -931,90 +940,127 @@ function CreateTaskModal({ open, onClose, onCreated }) {
 
           <div className="flex flex-col gap-4">
             <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Данные задачи</div>
-            <input
-              value={taskForm.title}
-              onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
-              className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-              placeholder="Название задачи"
-            />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Название задачи</label>
               <input
-                value={taskForm.category}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, category: e.target.value }))}
+                value={taskForm.title}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, title: e.target.value }))}
                 className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Категория"
-              />
-              <input
-                value={taskForm.tags}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, tags: e.target.value }))}
-                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Теги"
+                placeholder="Введите название"
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <input
-                value={taskForm.difficulty}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, difficulty: e.target.value }))}
-                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Сложность"
-              />
-              <input
-                value={taskForm.points}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, points: e.target.value }))}
-                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                placeholder="Очки"
-              />
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Категория</label>
+                <input
+                  value={taskForm.category}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, category: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Например: web"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Теги</label>
+                <input
+                  value={taskForm.tags}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, tags: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Например: sqli, auth"
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <select
-                value={taskForm.task_kind}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, task_kind: e.target.value }))}
-                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-              >
-                <option value="contest">Contest</option>
-                <option value="practice">Practice</option>
-              </select>
-              <select
-                value={taskForm.state}
-                onChange={(e) => setTaskForm((prev) => ({ ...prev, state: e.target.value }))}
-                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-              >
-                <option value="draft">Draft</option>
-                <option value="ready">Ready</option>
-                <option value="published">Published</option>
-              </select>
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Сложность</label>
+                <input
+                  value={taskForm.difficulty}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="1-10"
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Очки</label>
+                <input
+                  value={taskForm.points}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, points: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Например: 200"
+                />
+              </div>
             </div>
-            <textarea
-              value={taskForm.participant_description}
-              onChange={(e) => setTaskForm((prev) => ({ ...prev, participant_description: e.target.value }))}
-              className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
-              placeholder="Описание для участника"
-            />
-            <textarea
-              value={taskForm.story}
-              onChange={(e) => setTaskForm((prev) => ({ ...prev, story: e.target.value }))}
-              className="min-h-[80px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
-              placeholder="Легенда (story)"
-            />
-            <textarea
-              value={taskForm.creation_solution}
-              onChange={(e) => setTaskForm((prev) => ({ ...prev, creation_solution: e.target.value }))}
-              className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
-              placeholder="Решение для организаторов"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Тип задачи</label>
+                <select
+                  value={taskForm.task_kind}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, task_kind: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                >
+                  <option value="contest">Contest</option>
+                  <option value="practice">Practice</option>
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-[13px] text-white/70">Статус</label>
+                <select
+                  value={taskForm.state}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, state: e.target.value }))}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                >
+                  <option value="draft">Draft</option>
+                  <option value="ready">Ready</option>
+                  <option value="published">Published</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Описание для участника</label>
+              <textarea
+                value={taskForm.participant_description}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, participant_description: e.target.value }))}
+                className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                placeholder="Текст, который увидит участник"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Легенда (story)</label>
+              <textarea
+                value={taskForm.story}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, story: e.target.value }))}
+                className="min-h-[80px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                placeholder="Контекст задачи"
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Решение для организаторов</label>
+              <textarea
+                value={taskForm.creation_solution}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, creation_solution: e.target.value }))}
+                className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                placeholder="Шаги решения"
+              />
+            </div>
           </div>
         </div>
 
         <div className="mt-6">
           <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Флаги</div>
           <div className="flex flex-col gap-3 mt-3">
+            <div className="hidden md:grid md:grid-cols-5 gap-3 items-center text-[12px] text-white/50 px-1">
+              <div>Flag ID</div>
+              <div>Формат</div>
+              <div>Значение</div>
+              <div>Описание</div>
+              <div>Действие</div>
+            </div>
             {flags.map((flag, index) => (
               <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
                 <input
                   value={flag.flag_id}
                   onChange={(e) => updateFlag(index, 'flag_id', e.target.value)}
                   className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="flag_id"
+                  placeholder="Например: main"
                 />
                 <input
                   value={flag.format}
@@ -1026,7 +1072,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                   value={flag.expected_value}
                   onChange={(e) => updateFlag(index, 'expected_value', e.target.value)}
                   className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Значение"
+                  placeholder="Ожидаемое значение"
                 />
                 <input
                   value={flag.description}
