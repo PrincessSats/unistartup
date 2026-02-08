@@ -1,32 +1,22 @@
 import asyncio
 import json
-from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from openai import OpenAI
 
 from app.config import settings
+from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 
 class TaskGenerationError(RuntimeError):
     pass
 
 
-def _find_prompt_path() -> Path:
-    current = Path(__file__).resolve()
-    for parent in [current, *current.parents]:
-        candidate = parent / "task_prompt.txt"
-        if candidate.exists():
-            return candidate
-    raise TaskGenerationError("task_prompt.txt not found")
-
-
 def _load_system_prompt() -> str:
-    path = _find_prompt_path()
-    content = path.read_text(encoding="utf-8").strip()
-    if not content:
-        raise TaskGenerationError("task_prompt.txt is empty")
-    return content
+    try:
+        return load_prompt_text("task_prompt.txt")
+    except PromptLoadError as exc:
+        raise TaskGenerationError(str(exc)) from exc
 
 
 def _strip_code_fence(text: str) -> str:
@@ -50,8 +40,13 @@ def _build_client() -> OpenAI:
     )
 
 
-def _run_generation(difficulty: int, tags: list[str], description: str) -> dict[str, Any]:
-    system_prompt = _load_system_prompt()
+def _run_generation(
+    difficulty: int,
+    tags: list[str],
+    description: str,
+    system_prompt: Optional[str] = None,
+) -> dict[str, Any]:
+    prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     model_name = f"gpt://{settings.YANDEX_CLOUD_FOLDER}/qwen3-235b-a22b-fp8/latest"
     user_payload = {
@@ -62,7 +57,7 @@ def _run_generation(difficulty: int, tags: list[str], description: str) -> dict[
     response = client.chat.completions.create(
         model=model_name,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": prompt_text},
             {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
         ],
     )
@@ -82,3 +77,12 @@ def _run_generation(difficulty: int, tags: list[str], description: str) -> dict[
 
 async def generate_task_payload(difficulty: int, tags: list[str], description: str) -> dict[str, Any]:
     return await asyncio.to_thread(_run_generation, difficulty, tags, description)
+
+
+async def generate_task_payload_with_prompt(
+    difficulty: int,
+    tags: list[str],
+    description: str,
+    system_prompt: str,
+) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_generation, difficulty, tags, description, system_prompt)
