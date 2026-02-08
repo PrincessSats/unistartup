@@ -31,12 +31,19 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _build_client() -> OpenAI:
-    if not settings.YANDEX_CLOUD_API_KEY or not settings.YANDEX_CLOUD_FOLDER:
-        raise TaskGenerationError("Missing YANDEX_CLOUD_API_KEY or YANDEX_CLOUD_FOLDER")
+    api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
+    folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+    missing: list[str] = []
+    if not api_key:
+        missing.append("YANDEX_CLOUD_API_KEY (or YANDEX_API_KEY / YC_API_KEY)")
+    if not folder:
+        missing.append("YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID / YC_FOLDER_ID)")
+    if missing:
+        raise TaskGenerationError(f"Missing Yandex LLM config: {', '.join(missing)}")
     return OpenAI(
-        api_key=settings.YANDEX_CLOUD_API_KEY,
+        api_key=api_key,
         base_url="https://llm.api.cloud.yandex.net/v1",
-        project=settings.YANDEX_CLOUD_FOLDER,
+        project=folder,
     )
 
 
@@ -48,19 +55,23 @@ def _run_generation(
 ) -> dict[str, Any]:
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
-    model_name = f"gpt://{settings.YANDEX_CLOUD_FOLDER}/qwen3-235b-a22b-fp8/latest"
+    folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+    model_name = f"gpt://{folder}/qwen3-235b-a22b-fp8/latest"
     user_payload = {
         "difficulty": difficulty,
         "tags": tags,
         "description": description,
     }
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=[
-            {"role": "system", "content": prompt_text},
-            {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
-        ],
-    )
+    try:
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[
+                {"role": "system", "content": prompt_text},
+                {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise TaskGenerationError(f"Yandex model request failed: {exc}") from exc
     text = (response.choices[0].message.content or "").strip()
     cleaned = _strip_code_fence(text)
     try:
