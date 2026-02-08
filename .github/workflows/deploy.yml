@@ -2,20 +2,63 @@ name: Deploy to Yandex Cloud
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
+      - "v.*"
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (example: v1.1.1)"
+        required: true
+        type: string
 
 env:
   REGISTRY: cr.yandex
   BACKEND_IMAGE_NAME: hacknet-backend
+  FRONTEND_BUCKET_NAME: hacknet-frontend
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy-backend:
+  resolve-image-tag:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.resolve.outputs.image_tag }}
+    steps:
+      - name: Resolve image tag
+        id: resolve
+        env:
+          INPUT_TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.image_tag || '' }}
+          REF_NAME: ${{ github.ref_name }}
+          IS_TAG_REF: ${{ startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "$INPUT_TAG" ]; then
+            IMAGE_TAG="$INPUT_TAG"
+          elif [ "$IS_TAG_REF" = "true" ]; then
+            IMAGE_TAG="$REF_NAME"
+          else
+            echo "No image tag provided. For manual runs, set workflow_dispatch input 'image_tag'."
+            exit 1
+          fi
+
+          echo "Using image tag: $IMAGE_TAG"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+  build-and-deploy-backend:
+    needs: resolve-image-tag
+    runs-on: ubuntu-latest
+    outputs:
+      image_url: ${{ steps.build-image.outputs.image_url }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Login to Yandex Cloud Container Registry
         uses: yc-actions/yc-cr-login@v1
@@ -23,15 +66,18 @@ jobs:
           yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
 
       - name: Build and push Backend Docker image
+        id: build-image
         working-directory: ./backend
         run: |
-          docker build -t ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} \
-            -t ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest .
-          docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-          docker push ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          set -euo pipefail
+          IMAGE_URL="${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:${{ needs.resolve-image-tag.outputs.image_tag }}"
+          docker build -t "$IMAGE_URL" .
+          docker push "$IMAGE_URL"
+          echo "image_url=$IMAGE_URL" >> "$GITHUB_OUTPUT"
 
       - name: Install YC CLI
         run: |
+          set -euo pipefail
           curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n
           echo "/opt/yc/bin" >> $GITHUB_PATH
 
@@ -40,6 +86,7 @@ jobs:
           YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
           YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
         run: |
+          set -euo pipefail
           echo "$YC_SA_JSON_CREDENTIALS" > /tmp/yc-sa.json
           yc config set service-account-key /tmp/yc-sa.json
           if [ -z "$YANDEX_CLOUD_FOLDER" ]; then
@@ -50,10 +97,11 @@ jobs:
 
       - name: Deploy to Yandex Cloud Serverless Containers
         env:
-          IMAGE_URL: ${{ env.REGISTRY }}/${{ secrets.YC_REGISTRY_ID }}/${{ env.BACKEND_IMAGE_NAME }}:latest
+          IMAGE_URL: ${{ steps.build-image.outputs.image_url }}
           YANDEX_CLOUD_API_KEY: ${{ secrets.YANDEX_CLOUD_API_KEY }}
           YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
         run: |
+          set -euo pipefail
           if [ -z "$YANDEX_CLOUD_API_KEY" ] || [ -z "$YANDEX_CLOUD_FOLDER" ]; then
             echo "Missing required secrets: YANDEX_CLOUD_API_KEY and/or YANDEX_CLOUD_FOLDER"
             exit 1
@@ -70,92 +118,47 @@ jobs:
             --service-account-id ${{ secrets.YC_SA_ID }} \
             --async-service-account-id ${{ secrets.YC_SA_ID }} \
             --environment "$ENV_VARS"
-      
 
   deploy-frontend:
     runs-on: ubuntu-latest
     needs: build-and-deploy-backend
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies and build
         working-directory: ./frontend
         env:
           REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
         run: |
+          set -euo pipefail
           npm ci --legacy-peer-deps
-          CI=false npm run build
+          CI=true npm run build
 
       - name: Install AWS CLI
         run: |
+          set -euo pipefail
           pip install awscli
 
       - name: Configure AWS CLI for Yandex S3
         run: |
+          set -euo pipefail
           aws configure set aws_access_key_id ${{ secrets.YC_AWS_ACCESS_KEY }}
           aws configure set aws_secret_access_key ${{ secrets.YC_AWS_SECRET_KEY }}
           aws configure set region ru-central1
 
-      - name: Sync to S3 with correct MIME types
+      - name: Sync frontend build to Yandex Object Storage
         working-directory: ./frontend/build
         run: |
-          # HTML файлы
-          find . -name "*.html" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "text/html"
-          done
-          
-          # CSS файлы
-          find . -name "*.css" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "text/css"
-          done
-          
-          # JS файлы
-          find . -name "*.js" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "application/javascript"
-          done
-          
-          # JSON файлы
-          find . -name "*.json" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "application/json"
-          done
-          
-          # PNG изображения
-          find . -name "*.png" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "image/png"
-          done
-          
-          # ICO файлы
-          find . -name "*.ico" -type f | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read \
-              --content-type "image/x-icon"
-          done
-          
-          # Остальные файлы
-          find . -type f ! -name "*.html" ! -name "*.css" ! -name "*.js" ! -name "*.json" ! -name "*.png" ! -name "*.ico" | while read file; do
-            aws s3 cp "$file" "s3://hacknet-frontend/${file#./}" \
-              --endpoint-url=https://storage.yandexcloud.net \
-              --acl public-read
-          done
+          set -euo pipefail
+          aws s3 sync . "s3://${{ env.FRONTEND_BUCKET_NAME }}" \
+            --delete \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --acl public-read
