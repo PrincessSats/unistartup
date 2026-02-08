@@ -7,7 +7,13 @@ from app.config import settings
 engine = create_async_engine(
     settings.database_url,
     echo=settings.SQL_ECHO,
-    future=True
+    future=True,
+    # Serverless containers may reuse stale TCP connections between requests.
+    # pre_ping checks liveness and transparently reconnects.
+    pool_pre_ping=True,
+    # Recycle pooled connections periodically to reduce "connection is closed" errors
+    # from upstream idle timeouts (PG/pgbouncer/network).
+    pool_recycle=300,
 )
 
 # Фабрика для создания сессий (сессия = временное подключение к БД)

@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -54,6 +55,7 @@ from app.services.article_generation import (
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 router = APIRouter(tags=["Тестовые страницы"])
+logger = logging.getLogger(__name__)
 
 @router.get("/welcome")
 async def welcome_page(
@@ -690,26 +692,34 @@ async def create_admin_task(
 
     if not data.flags or any(not flag.expected_value for flag in data.flags):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flags are required")
+    normalized_flag_ids = [(flag.flag_id or "").strip() for flag in data.flags]
+    if any(not flag_id for flag_id in normalized_flag_ids):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flag_id is required for each flag")
+    if len(set(normalized_flag_ids)) != len(normalized_flag_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Duplicate flag_id in payload. Each flag_id must be unique per task.",
+        )
     if not data.title or not data.category:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title and category are required")
 
-    task = Task(
-        title=data.title.strip(),
-        category=data.category.strip(),
-        difficulty=data.difficulty,
-        points=data.points,
-        tags=tags,
-        language=data.language,
-        story=data.story,
-        participant_description=data.participant_description,
-        state=data.state,
-        task_kind=task_kind,
-        llm_raw_response=data.llm_raw_response,
-        created_by=user.id,
-    )
-    db.add(task)
-
     try:
+        task = Task(
+            title=data.title.strip(),
+            category=data.category.strip(),
+            difficulty=data.difficulty,
+            points=data.points,
+            tags=tags,
+            language=data.language,
+            story=data.story,
+            participant_description=data.participant_description,
+            state=data.state,
+            task_kind=task_kind,
+            llm_raw_response=data.llm_raw_response,
+            created_by=user.id,
+        )
+        db.add(task)
+
         await db.flush()
 
         if data.creation_solution:
@@ -733,6 +743,12 @@ async def create_admin_task(
 
         await db.commit()
         await db.refresh(task)
+
+        flags = (
+            await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id))
+        ).scalars().all()
+
+        return _task_to_response(task, flags, data.creation_solution)
     except IntegrityError as exc:
         await db.rollback()
         error_text = _format_db_error(exc)
@@ -767,16 +783,11 @@ async def create_admin_task(
         ) from exc
     except Exception as exc:  # noqa: BLE001
         await db.rollback()
+        logger.exception("Unexpected error while creating admin task")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Task save failed: {exc}",
         ) from exc
-
-    flags = (
-        await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id))
-    ).scalars().all()
-
-    return _task_to_response(task, flags, data.creation_solution)
 
 
 @router.put("/admin/tasks/{task_id}", response_model=AdminTaskResponse)
