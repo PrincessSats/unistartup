@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text, select, func, delete
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
 from app.database import get_db
@@ -329,6 +329,10 @@ def _task_to_response(
             for flag in (flags or [])
         ],
     )
+
+
+def _format_db_error(exc: Exception) -> str:
+    return str(getattr(exc, "orig", exc))
 
 
 @router.post("/admin/kb_entries", response_model=AdminArticle)
@@ -704,29 +708,69 @@ async def create_admin_task(
         created_by=user.id,
     )
     db.add(task)
-    await db.flush()
 
-    if data.creation_solution:
-        db.add(
-            TaskAuthorSolution(
-                task_id=task.id,
-                creation_solution=data.creation_solution,
+    try:
+        await db.flush()
+
+        if data.creation_solution:
+            db.add(
+                TaskAuthorSolution(
+                    task_id=task.id,
+                    creation_solution=data.creation_solution,
+                )
             )
-        )
 
-    for flag in data.flags:
-        db.add(
-            TaskFlag(
-                task_id=task.id,
-                flag_id=flag.flag_id,
-                format=flag.format,
-                expected_value=flag.expected_value.strip(),
-                description=flag.description,
+        for flag in data.flags:
+            db.add(
+                TaskFlag(
+                    task_id=task.id,
+                    flag_id=flag.flag_id,
+                    format=flag.format,
+                    expected_value=flag.expected_value.strip(),
+                    description=flag.description,
+                )
             )
-        )
 
-    await db.commit()
-    await db.refresh(task)
+        await db.commit()
+        await db.refresh(task)
+    except IntegrityError as exc:
+        await db.rollback()
+        error_text = _format_db_error(exc)
+        lowered = error_text.lower()
+        if "task_flags" in lowered and "duplicate key" in lowered:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate flag_id in task flags. Each flag_id must be unique per task.",
+            ) from exc
+        if "foreign key" in lowered and "created_by" in lowered:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid creator user reference while saving task.",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Task save integrity error: {error_text}",
+        ) from exc
+    except ProgrammingError as exc:
+        await db.rollback()
+        error_text = _format_db_error(exc)
+        lowered = error_text.lower()
+        schema_markers = ("does not exist", "undefined column", "relation", "column")
+        if any(marker in lowered for marker in schema_markers):
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Task save failed due to DB schema mismatch. Apply latest schema.sql changes. Raw DB error: {error_text}",
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Task save database error: {error_text}",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Task save failed: {exc}",
+        ) from exc
 
     flags = (
         await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id))
