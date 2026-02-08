@@ -15,6 +15,7 @@ from app.models.contest import (
     TaskFlag,
     TaskAuthorSolution,
     LlmGeneration,
+    PromptTemplate,
 )
 from app.schemas.admin import (
     AdminDashboardResponse,
@@ -38,10 +39,19 @@ from app.schemas.admin import (
     AdminContestUpdateRequest,
     AdminContestTaskResponse,
     AdminContestTask,
+    AdminPromptTemplate,
+    AdminPromptUpdateRequest,
 )
 from app.services.nvd_sync import run_sync
-from app.services.task_generation import generate_task_payload, TaskGenerationError
-from app.services.article_generation import generate_article_payload, ArticleGenerationError
+from app.services.task_generation import (
+    generate_task_payload_with_prompt,
+    TaskGenerationError,
+)
+from app.services.article_generation import (
+    generate_article_payload_with_prompt,
+    ArticleGenerationError,
+)
+from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 router = APIRouter(tags=["Тестовые страницы"])
 
@@ -237,6 +247,56 @@ def _coerce_task_kind(value: Optional[str]) -> str:
         return "contest"
     value = value.strip().lower()
     return value if value in {"contest", "practice"} else "contest"
+
+
+PROMPT_SPECS = [
+    {
+        "code": "task_prompt",
+        "title": "Task Generation Prompt",
+        "description": "System prompt for generating contest/practice tasks from admin builder.",
+        "filename": "task_prompt.txt",
+    },
+    {
+        "code": "article_prompt",
+        "title": "Article Generation Prompt",
+        "description": "System prompt for generating RU title, summary, explainer and tags from raw EN text.",
+        "filename": "article_prompt.txt",
+    },
+]
+PROMPT_SPEC_BY_CODE = {item["code"]: item for item in PROMPT_SPECS}
+
+
+async def _fetch_prompt_overrides(db: AsyncSession) -> tuple[dict[str, PromptTemplate], bool]:
+    """
+    Returns prompt overrides and whether prompt_templates table is available.
+    """
+    try:
+        rows = (await db.execute(select(PromptTemplate))).scalars().all()
+    except ProgrammingError as exc:
+        if "prompt_templates" in str(exc):
+            await db.rollback()
+            return {}, False
+        raise
+    return {row.code: row for row in rows}, True
+
+
+async def _resolve_prompt_text(db: AsyncSession, code: str) -> str:
+    spec = PROMPT_SPEC_BY_CODE.get(code)
+    if spec is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
+
+    overrides, _ = await _fetch_prompt_overrides(db)
+    override = overrides.get(code)
+    if override and (override.content or "").strip():
+        return override.content.strip()
+
+    try:
+        return load_prompt_text(spec["filename"])
+    except PromptLoadError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"{spec['filename']} not found and no DB override exists",
+        ) from exc
 
 
 def _task_to_response(
@@ -436,7 +496,8 @@ async def generate_kb_entry_fields(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="raw_en_text is required")
 
     try:
-        result = await generate_article_payload(raw_text)
+        prompt_text = await _resolve_prompt_text(db, "article_prompt")
+        result = await generate_article_payload_with_prompt(raw_text, prompt_text)
     except ArticleGenerationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -575,7 +636,13 @@ async def generate_admin_task(
     tags = _normalize_tags(data.tags)
 
     try:
-        result = await generate_task_payload(data.difficulty, tags, data.description)
+        prompt_text = await _resolve_prompt_text(db, "task_prompt")
+        result = await generate_task_payload_with_prompt(
+            data.difficulty,
+            tags,
+            data.description,
+            prompt_text,
+        )
     except TaskGenerationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -737,6 +804,108 @@ async def update_admin_task(
     ).scalar_one_or_none()
 
     return _task_to_response(task, flags, solution.creation_solution if solution else None)
+
+
+@router.get("/admin/prompts", response_model=list[AdminPromptTemplate])
+async def list_admin_prompts(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Список управляемых промптов для LLM.
+    """
+    _user, _profile = current_user_data
+
+    overrides, _ = await _fetch_prompt_overrides(db)
+
+    items: list[AdminPromptTemplate] = []
+    for spec in PROMPT_SPECS:
+        override = overrides.get(spec["code"])
+        if override and (override.content or "").strip():
+            content = override.content.strip()
+            is_overridden = True
+            updated_at = override.updated_at
+        else:
+            try:
+                content = load_prompt_text(spec["filename"])
+            except PromptLoadError:
+                content = ""
+            is_overridden = False
+            updated_at = None
+
+        items.append(
+            AdminPromptTemplate(
+                code=spec["code"],
+                title=spec["title"],
+                description=spec["description"],
+                content=content,
+                is_overridden=is_overridden,
+                updated_at=updated_at,
+            )
+        )
+
+    return items
+
+
+@router.put("/admin/prompts/{code}", response_model=AdminPromptTemplate)
+async def update_admin_prompt(
+    code: str,
+    data: AdminPromptUpdateRequest,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Обновить промпт в БД. Изменения применяются сразу к следующим генерациям.
+    """
+    user, _profile = current_user_data
+    spec = PROMPT_SPEC_BY_CODE.get(code)
+    if spec is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prompt not found")
+
+    content = (data.content or "").strip()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="content is required")
+
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == code))
+        ).scalar_one_or_none()
+    except ProgrammingError as exc:
+        if "prompt_templates" in str(exc):
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="prompt_templates table missing. Apply schema.sql changes.",
+            ) from exc
+        raise
+
+    if row is None:
+        row = PromptTemplate(
+            code=code,
+            title=spec["title"],
+            description=spec["description"],
+            content=content,
+            updated_by=user.id,
+        )
+        db.add(row)
+    else:
+        row.title = spec["title"]
+        row.description = spec["description"]
+        row.content = content
+        row.updated_by = user.id
+        row.updated_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(row)
+
+    return AdminPromptTemplate(
+        code=row.code,
+        title=row.title,
+        description=row.description,
+        content=row.content,
+        is_overridden=True,
+        updated_at=row.updated_at,
+    )
 
 
 @router.get("/admin/contests", response_model=list[AdminContestListItem])

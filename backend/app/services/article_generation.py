@@ -1,12 +1,12 @@
 import asyncio
 import json
 import logging
-from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from openai import OpenAI
 
 from app.config import settings
+from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 
 class ArticleGenerationError(RuntimeError):
@@ -16,21 +16,11 @@ class ArticleGenerationError(RuntimeError):
 logger = logging.getLogger(__name__)
 
 
-def _find_prompt_path() -> Path:
-    current = Path(__file__).resolve()
-    for parent in [current, *current.parents]:
-        candidate = parent / "article_prompt.txt"
-        if candidate.exists():
-            return candidate
-    raise ArticleGenerationError("article_prompt.txt not found")
-
-
 def _load_system_prompt() -> str:
-    path = _find_prompt_path()
-    content = path.read_text(encoding="utf-8").strip()
-    if not content:
-        raise ArticleGenerationError("article_prompt.txt is empty")
-    return content
+    try:
+        return load_prompt_text("article_prompt.txt")
+    except PromptLoadError as exc:
+        raise ArticleGenerationError(str(exc)) from exc
 
 
 def _strip_code_fence(text: str) -> str:
@@ -54,15 +44,15 @@ def _build_client() -> OpenAI:
     )
 
 
-def _run_generation(raw_en_text: str) -> dict[str, Any]:
-    system_prompt = _load_system_prompt()
+def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> dict[str, Any]:
+    prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     model_name = f"gpt://{settings.YANDEX_CLOUD_FOLDER}/qwen3-235b-a22b-fp8/latest"
     logger.info("KB generation started (model=%s, chars=%s)", model_name, len(raw_en_text))
     response = client.chat.completions.create(
         model=model_name,
         messages=[
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": prompt_text},
             {"role": "user", "content": raw_en_text},
         ],
     )
@@ -83,3 +73,7 @@ def _run_generation(raw_en_text: str) -> dict[str, Any]:
 
 async def generate_article_payload(raw_en_text: str) -> dict[str, Any]:
     return await asyncio.to_thread(_run_generation, raw_en_text)
+
+
+async def generate_article_payload_with_prompt(raw_en_text: str, system_prompt: str) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_generation, raw_en_text, system_prompt)
