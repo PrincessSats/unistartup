@@ -2,10 +2,11 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings
 
 ENV_FILE_PATH = Path(__file__).resolve().parents[1] / ".env"
+ROOT_ENV_FILE_PATH = Path(__file__).resolve().parents[2] / ".env"
 
 class Settings(BaseSettings):
     """
@@ -47,13 +48,29 @@ class Settings(BaseSettings):
     S3_REGION: str = "ru-central1"
 
     # Yandex Cloud LLM
-    YANDEX_CLOUD_API_KEY: str = ""
-    YANDEX_CLOUD_FOLDER: str = ""
+    YANDEX_CLOUD_API_KEY: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "YANDEX_CLOUD_API_KEY",
+            "YANDEX_API_KEY",
+            "YC_API_KEY",
+        ),
+    )
+    YANDEX_CLOUD_FOLDER: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "YANDEX_CLOUD_FOLDER",
+            "YANDEX_CLOUD_FOLDER_ID",
+            "YANDEX_FOLDER_ID",
+            "YC_FOLDER_ID",
+            "FOLDER_ID",
+        ),
+    )
     PROMPTS_DIR: str = ""
     
     class Config:
-        # Load backend/.env regardless of process working directory.
-        env_file = ENV_FILE_PATH
+        # Support both backend/.env and repo-root .env for local/prod parity.
+        env_file = (ENV_FILE_PATH, ROOT_ENV_FILE_PATH)
         extra = "ignore"
 
     @field_validator("CORS_ALLOW_METHODS", "CORS_ALLOW_HEADERS", mode="before")
@@ -85,6 +102,13 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @field_validator("YANDEX_CLOUD_API_KEY", "YANDEX_CLOUD_FOLDER", "PROMPTS_DIR", mode="before")
+    @classmethod
+    def normalize_optional_strings(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
 
     @property
     def cors_allow_origins(self) -> list[str]:

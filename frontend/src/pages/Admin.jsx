@@ -90,6 +90,36 @@ function formatRelativeTime(value) {
   return `${diffDays} дн назад`;
 }
 
+function getApiErrorMessage(err, fallback) {
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const text = detail
+      .map((item) => {
+        if (typeof item === 'string') return item;
+        if (item && typeof item === 'object' && typeof item.msg === 'string') return item.msg;
+        try {
+          return JSON.stringify(item);
+        } catch {
+          return '';
+        }
+      })
+      .filter(Boolean)
+      .join('; ');
+    if (text) return text;
+  }
+  if (detail && typeof detail === 'object') {
+    if (typeof detail.message === 'string' && detail.message.trim()) return detail.message;
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return fallback;
+    }
+  }
+  if (typeof err?.message === 'string' && err.message.trim()) return err.message;
+  return fallback;
+}
+
 function StatCard({ label, value, hint, icon, tone }) {
   return (
     <div className={`${cardBase} p-5 flex flex-col gap-3`}>
@@ -239,8 +269,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
       }
       onClose();
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось создать статью');
+      setError(getApiErrorMessage(err, 'Не удалось создать статью'));
       setStatus('idle');
     }
   };
@@ -252,8 +281,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
       const data = await adminAPI.listArticles({ limit: 200, offset: 0 });
       setArticles(Array.isArray(data) ? data : []);
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setArticlesError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+      setArticlesError(getApiErrorMessage(err, 'Не удалось загрузить статьи'));
       setArticles([]);
     } finally {
       setArticlesLoading(false);
@@ -309,8 +337,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
       }));
       setEditGenerateStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setEditError(typeof detail === 'string' ? detail : 'Не удалось сгенерировать поля');
+      setEditError(getApiErrorMessage(err, 'Не удалось сгенерировать поля'));
       setEditGenerateStatus('idle');
     }
   };
@@ -344,8 +371,7 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
         onUpdated(updated);
       }
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setEditError(typeof detail === 'string' ? detail : 'Не удалось сохранить изменения');
+      setEditError(getApiErrorMessage(err, 'Не удалось сохранить изменения'));
       setEditStatus('idle');
     }
   };
@@ -796,8 +822,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
         }));
       setStatus('generated');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось сгенерировать задачу');
+      setError(getApiErrorMessage(err, 'Не удалось сгенерировать задачу'));
       setStatus('idle');
     }
   };
@@ -839,8 +864,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
       onCreated?.();
       onClose();
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось создать задачу');
+      setError(getApiErrorMessage(err, 'Не удалось создать задачу'));
       setStatus('idle');
     }
   };
@@ -1081,8 +1105,7 @@ function ContestPlanningModal({ open, onClose }) {
       setTasks(taskList);
       setStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить данные');
+      setError(getApiErrorMessage(err, 'Не удалось загрузить данные'));
       setStatus('idle');
     }
   };
@@ -1142,8 +1165,7 @@ function ContestPlanningModal({ open, onClose }) {
       );
       setStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить контест');
+      setError(getApiErrorMessage(err, 'Не удалось загрузить контест'));
       setStatus('idle');
     }
   };
@@ -1233,8 +1255,7 @@ function ContestPlanningModal({ open, onClose }) {
       await loadData();
       setStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось сохранить контест');
+      setError(getApiErrorMessage(err, 'Не удалось сохранить контест'));
       setStatus('idle');
     }
   };
@@ -1512,8 +1533,7 @@ function PromptManagerModal({ open, onClose }) {
       }
       setStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось загрузить промпты');
+      setError(getApiErrorMessage(err, 'Не удалось загрузить промпты'));
       setPrompts([]);
       setSelectedCode('');
       setEditorValue('');
@@ -1553,8 +1573,7 @@ function PromptManagerModal({ open, onClose }) {
       setEditorValue(updated.content || '');
       setStatus('idle');
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : 'Не удалось сохранить промпт');
+      setError(getApiErrorMessage(err, 'Не удалось сохранить промпт'));
       setStatus('idle');
     }
   };
@@ -1771,8 +1790,7 @@ function Admin() {
         nvd_sync: data,
       }));
     } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setNvdError(typeof detail === 'string' ? detail : 'Не удалось выполнить синхронизацию NVD');
+      setNvdError(getApiErrorMessage(err, 'Не удалось выполнить синхронизацию NVD'));
     } finally {
       setIsNvdRunning(false);
     }
