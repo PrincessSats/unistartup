@@ -66,7 +66,7 @@ jobs:
             --cores 1 \
             --memory 512MB \
             --concurrency 1 \
-            --execution-timeout 60s \
+            --execution-timeout 180s \
             --service-account-id ${{ secrets.YC_SA_ID }} \
             --async-service-account-id ${{ secrets.YC_SA_ID }} \
             --environment "$ENV_VARS"

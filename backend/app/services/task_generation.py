@@ -78,6 +78,10 @@ def _run_generation(
         parsed = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise TaskGenerationError(f"Model returned invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise TaskGenerationError(
+            f"Model returned JSON root type '{type(parsed).__name__}', expected object"
+        )
     return {
         "model": model_name,
         "raw_text": text,
