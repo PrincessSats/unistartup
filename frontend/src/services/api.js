@@ -115,6 +115,10 @@ export const adminAPI = {
     const response = await api.put(`/admin/tasks/${taskId}`, payload);
     return response.data;
   },
+  deleteTask: async (taskId) => {
+    const response = await api.delete(`/admin/tasks/${taskId}`);
+    return response.data;
+  },
   listPrompts: async () => {
     const response = await api.get('/admin/prompts');
     return response.data;
@@ -139,6 +143,10 @@ export const adminAPI = {
     const response = await api.put(`/admin/contests/${contestId}`, payload);
     return response.data;
   },
+  deleteContest: async (contestId) => {
+    const response = await api.delete(`/admin/contests/${contestId}`);
+    return response.data;
+  },
   createArticle: async (payload) => {
     const response = await api.post('/admin/kb_entries', payload);
     return response.data;
@@ -149,6 +157,10 @@ export const adminAPI = {
   },
   updateArticle: async (entryId, payload) => {
     const response = await api.put(`/admin/kb_entries/${entryId}`, payload);
+    return response.data;
+  },
+  deleteArticle: async (entryId) => {
+    const response = await api.delete(`/admin/kb_entries/${entryId}`);
     return response.data;
   },
   generateArticle: async (payload) => {

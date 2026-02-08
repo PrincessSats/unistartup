@@ -315,7 +315,8 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
     setEditStatus('idle');
   };
 
-  const canUpdate = editForm.source.trim().length > 0 && editStatus !== 'saving' && selectedId;
+  const isEditBusy = editStatus === 'saving' || editStatus === 'deleting';
+  const canUpdate = editForm.source.trim().length > 0 && !isEditBusy && selectedId;
 
   const handleGenerateArticle = async () => {
     if (!editForm.raw_en_text.trim()) {
@@ -374,6 +375,38 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
       }
     } catch (err) {
       setEditError(getApiErrorMessage(err, 'Не удалось сохранить изменения'));
+      setEditStatus('idle');
+    }
+  };
+
+  const handleDeleteArticle = async () => {
+    if (!selectedId) return;
+    const confirmed = window.confirm('Удалить статью? Это действие нельзя отменить.');
+    if (!confirmed) return;
+
+    setEditStatus('deleting');
+    setEditError('');
+    try {
+      await adminAPI.deleteArticle(selectedId);
+      setArticles((prev) => prev.filter((item) => item.id !== selectedId));
+      setSelectedId(null);
+      setEditForm({
+        source: '',
+        source_id: '',
+        cve_id: '',
+        raw_en_text: '',
+        ru_title: '',
+        ru_summary: '',
+        ru_explainer: '',
+        tags: '',
+        difficulty: '',
+      });
+      if (onUpdated) {
+        onUpdated();
+      }
+      setEditStatus('idle');
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, 'Не удалось удалить статью'));
       setEditStatus('idle');
     }
   };
@@ -717,10 +750,18 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
                     <button
                       type="button"
                       onClick={handleGenerateArticle}
-                      disabled={editGenerateStatus === 'generating' || !editForm.raw_en_text.trim()}
+                      disabled={editGenerateStatus === 'generating' || !editForm.raw_en_text.trim() || isEditBusy}
                       className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {editGenerateStatus === 'generating' ? 'Генерация...' : 'Отправить в модель'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteArticle}
+                      disabled={!selectedId || isEditBusy}
+                      className="flex-1 h-12 bg-rose-500/20 border border-rose-400/40 hover:bg-rose-500/30 text-rose-100 rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {editStatus === 'deleting' ? 'Удаление...' : 'Удалить статью'}
                     </button>
                     <button
                       type="button"
@@ -1262,6 +1303,54 @@ function ContestPlanningModal({ open, onClose }) {
     }
   };
 
+  const handleDeleteContest = async (contestId) => {
+    const confirmed = window.confirm('Удалить чемпионат? Это действие нельзя отменить.');
+    if (!confirmed) return;
+    setStatus('saving');
+    setError('');
+    try {
+      await adminAPI.deleteContest(contestId);
+      if (selectedContestId === contestId) {
+        setSelectedContestId(null);
+        setContestForm({
+          title: '',
+          description: '',
+          start_at: '',
+          end_at: '',
+          is_public: false,
+          leaderboard_visible: true,
+        });
+        setSelectedTasks([]);
+      }
+      await loadData();
+      setStatus('idle');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось удалить контест'));
+      setStatus('idle');
+    }
+  };
+
+  const handleDeleteTaskFromGallery = async (task) => {
+    const taskTitle = task?.title || `#${task?.id}`;
+    const confirmed = window.confirm(`Удалить задачу "${taskTitle}"? Это действие нельзя отменить.`);
+    if (!confirmed) return;
+    setStatus('saving');
+    setError('');
+    try {
+      await adminAPI.deleteTask(task.id);
+      setTasks((prev) => prev.filter((item) => item.id !== task.id));
+      setSelectedTasks((prev) =>
+        prev
+          .filter((item) => item.task_id !== task.id)
+          .map((item, idx) => ({ ...item, order_index: idx }))
+      );
+      setStatus('idle');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось удалить задачу'));
+      setStatus('idle');
+    }
+  };
+
   if (!open) return null;
 
   const filteredTasks = tasks.filter((task) => {
@@ -1287,7 +1376,16 @@ function ContestPlanningModal({ open, onClose }) {
 
         {activeContest && (
           <div className="mt-4 p-4 rounded-[16px] border border-white/10 bg-white/5">
-            <div className="text-[12px] uppercase tracking-[0.2em] text-white/40">Текущий контест</div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] uppercase tracking-[0.2em] text-white/40">Текущий контест</div>
+              <button
+                type="button"
+                onClick={() => handleDeleteContest(activeContest.id)}
+                className="px-3 h-8 rounded-[10px] border border-rose-400/40 bg-rose-500/15 text-rose-200 text-[12px]"
+              >
+                Удалить
+              </button>
+            </div>
             <div className="text-[18px] mt-2">{activeContest.title}</div>
             <div className="text-[13px] text-white/50 mt-1">
               {formatDate(activeContest.start_at)} — {formatDate(activeContest.end_at)}
@@ -1300,24 +1398,42 @@ function ContestPlanningModal({ open, onClose }) {
             <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Контесты</div>
             <div className="flex flex-col gap-3">
               {upcomingContests.map((contest) => (
-                <button
-                  key={contest.id}
-                  onClick={() => handleEditContest(contest.id)}
-                  className="text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
-                >
-                  <div className="text-[16px]">{contest.title}</div>
-                  <div className="text-[12px] text-white/50">Скоро</div>
-                </button>
+                <div key={contest.id} className="flex items-stretch gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleEditContest(contest.id)}
+                    className="flex-1 text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
+                  >
+                    <div className="text-[16px]">{contest.title}</div>
+                    <div className="text-[12px] text-white/50">Скоро</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteContest(contest.id)}
+                    className="px-3 rounded-[12px] border border-rose-400/40 bg-rose-500/15 text-rose-200 text-[12px]"
+                  >
+                    Удалить
+                  </button>
+                </div>
               ))}
               {previousContests.map((contest) => (
-                <button
-                  key={contest.id}
-                  onClick={() => handleEditContest(contest.id)}
-                  className="text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
-                >
-                  <div className="text-[16px]">{contest.title}</div>
-                  <div className="text-[12px] text-white/50">Завершен</div>
-                </button>
+                <div key={contest.id} className="flex items-stretch gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleEditContest(contest.id)}
+                    className="flex-1 text-left p-3 rounded-[12px] bg-white/5 hover:bg-white/10"
+                  >
+                    <div className="text-[16px]">{contest.title}</div>
+                    <div className="text-[12px] text-white/50">Завершен</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteContest(contest.id)}
+                    className="px-3 rounded-[12px] border border-rose-400/40 bg-rose-500/15 text-rose-200 text-[12px]"
+                  >
+                    Удалить
+                  </button>
+                </div>
               ))}
               {upcomingContests.length === 0 && previousContests.length === 0 && (
                 <div className="text-[13px] text-white/50">Контестов пока нет</div>
@@ -1395,13 +1511,22 @@ function ContestPlanningModal({ open, onClose }) {
                         <div className="text-[14px]">{task.title}</div>
                         <div className="text-[12px] text-white/50">{task.category} · {task.points} pts</div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => addTask(task)}
-                        className="text-[12px] text-[#CBB6FF]"
-                      >
-                        Добавить
-                      </button>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => addTask(task)}
+                          className="text-[12px] text-[#CBB6FF]"
+                        >
+                          Добавить
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTaskFromGallery(task)}
+                          className="text-[12px] text-rose-300"
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
