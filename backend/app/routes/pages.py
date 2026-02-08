@@ -654,7 +654,14 @@ async def generate_admin_task(
         created_by=user.id,
     )
     db.add(generation)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to store generation log: {exc}",
+        ) from exc
 
     return AdminTaskGenerateResponse(
         model=result["model"],

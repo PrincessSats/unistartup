@@ -92,6 +92,8 @@ function formatRelativeTime(value) {
 
 function getApiErrorMessage(err, fallback) {
   const detail = err?.response?.data?.detail;
+  const responseData = err?.response?.data;
+  if (typeof responseData === 'string' && responseData.trim()) return responseData;
   if (typeof detail === 'string' && detail.trim()) return detail;
   if (Array.isArray(detail)) {
     const text = detail
