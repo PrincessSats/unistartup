@@ -74,6 +74,10 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
         parsed = json.loads(cleaned)
     except json.JSONDecodeError as exc:
         raise ArticleGenerationError(f"Model returned invalid JSON: {exc}") from exc
+    if not isinstance(parsed, dict):
+        raise ArticleGenerationError(
+            f"Model returned JSON root type '{type(parsed).__name__}', expected object"
+        )
     return {
         "model": model_name,
         "raw_text": text,
