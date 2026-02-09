@@ -7,6 +7,7 @@ CREATE TABLE users (
     email           TEXT NOT NULL UNIQUE,
     password_hash   TEXT NOT NULL,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
+    email_verified_at TIMESTAMPTZ,                -- NULL = не подтвержден
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -56,6 +57,63 @@ CREATE TABLE user_tariffs (
             tstzrange(valid_from, COALESCE(valid_to, 'infinity'::timestamptz)) WITH &&
     )
 );
+
+-- Ускоряем подсчет промо-пользователей
+CREATE INDEX idx_user_tariffs_is_promo ON user_tariffs (is_promo) WHERE is_promo = TRUE;
+
+-- Выдаем промо только первым 1000 пользователям при подтверждении email
+CREATE OR REPLACE FUNCTION grant_early_promo_on_email_verified()
+RETURNS trigger AS $$
+DECLARE
+    promo_count BIGINT;
+BEGIN
+    -- Срабатываем только при первом подтверждении email
+    IF NEW.email_verified_at IS NULL OR OLD.email_verified_at IS NOT NULL THEN
+        RETURN NEW;
+    END IF;
+
+    -- Сериализуем выдачу первых 1000, чтобы избежать гонок
+    PERFORM pg_advisory_xact_lock(431001);
+
+    -- Если у пользователя уже есть промо, ничего не делаем
+    IF EXISTS (
+        SELECT 1 FROM user_tariffs
+        WHERE user_id = NEW.id AND is_promo = TRUE
+    ) THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT COUNT(*) INTO promo_count
+    FROM user_tariffs
+    WHERE is_promo = TRUE;
+
+    IF promo_count >= 1000 THEN
+        RETURN NEW;
+    END IF;
+
+    -- Проставляем промо в активном тарифе, если он есть
+    UPDATE user_tariffs
+    SET is_promo = TRUE,
+        source = COALESCE(source, 'early_1000')
+    WHERE user_id = NEW.id AND valid_to IS NULL;
+
+    -- Если активного тарифа нет, пытаемся создать промо на FREE-плане
+    IF NOT FOUND THEN
+        INSERT INTO user_tariffs (user_id, tariff_id, is_promo, source)
+        SELECT NEW.id, tp.id, TRUE, 'early_1000'
+        FROM tariff_plans tp
+        WHERE tp.code = 'FREE'
+        LIMIT 1;
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_users_email_verified_promo
+AFTER UPDATE OF email_verified_at ON users
+FOR EACH ROW
+EXECUTE FUNCTION grant_early_promo_on_email_verified();
 -- 4.2. Knowledge base по уязвимостям
 CREATE TABLE kb_entries (
     id              BIGSERIAL PRIMARY KEY,
@@ -210,5 +268,4 @@ CREATE TABLE llm_generations (
 );
 
 CREATE INDEX idx_llm_generations_purpose ON llm_generations(purpose);
-
 
