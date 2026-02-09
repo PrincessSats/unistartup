@@ -27,6 +27,12 @@ function Championship() {
   const [contest, setContest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [joined, setJoined] = useState(false);
+  const [contestInactive, setContestInactive] = useState(false);
+  const [taskState, setTaskState] = useState(null);
+  const [flagValue, setFlagValue] = useState('');
+  const [submitStatus, setSubmitStatus] = useState('idle');
+  const [submitMessage, setSubmitMessage] = useState('');
 
   useEffect(() => {
     const fetchContest = async () => {
@@ -34,6 +40,24 @@ function Championship() {
         setError('');
         const data = await contestAPI.getActiveContest();
         setContest(data);
+        setContestInactive(false);
+        if (data?.id) {
+          try {
+            const current = await contestAPI.getCurrentTask(data.id);
+            setTaskState(current);
+            setJoined(true);
+          } catch (err) {
+            if (err?.response?.status === 400) {
+              setContestInactive(true);
+              setJoined(false);
+              setTaskState(null);
+            } else if (err?.response?.status === 403) {
+              setJoined(false);
+            } else {
+              setError('Не удалось загрузить текущую задачу.');
+            }
+          }
+        }
       } catch (err) {
         setError('Не удалось загрузить чемпионат. Попробуйте позже.');
       } finally {
@@ -51,16 +75,57 @@ function Championship() {
   const startLabel = useMemo(() => formatDate(contest?.start_at), [contest?.start_at]);
   const endLabel = useMemo(() => formatDate(contest?.end_at), [contest?.end_at]);
 
-  const tasksTotal = contest?.tasks_total ?? 0;
-  const tasksSolved = contest?.tasks_solved ?? 0;
+  const tasksTotal = taskState?.tasks_total ?? contest?.tasks_total ?? 0;
+  const tasksSolved = taskState?.solved_task_ids?.length ?? contest?.tasks_solved ?? 0;
   const progressPercent = tasksTotal ? Math.round((tasksSolved / tasksTotal) * 100) : 0;
 
+  const currentTask = taskState?.task;
   const knowledgeAreas = contest?.knowledge_areas?.length
     ? contest.knowledge_areas
-    : ['Стеганография', 'Реверс-инжиниринг'];
+    : currentTask?.tags?.length
+      ? currentTask.tags
+      : ['Стеганография', 'Реверс-инжиниринг'];
 
-  const featuredTask = contest?.featured_task;
-  const taskDescription = featuredTask?.description || contest?.description || '';
+  const taskDescription = currentTask?.participant_description || contest?.description || '';
+
+  const handleJoin = async () => {
+    if (!contest?.id) return;
+    try {
+      await contestAPI.joinContest(contest.id);
+      const current = await contestAPI.getCurrentTask(contest.id);
+      setTaskState(current);
+      setJoined(true);
+      setSubmitMessage('');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось вступить в контест');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!contest?.id || !flagValue.trim()) return;
+    setSubmitStatus('sending');
+    setSubmitMessage('');
+    try {
+      const result = await contestAPI.submitFlag(contest.id, {
+        task_id: currentTask?.id,
+        flag: flagValue.trim(),
+      });
+      if (result.is_correct) {
+        setSubmitMessage(result.finished ? 'Контест завершён!' : 'Флаг принят. Следующая задача готова.');
+        const current = await contestAPI.getCurrentTask(contest.id);
+        setTaskState(current);
+        setFlagValue('');
+      } else {
+        setSubmitMessage('Неверный флаг. Попробуйте ещё раз.');
+      }
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
+    } finally {
+      setSubmitStatus('idle');
+    }
+  };
 
   if (loading) {
     return (
@@ -79,11 +144,12 @@ function Championship() {
   }
 
   const isPublic = contest?.is_public !== false;
+  const shouldBlurContent = !isPublic || contestInactive;
 
   return (
     <div className="font-sans-figma text-white">
       <div className="relative">
-        <div className={isPublic ? '' : 'blur-[6px] pointer-events-none select-none'}>
+        <div className={shouldBlurContent ? 'blur-[6px] pointer-events-none select-none' : ''}>
           <div className="flex flex-col gap-6">
             <section className="relative overflow-hidden rounded-[16px] border border-white/[0.06] px-8 pt-8 pb-6">
               <div className="pointer-events-none absolute inset-0">
@@ -202,13 +268,20 @@ function Championship() {
                     <div className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">Дедлайн</div>
                   </div>
 
-                  <button className="inline-flex items-center gap-2 text-[18px] leading-[24px] tracking-[0.04em] text-white transition-colors duration-300 ease-in-out hover:text-white/80">
+                  <button
+                    onClick={() => {
+                      if (!joined) {
+                        handleJoin();
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 text-[18px] leading-[24px] tracking-[0.04em] text-white transition-colors duration-300 ease-in-out hover:text-white/80"
+                  >
                     <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
                     </svg>
-                    Перейти к заданию
+                    {joined ? 'Перейти к заданию' : 'Вступить в контест'}
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 5v14m0 0l7-7m-7 7l-7-7" />
                     </svg>
@@ -219,18 +292,27 @@ function Championship() {
                       <input
                         type="text"
                         placeholder="Введи флаг сюда"
+                        value={flagValue}
+                        onChange={(event) => setFlagValue(event.target.value)}
+                        disabled={!joined || !currentTask}
                         className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] leading-[20px] tracking-[0.04em] text-white placeholder:text-white/60 focus:outline-none focus:border-white/30"
                       />
-                      <button className="inline-flex h-14 shrink-0 items-center gap-2 rounded-[10px] bg-white/[0.03] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white/40 transition-colors duration-300 ease-in-out hover:text-white/70">
+                      <button
+                        onClick={handleSubmit}
+                        disabled={!joined || !currentTask || submitStatus === 'sending'}
+                        className="inline-flex h-14 shrink-0 items-center gap-2 rounded-[10px] bg-white/[0.03] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white/40 transition-colors duration-300 ease-in-out hover:text-white/70 disabled:opacity-60"
+                      >
                         <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
                         </svg>
-                        Сдать флаг
+                        {submitStatus === 'sending' ? 'Отправка...' : 'Сдать флаг'}
                       </button>
                     </div>
-                    <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">Не могу решить</span>
+                    <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                      {submitMessage || (taskState?.finished ? 'Контест завершён' : (!joined ? 'Вступите в контест, чтобы начать' : 'Не могу решить'))}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -295,6 +377,19 @@ function Championship() {
                   </div>
                 </div>
 
+                {taskState?.previous_tasks?.length ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="text-[20px] leading-[24px] tracking-[0.02em]">Решенные задачи</div>
+                    <div className="flex flex-col gap-2">
+                      {taskState.previous_tasks.map((task) => (
+                        <div key={task.id} className="rounded-[10px] bg-white/[0.03] px-3 py-2 text-[14px] text-white/70">
+                          {task.title}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="flex items-center justify-between text-[20px] leading-[24px] tracking-[0.02em]">
                   <span>Участники</span>
                   <span className="text-[18px] leading-[24px] tracking-[0.04em] text-white/60">
@@ -313,7 +408,7 @@ function Championship() {
           </div>
         </div>
 
-        {!isPublic && (
+        {shouldBlurContent && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="rounded-[20px] border border-white/[0.12] bg-white/[0.04] px-6 py-5 text-center backdrop-blur-[64px] transition-opacity duration-300 ease-in-out">
               <h2 className="text-[24px] leading-[32px] font-medium">

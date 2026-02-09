@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 
 function Login() {
   const navigate = useNavigate();
@@ -25,9 +25,21 @@ function Login() {
 
     try {
       await authAPI.login(formData.email, formData.password);
-      navigate('/welcome');
+      const profile = await profileAPI.getProfile();
+      if (profile?.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/home');
+      }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка входа');
+      if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else
+      if (!err.response) {
+        setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
+      } else {
+        setError(err.response?.data?.detail || 'Ошибка входа');
+      }
     } finally {
       setLoading(false);
     }

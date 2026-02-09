@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { profileAPI } from '../services/api';
+import { Link, useNavigate } from 'react-router-dom';
+import { feedbackAPI, knowledgeAPI, profileAPI } from '../services/api';
 
 const assets = {
   trainingWeb: 'https://www.figma.com/api/mcp/asset/fc4f12da-20d3-4566-8900-ff0041cc9699',
   trainingForensics: 'https://www.figma.com/api/mcp/asset/e3408f5c-e06c-4501-874e-3db6c3891edb',
   trainingPm: 'https://www.figma.com/api/mcp/asset/1c4915f0-cdae-45d9-84a2-f5336378d0a6',
-  star: 'https://www.figma.com/api/mcp/asset/64b5abbd-9674-4865-a192-72c48eff21c5',
-  doc: 'https://www.figma.com/api/mcp/asset/ead9f752-c620-46c6-9f49-9cdab79979ff',
-  flag: 'https://www.figma.com/api/mcp/asset/e681f1f0-b79c-4f59-a588-7982a4b22e4e',
+  star: 'https://www.figma.com/api/mcp/asset/1266fbcc-e7b5-423b-ab51-826960891d83',
+  doc: 'https://www.figma.com/api/mcp/asset/672fc1c8-5d30-4e84-a6e6-8c1dfdf6d4fb',
+  flag: 'https://www.figma.com/api/mcp/asset/63d69515-1640-4d7a-a1a7-a1667a8394d7',
   close: 'https://www.figma.com/api/mcp/asset/144edf45-ec18-443a-94d3-98858cb6a783',
+  feedbackClose: 'https://www.figma.com/api/mcp/asset/c8c42221-6151-426f-a44d-ddcb733ec06d',
 };
 
 const DEFAULT_USERNAME = 'Пользователь';
@@ -80,12 +81,6 @@ const knowledgeAreas = [
   'Pentest',
   'Blue Team',
   'Network',
-];
-
-const knowledgeNews = [
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
 ];
 
 const taskNews = [
@@ -251,7 +246,7 @@ function KnowledgeCard({ title }) {
   );
 }
 
-function NotificationCard() {
+function TrainingNotificationCard() {
   return (
     <div className="backdrop-blur-[64px] bg-[#9B6BFF]/[0.14] rounded-[20px] p-6 flex flex-col gap-6">
       <div className="flex items-start gap-6">
@@ -273,6 +268,192 @@ function NotificationCard() {
   );
 }
 
+function FeedbackCard({ onOpen, onClose }) {
+  return (
+    <div className="backdrop-blur-[64px] bg-[#9B6BFF]/[0.14] rounded-[20px] p-6 flex flex-col gap-6">
+      <div className="flex items-start gap-6">
+        <div className="flex-1">
+          <div className="text-[20px] leading-[24px] tracking-[0.4px] text-white">
+            Оцени работу платформы
+          </div>
+          <div className="text-[16px] leading-[20px] tracking-[0.64px] text-white/60 mt-3">
+            Твои идеи и замечания сделают платформу
+            <br />
+            еще удобнее и подскажут, как нам расти!
+          </div>
+        </div>
+        <button onClick={onClose} className="shrink-0">
+          <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+        </button>
+      </div>
+      <button
+        onClick={onOpen}
+        className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit"
+      >
+        Оценить
+      </button>
+    </div>
+  );
+}
+
+function FeedbackModal({ open, onClose }) {
+  const topics = [
+    'Структура платформы',
+    'Чемпионат',
+    'Начисление баллов',
+    'Турнирная таблица',
+    'Другое',
+  ];
+
+  const [topic, setTopic] = useState('');
+  const [message, setMessage] = useState('');
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) return;
+    setTopic('');
+    setMessage('');
+    setStatus('idle');
+    setError('');
+  }, [open]);
+
+  if (!open) return null;
+
+  const trimmedMessage = message.trim();
+  const canSubmit = topic && trimmedMessage.length > 0 && trimmedMessage.length <= 123;
+
+  const handleSubmit = async () => {
+    if (!canSubmit || status === 'sending') return;
+    try {
+      setStatus('sending');
+      setError('');
+      await feedbackAPI.submitFeedback(topic, trimmedMessage);
+      setStatus('success');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось отправить отзыв');
+      setStatus('idle');
+    }
+  };
+
+  const handleMessageChange = (event) => {
+    const value = event.target.value.slice(0, 123);
+    setMessage(value);
+  };
+
+  const handleOverlayClick = (event) => {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[6px] px-4"
+      onClick={handleOverlayClick}
+    >
+      {status === 'success' ? (
+        <div className="relative w-full max-w-[600px] rounded-[20px] bg-[#9B6BFF]/[0.14] backdrop-blur-[32px] shadow-[0_20px_50px_rgba(11,10,16,0.21)] p-8">
+          <button onClick={onClose} className="absolute right-5 top-5">
+            <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+          </button>
+          <div className="flex flex-col gap-4">
+            <h3 className="text-[23px] leading-[28px] tracking-[0.02em] text-white">
+              Получили твой отзыв! Уже ставим задачки в роадмап
+            </h3>
+            <p className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
+              Обещаем улучшить все, что можем, и сделать платформу
+              еще удобнее для тебя! Если появятся новые комментарии или
+              вопросы — напиши в поддержку
+            </p>
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="bg-[#9B6BFF] rounded-[10px] px-6 py-3 text-[16px] leading-[20px] tracking-[0.04em] text-white"
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="relative w-full max-w-[600px] rounded-[20px] bg-[#9B6BFF]/[0.14] backdrop-blur-[32px] shadow-[0_20px_50px_rgba(11,10,16,0.21)] p-8">
+          <button onClick={onClose} className="absolute right-5 top-5">
+            <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+          </button>
+          <div className="flex flex-col gap-6">
+            <div>
+              <h3 className="text-[23px] leading-[28px] tracking-[0.02em] text-white">
+                Оцени работу платформы
+              </h3>
+              <p className="mt-3 text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
+                Выбери тему, по которой хочешь оставить обратную связь
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {topics.map((item) => {
+                const selected = item === topic;
+                return (
+                  <button
+                    key={item}
+                    onClick={() => setTopic(item)}
+                    className={`flex items-center justify-between rounded-[12px] px-5 py-4 text-left text-[16px] leading-[20px] tracking-[0.04em] transition-colors ${
+                      selected
+                        ? 'bg-white/[0.09] text-white'
+                        : 'bg-white/[0.05] text-white/80 hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    <span>{item}</span>
+                    <span
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                        selected ? 'border-[#9B6BFF]' : 'border-white/20'
+                      }`}
+                    >
+                      {selected && <span className="h-2.5 w-2.5 rounded-full bg-[#9B6BFF]" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {topic && (
+              <div className="relative">
+                <textarea
+                  value={message}
+                  onChange={handleMessageChange}
+                  placeholder="Здесь можешь оставить свои пожелания, проблемы, с которыми столкнулся, или просто поблагодарить нас:)"
+                  className="h-[150px] w-full resize-none rounded-[12px] bg-white/[0.05] p-4 text-[16px] leading-[20px] tracking-[0.04em] text-white placeholder:text-white/40 focus:outline-none"
+                />
+                <span className="absolute bottom-3 right-4 text-[12px] leading-[16px] text-white/40">
+                  {message.length}/123
+                </span>
+              </div>
+            )}
+
+            {error && <div className="text-[14px] text-red-300">{error}</div>}
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleSubmit}
+                disabled={!canSubmit || status === 'sending'}
+                className={`rounded-[10px] px-6 py-3 text-[16px] leading-[20px] tracking-[0.04em] ${
+                  canSubmit
+                    ? 'bg-[#9B6BFF] text-white'
+                    : 'bg-white/[0.08] text-white/40'
+                }`}
+              >
+                {status === 'sending' ? 'Отправка...' : 'Отправить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NewsCard({ title, children, icon }) {
   return (
     <div className="flex flex-col gap-6">
@@ -289,9 +470,9 @@ function NewsCard({ title, children, icon }) {
   );
 }
 
-function NewsItem({ title, meta }) {
-  return (
-    <div className="bg-white/[0.05] rounded-[12px] px-4 py-5">
+function NewsItem({ title, meta, to }) {
+  const content = (
+    <>
       <div className="text-[18px] leading-[24px] tracking-[0.72px] text-white truncate">
         {title}
       </div>
@@ -300,6 +481,20 @@ function NewsItem({ title, meta }) {
           {meta}
         </div>
       ) : null}
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className="bg-white/[0.05] rounded-[12px] px-4 py-5 transition hover:border hover:border-[#9B6BFF]/50">
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className="bg-white/[0.05] rounded-[12px] px-4 py-5">
+      {content}
     </div>
   );
 }
@@ -322,9 +517,32 @@ function TaskNewsItem({ title }) {
   );
 }
 
+function formatRelativeTime(value) {
+  if (!value) return 'Без даты';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Без даты';
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60000) return 'Только что';
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 60) return `${diffMin} мин назад`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} ч назад`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays} дн назад`;
+}
+
+function getArticleTitle(entry) {
+  return entry?.ru_title || entry?.cve_id || entry?.source_id || 'Без названия';
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [showFeedbackCard, setShowFeedbackCard] = useState(true);
+  const [knowledgeItems, setKnowledgeItems] = useState([]);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+  const [knowledgeError, setKnowledgeError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -357,6 +575,36 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    const fetchKnowledge = async () => {
+      try {
+        setKnowledgeError('');
+        const data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc' });
+        if (isMounted) {
+          setKnowledgeItems(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить статьи базы знаний', error);
+        const detail = error?.response?.data?.detail;
+        setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+        if (isMounted) {
+          setKnowledgeItems([]);
+        }
+      } finally {
+        if (isMounted) {
+          setKnowledgeLoading(false);
+        }
+      }
+    };
+
+    fetchKnowledge();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const stats = [
     { label: 'Рейтинг', value: profile?.contest_rating ?? 0 },
     { label: 'Очки', value: profile?.practice_rating ?? 0 },
@@ -365,6 +613,7 @@ export default function Home() {
 
   return (
     <div className="font-sans-figma text-white">
+      <FeedbackModal open={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
       <section
         className="rounded-[20px] px-6 pt-8 pb-6"
         style={{
@@ -482,8 +731,13 @@ export default function Home() {
         </div>
 
         <aside className="w-full xl:w-[440px] flex flex-col gap-4">
-          <NotificationCard />
-          <NotificationCard />
+          <TrainingNotificationCard />
+          {showFeedbackCard && (
+            <FeedbackCard
+              onOpen={() => setIsFeedbackOpen(true)}
+              onClose={() => setShowFeedbackCard(false)}
+            />
+          )}
 
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6 flex flex-col gap-12">
             <div className="text-[29px] leading-[36px] tracking-[0.58px] text-white px-4">
@@ -491,8 +745,22 @@ export default function Home() {
             </div>
 
             <NewsCard title="База знаний" icon={assets.doc}>
-              {knowledgeNews.map((item, index) => (
-                <NewsItem key={`${item}-${index}`} title={item} meta="45 мин назад" />
+              {knowledgeError && (
+                <NewsItem title={knowledgeError} meta="" />
+              )}
+              {knowledgeLoading && (
+                <NewsItem title="Загрузка статей..." meta="" />
+              )}
+              {!knowledgeLoading && !knowledgeError && knowledgeItems.length === 0 && (
+                <NewsItem title="Пока нет статей" meta="" />
+              )}
+              {!knowledgeLoading && !knowledgeError && knowledgeItems.length > 0 && knowledgeItems.map((item) => (
+                <NewsItem
+                  key={item.id}
+                  title={getArticleTitle(item)}
+                  meta={formatRelativeTime(item.created_at)}
+                  to={item?.id ? `/knowledge/${item.id}` : undefined}
+                />
               ))}
             </NewsCard>
 

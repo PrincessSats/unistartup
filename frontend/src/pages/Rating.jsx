@@ -106,11 +106,6 @@ function Rating() {
 
   const [firstEntry, secondEntry, thirdEntry] = paddedEntries;
 
-  const currentEntry = useMemo(
-    () => entries.find((entry) => entry.is_current_user),
-    [entries]
-  );
-
   const tableColumns =
     'grid min-w-[940px] grid-cols-[82px_minmax(240px,1fr)_66px_148px_148px_148px] items-center';
 
