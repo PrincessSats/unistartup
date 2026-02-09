@@ -5,8 +5,10 @@ import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Championship from './pages/Championship';
 import Knowledge from './pages/Knowledge';
+import KnowledgeArticle from './pages/KnowledgeArticle';
 import Home from './pages/Home';
 import Rating from './pages/Rating';
+import Admin from './pages/Admin';
 import Layout from './components/Layout';
 import { authAPI } from './services/api';
 
@@ -36,8 +38,9 @@ function App() {
         <Route path="/education" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Обучение — скоро будет</div></Layout></ProtectedRoute>} />
         <Route path="/rating" element={<ProtectedRoute><Layout><Rating /></Layout></ProtectedRoute>} />
         <Route path="/knowledge" element={<ProtectedRoute><Layout><Knowledge /></Layout></ProtectedRoute>} />
+        <Route path="/knowledge/:id" element={<ProtectedRoute><Layout><KnowledgeArticle /></Layout></ProtectedRoute>} />
         <Route path="/faq" element={<ProtectedRoute><Layout><div className="text-white text-2xl">FAQ — скоро будет</div></Layout></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Админка — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

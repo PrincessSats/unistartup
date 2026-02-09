@@ -3,7 +3,14 @@
 import axios from 'axios';
 
 // local or prod env
-const API_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_URL = process.env.REACT_APP_API_BASE_URL || (isLocalhost ? 'http://localhost:8000' : '');
+
+if (!API_URL) {
+  // Helps catch broken cloud builds where REACT_APP_API_BASE_URL was not provided.
+  // eslint-disable-next-line no-console
+  console.error('REACT_APP_API_BASE_URL is not configured for this build');
+}
 
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
@@ -17,10 +24,21 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
-// Добавляем токен к каждому запросу (используем X-Auth-Token вместо Authorization)
+// Добавляем токен к защищенным запросам (не к /auth/*).
 api.interceptors.request.use((config) => {
+  const requestPath = String(config.url || '');
+  let pathname = requestPath;
+  if (requestPath.includes('://')) {
+    try {
+      pathname = new URL(requestPath).pathname;
+    } catch {
+      pathname = requestPath;
+    }
+  }
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  const isAuthRequest = normalizedPath === '/auth' || normalizedPath.startsWith('/auth/');
   const token = localStorage.getItem('token');
-  if (token) {
+  if (token && !isAuthRequest) {
     config.headers['X-Auth-Token'] = token;
   }
   return config;
@@ -29,6 +47,9 @@ api.interceptors.request.use((config) => {
 // API методы авторизации
 export const authAPI = {
   register: async (email, username, password) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
     const response = await api.post('/auth/register', {
       email,
       username,
@@ -38,6 +59,9 @@ export const authAPI = {
   },
 
   login: async (email, password) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
     const response = await api.post('/auth/login', {
       email,
       password,
@@ -66,6 +90,116 @@ export const userAPI = {
 
   getAdmin: async () => {
     const response = await api.get('/admin');
+    return response.data;
+  },
+};
+
+export const adminAPI = {
+  getDashboard: async () => {
+    const response = await api.get('/admin');
+    return response.data;
+  },
+  listTasks: async (params = {}) => {
+    const response = await api.get('/admin/tasks', { params });
+    return response.data;
+  },
+  generateTask: async (payload) => {
+    const response = await api.post('/admin/tasks/generate', payload);
+    return response.data;
+  },
+  createTask: async (payload) => {
+    const response = await api.post('/admin/tasks', payload);
+    return response.data;
+  },
+  updateTask: async (taskId, payload) => {
+    const response = await api.put(`/admin/tasks/${taskId}`, payload);
+    return response.data;
+  },
+  deleteTask: async (taskId) => {
+    const response = await api.delete(`/admin/tasks/${taskId}`);
+    return response.data;
+  },
+  listPrompts: async () => {
+    const response = await api.get('/admin/prompts');
+    return response.data;
+  },
+  updatePrompt: async (code, payload) => {
+    const response = await api.put(`/admin/prompts/${code}`, payload);
+    return response.data;
+  },
+  listContests: async () => {
+    const response = await api.get('/admin/contests');
+    return response.data;
+  },
+  getContest: async (contestId) => {
+    const response = await api.get(`/admin/contests/${contestId}`);
+    return response.data;
+  },
+  createContest: async (payload) => {
+    const response = await api.post('/admin/contests', payload);
+    return response.data;
+  },
+  updateContest: async (contestId, payload) => {
+    const response = await api.put(`/admin/contests/${contestId}`, payload);
+    return response.data;
+  },
+  endContestNow: async (contestId) => {
+    const response = await api.post(`/admin/contests/${contestId}/end`);
+    return response.data;
+  },
+  deleteContest: async (contestId) => {
+    const response = await api.delete(`/admin/contests/${contestId}`);
+    return response.data;
+  },
+  createArticle: async (payload) => {
+    const response = await api.post('/admin/kb_entries', payload);
+    return response.data;
+  },
+  listArticles: async (params = {}) => {
+    const response = await api.get('/admin/kb_entries', { params });
+    return response.data;
+  },
+  updateArticle: async (entryId, payload) => {
+    const response = await api.put(`/admin/kb_entries/${entryId}`, payload);
+    return response.data;
+  },
+  deleteArticle: async (entryId) => {
+    const response = await api.delete(`/admin/kb_entries/${entryId}`);
+    return response.data;
+  },
+  generateArticle: async (payload) => {
+    const response = await api.post('/admin/kb_entries/generate', payload);
+    return response.data;
+  },
+  fetchNvd24h: async () => {
+    const response = await api.post('/admin/nvd_sync');
+    return response.data;
+  },
+};
+
+export const knowledgeAPI = {
+  getEntries: async (params = {}) => {
+    const response = await api.get('/kb_entries', { params });
+    return response.data;
+  },
+  getEntriesPaged: async (params = {}) => {
+    const response = await api.get('/kb_entries/paged', { params });
+    return response.data;
+  },
+  getTags: async (params = {}) => {
+    const response = await api.get('/kb_entries/tags', { params });
+    return response.data;
+  },
+  getEntry: async (entryId) => {
+    const response = await api.get(`/kb_entries/${entryId}`);
+    return response.data;
+  },
+  getComments: async (entryId, params = {}) => {
+    const response = await api.get(`/kb_entries/${entryId}/comments`, { params });
+    return response.data;
+  },
+  createComment: async (entryId, payload) => {
+    const response = await api.post(`/kb_entries/${entryId}/comments`, payload);
     return response.data;
   },
 };
@@ -114,6 +248,18 @@ export const contestAPI = {
     const response = await api.get('/contests/active');
     return response.data;
   },
+  joinContest: async (contestId) => {
+    const response = await api.post(`/contests/${contestId}/join`);
+    return response.data;
+  },
+  getCurrentTask: async (contestId) => {
+    const response = await api.get(`/contests/${contestId}/current-task`);
+    return response.data;
+  },
+  submitFlag: async (contestId, payload) => {
+    const response = await api.post(`/contests/${contestId}/submit`, payload);
+    return response.data;
+  },
 };
 
 export const ratingsAPI = {
@@ -121,6 +267,13 @@ export const ratingsAPI = {
     const response = await api.get('/ratings/leaderboard', {
       params: { kind },
     });
+    return response.data;
+  },
+};
+
+export const feedbackAPI = {
+  submitFeedback: async (topic, message) => {
+    const response = await api.post('/feedback', { topic, message });
     return response.data;
   },
 };
