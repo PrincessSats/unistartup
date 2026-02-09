@@ -29,3 +29,43 @@ class ContestSummary(BaseModel):
     prev_contest_id: Optional[int] = None
     next_contest_id: Optional[int] = None
     featured_task: Optional[FeaturedTask] = None
+
+
+class ContestTaskInfo(BaseModel):
+    id: int
+    title: str
+    category: Optional[str] = None
+    difficulty: Optional[int] = None
+    points: int = 0
+    tags: List[str] = Field(default_factory=list)
+    participant_description: Optional[str] = None
+    order_index: int = 0
+    is_solved: bool = False
+
+
+class ContestJoinResponse(BaseModel):
+    contest_id: int
+    joined_at: datetime
+    is_joined: bool = True
+
+
+class ContestTaskState(BaseModel):
+    contest_id: int
+    task: Optional[ContestTaskInfo] = None
+    progress_index: int
+    tasks_total: int
+    solved_task_ids: List[int] = Field(default_factory=list)
+    previous_tasks: List[ContestTaskInfo] = Field(default_factory=list)
+    finished: bool = False
+
+
+class ContestSubmissionRequest(BaseModel):
+    task_id: Optional[int] = None
+    flag: str
+
+
+class ContestSubmissionResponse(BaseModel):
+    is_correct: bool
+    awarded_points: int
+    next_task: Optional[ContestTaskInfo] = None
+    finished: bool = False

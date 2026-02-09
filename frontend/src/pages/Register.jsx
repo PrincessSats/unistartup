@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 
 function Register() {
   const navigate = useNavigate();
@@ -57,11 +57,20 @@ function Register() {
       await authAPI.login(formData.email, formData.password);
       setSuccessName(formData.username || 'CyberNinja');
       setStep('success');
+      const profile = await profileAPI.getProfile();
+      const target = profile?.role === 'admin' ? '/admin' : '/home';
       setTimeout(() => {
-        navigate('/welcome');
+        navigate(target);
       }, 1200);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Ошибка регистрации');
+      if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else
+      if (!err.response) {
+        setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
+      } else {
+        setError(err.response?.data?.detail || 'Ошибка регистрации');
+      }
     } finally {
       setLoading(false);
     }

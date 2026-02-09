@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, update, func
 from app.database import get_db
 from app.models.user import User, UserProfile, UserRating
 from app.schemas.user import UserRegister, UserLogin, Token, UserResponse
 from app.auth.security import hash_password, verify_password, create_access_token
+from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["Авторизация"])
 
@@ -77,6 +78,7 @@ async def register(
 
 @router.post("/login", response_model=Token)
 async def login(
+    request: Request,
     user_data: UserLogin,
     db: AsyncSession = Depends(get_db)
 ):
@@ -90,6 +92,21 @@ async def login(
     4. Отдаем токен клиенту
     """
     
+    enforce_rate_limit(
+        request,
+        scope="auth_login_ip",
+        subject="any",
+        # Serverless/edge can collapse clients to shared source IP.
+        # Keep IP guard but with a safer high threshold to reduce false positives.
+        rule=RateLimit(max_requests=200, window_seconds=60),
+    )
+    enforce_rate_limit(
+        request,
+        scope="auth_login_account",
+        subject=user_data.email.lower(),
+        rule=RateLimit(max_requests=8, window_seconds=300),
+    )
+
     # Ищем пользователя
     result = await db.execute(
         select(User).where(User.email == user_data.email)
@@ -112,5 +129,13 @@ async def login(
     
     # Создаем токен
     access_token = create_access_token(data={"sub": user.email})
+
+    # Обновляем время последнего входа (используем лёгкое обновление без загрузки профиля)
+    await db.execute(
+        update(UserProfile)
+        .where(UserProfile.user_id == user.id)
+        .values(last_login=func.now())
+    )
+    await db.commit()
     
     return Token(access_token=access_token, token_type="bearer")

@@ -1,104 +1,190 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { knowledgeAPI } from '../services/api';
 
 const sortTabs = [
-  { label: 'Сначала новые', active: true },
-  { label: 'Сначала старые', active: false },
+  { label: 'Сначала новые', value: 'desc' },
+  { label: 'Сначала старые', value: 'asc' },
 ];
 
-const cards = [
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-1.png',
-    imageBg: '#5B3CA8',
-    tag: 'Web',
-    time: '5 мин',
-    views: '56',
-    date: '26 дек 2025',
-  },
-  {
-    title: 'Решения Чемпионата от 10.12.2025',
-    description: 'Разбор ключевых подходов, ошибок и лучших решений сезона',
-    image: '/kb/kb-img-2.png',
-    imageBg: '#5865C8',
-    tag: 'Pentest Machine',
-    time: '12 мин',
-    views: '48',
-    date: '16 дек 2025',
-  },
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-3.png',
-    imageBg: '#3A2A5A',
-    tag: 'OSINT',
-    time: '5 мин',
-    views: '40',
-    date: '26 дек 2025',
-  },
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-8.png',
-    imageBg: '#1B1B24',
-    tag: 'PWN',
-    time: '5 мин',
-    views: '32',
-    date: '26 дек 2025',
-  },
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-4.png',
-    imageBg: '#2B2B3A',
-    tag: 'Реверс-инжиниринг',
-    time: '5 мин',
-    views: '44',
-    date: '20 дек 2025',
-  },
-  {
-    title: 'Решения Чемпионата от 10.12.2025',
-    description: 'Подборка результатов и практики применения флагов',
-    image: '/kb/kb-img-5.png',
-    imageBg: '#5F6ADB',
-    tag: 'Стеганография',
-    time: '5 мин',
-    views: '51',
-    date: '16 дек 2025',
-  },
-  {
-    title: 'Решения Чемпионата от 10.12.2025',
-    description: 'Разбор ключевых задач и стратегия лидеров',
-    image: '/kb/kb-img-6.png',
-    imageBg: '#2C367F',
-    tag: 'Pentest Machine',
-    time: '5 мин',
-    views: '28',
-    date: '16 дек 2025',
-  },
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-7.png',
-    imageBg: '#4E7C19',
-    tag: 'Форензика',
-    time: '5 мин',
-    views: '38',
-    date: '26 дек 2025',
-  },
-  {
-    title: 'Хакки 2025: эволюция атак и новые рубежи киберзащиты',
-    description: 'Анализ современных методов взлома и стратегии противодействия для корпоративных систем',
-    image: '/kb/kb-img-8.png',
-    imageBg: '#5B3CA8',
-    tag: 'Криптография',
-    time: '5 мин',
-    views: '26',
-    date: '26 дек 2025',
-  },
-];
+const panelGlass = 'https://www.figma.com/api/mcp/asset/3a49cdeb-e88b-4e55-802a-766906beba34';
+const eyeIcon = 'https://www.figma.com/api/mcp/asset/a348367d-ce0d-41b5-a110-8518938db3c4';
+
+const tagGradients = {
+  Web: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
+  OSINT: 'linear-gradient(234.59deg, #5B3CA8 20.12%, #2B2B3A 100%)',
+  Криптография: 'linear-gradient(234.59deg, #6B4AC9 20.12%, #2C367F 100%)',
+  Форензика: 'linear-gradient(234.59deg, #4E7C19 20.12%, #1B1B24 100%)',
+  default: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
+};
+
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function estimateReadTime(text) {
+  if (!text) return 3;
+  const words = text.trim().split(/\s+/).length;
+  return Math.max(1, Math.round(words / 160));
+}
+
+function shortSummary(text) {
+  if (!text) return '';
+  const sentences = text
+    .replace(/\s+/g, ' ')
+    .split(/(?<=[.!?])\s+/)
+    .filter(Boolean);
+  return sentences.slice(0, 2).join(' ');
+}
+
+function getEntryTitle(entry) {
+  return entry?.ru_title || entry?.cve_id || entry?.source_id || 'Без названия';
+}
+
+function KnowledgeCard({ entry }) {
+  const tags = Array.isArray(entry?.tags) ? entry.tags : [];
+  const primaryTag = tags[0];
+  const secondaryTag = tags[1];
+  const gradient = tagGradients[primaryTag] || tagGradients.default;
+  const readTime = estimateReadTime(entry?.ru_explainer || entry?.ru_summary);
+  const summary = shortSummary(entry?.ru_summary || entry?.ru_explainer || '');
+
+  return (
+    <Link
+      to={`/knowledge/${entry.id}`}
+      className="block rounded-[16px] border border-white/[0.06] bg-[#0F0F14] transition hover:border-[#9B6BFF]/60"
+    >
+      <div
+        className="relative h-[268px] overflow-hidden rounded-[16px]"
+        style={{ backgroundImage: gradient }}
+      >
+        <img
+          src={panelGlass}
+          alt=""
+          aria-hidden="true"
+          className="absolute -left-10 top-3 h-[315px] w-[554px] opacity-90"
+        />
+      </div>
+
+      <div className="flex flex-col gap-6 px-8 py-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 text-[14px] text-white/60">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex items-center gap-1">
+              <img src={eyeIcon} alt="" className="h-3.5 w-3.5" />
+              {entry?.views ?? 0}
+            </span>
+            {primaryTag && (
+              <span className="rounded-[10px] border border-[#8E51FF]/30 bg-[#8E51FF]/10 px-[13px] py-[9px] text-[16px] tracking-[0.64px] text-[#A684FF]">
+                {primaryTag}
+              </span>
+            )}
+            {secondaryTag && (
+              <span className="rounded-[10px] border border-[#8E51FF]/30 bg-[#8E51FF]/10 px-[13px] py-[9px] text-[16px] tracking-[0.64px] text-[#A684FF]">
+                {secondaryTag}
+              </span>
+            )}
+            <span className="text-white/50">{readTime} мин</span>
+          </div>
+          <span className="text-white/50">{formatDate(entry?.created_at)}</span>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[20px] leading-[24px] tracking-[0.4px]">
+            {getEntryTitle(entry)}
+          </h3>
+          <p className="text-[16px] leading-[20px] tracking-[0.64px] text-white/60">
+            {summary || 'Описание пока не добавлено'}
+          </p>
+        </div>
+      </div>
+    </Link>
+  );
+}
 
 function Knowledge() {
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [entries, setEntries] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const limit = 15;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setPage(1);
+  }, [sortOrder, categoryFilter]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTags = async () => {
+      try {
+        const data = await knowledgeAPI.getTags({ only_with_title: true });
+        if (isMounted) {
+          setCategories(Array.isArray(data) ? data : []);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить теги базы знаний', error);
+        if (isMounted) {
+          setCategories([]);
+        }
+      }
+    };
+
+    const fetchEntries = async () => {
+      if (isMounted) {
+        setLoading(true);
+      }
+      try {
+        setError('');
+        const data = await knowledgeAPI.getEntriesPaged({
+          limit,
+          offset: (page - 1) * limit,
+          order: sortOrder,
+          tag: categoryFilter || undefined,
+          only_with_title: true,
+        });
+        if (isMounted) {
+          setEntries(Array.isArray(data?.items) ? data.items : []);
+          setTotal(Number.isFinite(data?.total) ? data.total : 0);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить статьи базы знаний', error);
+        const detail = error?.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+        if (isMounted) {
+          setEntries([]);
+          setTotal(0);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchTags();
+    fetchEntries();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [sortOrder, categoryFilter, page]);
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const pageNumbers = useMemo(() => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+    }
+    const pages = new Set([1, totalPages, page - 1, page, page + 1]);
+    const filtered = Array.from(pages).filter((p) => p >= 1 && p <= totalPages);
+    return filtered.sort((a, b) => a - b);
+  }, [page, totalPages]);
+
   return (
     <div className="font-sans-figma text-white">
       <div className="flex flex-col gap-4">
@@ -111,8 +197,9 @@ function Knowledge() {
             {sortTabs.map((tab) => (
               <button
                 key={tab.label}
+                onClick={() => setSortOrder(tab.value)}
                 className={`h-9 rounded-[10px] px-4 text-[13px] transition ${
-                  tab.active
+                  sortOrder === tab.value
                     ? 'bg-[#9B6BFF] text-white'
                     : 'text-white/50 hover:text-[#9B6BFF]'
                 }`}
@@ -126,13 +213,13 @@ function Knowledge() {
             <div className="relative">
               <select
                 className="h-9 w-[160px] appearance-none rounded-[10px] border border-white/[0.08] bg-[#111118] px-3 pr-8 text-[13px] text-white/70 focus:outline-none focus:border-[#9B6BFF]/70"
-                defaultValue=""
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
               >
-                <option value="" disabled>Категория</option>
-                <option>Web</option>
-                <option>Pwn</option>
-                <option>Crypto</option>
-                <option>Forensics</option>
+                <option value="">Категория</option>
+                {categories.map((tag) => (
+                  <option key={tag} value={tag}>{tag}</option>
+                ))}
               </select>
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-white/40">▾</span>
             </div>
@@ -153,40 +240,60 @@ function Knowledge() {
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        {cards.map((card) => (
-          <article
-            key={`${card.title}-${card.tag}-${card.date}`}
-            className="rounded-[16px] border border-white/[0.06] bg-[#0F0F14] p-4 transition hover:border-[#9B6BFF]/60"
-          >
-            <div
-              className="flex h-[140px] items-center justify-center rounded-[14px] bg-[#1B1B24]"
-              style={{ backgroundColor: card.imageBg }}
-            >
-              <img src={card.image} alt="" aria-hidden="true" className="h-[120px] w-[160px] object-contain" />
-            </div>
-
-            <div className="mt-4 flex items-center justify-between text-[12px] text-white/50">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1">
-                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.522 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.478 0-8.268-2.943-9.542-7z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  {card.views}
-                </span>
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] text-white/70">
-                  {card.tag}
-                </span>
-                <span>{card.time}</span>
-              </div>
-              <span>{card.date}</span>
-            </div>
-
-            <h3 className="mt-3 text-[16px] leading-[20px]">{card.title}</h3>
-            <p className="mt-2 text-[13px] leading-[18px] text-white/50">{card.description}</p>
-          </article>
+        {error && (
+          <div className="text-rose-300">{error}</div>
+        )}
+        {loading && (
+          <div className="text-white/60">Загрузка статей...</div>
+        )}
+        {!loading && !error && entries.length === 0 && (
+          <div className="text-white/60">Пока нет статей</div>
+        )}
+        {!loading && !error && entries.map((entry) => (
+          <KnowledgeCard key={entry.id} entry={entry} />
         ))}
       </div>
+
+      {!loading && !error && totalPages > 1 && (
+        <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-white">
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            disabled={page === 1}
+            className="h-9 rounded-[10px] border border-white/10 px-3 text-[13px] text-white/70 hover:text-white disabled:opacity-40"
+          >
+            Назад
+          </button>
+          {pageNumbers.map((pageNumber, index) => {
+            const prevPage = pageNumbers[index - 1];
+            const showGap = prevPage && pageNumber - prevPage > 1;
+            return (
+              <React.Fragment key={pageNumber}>
+                {showGap && <span className="px-2 text-white/40">…</span>}
+                <button
+                  type="button"
+                  onClick={() => setPage(pageNumber)}
+                  className={`h-9 rounded-[10px] border px-3 text-[13px] ${
+                    pageNumber === page
+                      ? 'border-[#9B6BFF] bg-[#9B6BFF]/20 text-white'
+                      : 'border-white/10 text-white/70 hover:text-white'
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              </React.Fragment>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            disabled={page === totalPages}
+            className="h-9 rounded-[10px] border border-white/10 px-3 text-[13px] text-white/70 hover:text-white disabled:opacity-40"
+          >
+            Вперёд
+          </button>
+        </div>
+      )}
     </div>
   );
 }
