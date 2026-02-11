@@ -43,6 +43,13 @@ const MessageIcon = ({ className }) => (
   </svg>
 );
 
+const FlagIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M5 4v16" />
+    <path d="M5 5h10l-1.5 3L15 11H5" />
+  </svg>
+);
+
 const FileIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
     <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
@@ -1930,6 +1937,9 @@ function Admin() {
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
   const [isNvdRunning, setIsNvdRunning] = useState(false);
   const [nvdError, setNvdError] = useState('');
+  const [feedbackToResolve, setFeedbackToResolve] = useState(null);
+  const [isResolvingFeedback, setIsResolvingFeedback] = useState(false);
+  const [feedbackResolveError, setFeedbackResolveError] = useState('');
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -2006,6 +2016,38 @@ function Admin() {
       setNvdError(getApiErrorMessage(err, 'Не удалось выполнить синхронизацию NVD'));
     } finally {
       setIsNvdRunning(false);
+    }
+  };
+
+  const handleStartResolveFeedback = (feedback) => {
+    setFeedbackResolveError('');
+    setFeedbackToResolve(feedback);
+  };
+
+  const handleCancelResolveFeedback = () => {
+    if (isResolvingFeedback) return;
+    setFeedbackResolveError('');
+    setFeedbackToResolve(null);
+  };
+
+  const handleConfirmResolveFeedback = async () => {
+    if (!feedbackToResolve || isResolvingFeedback) return;
+    setIsResolvingFeedback(true);
+    setFeedbackResolveError('');
+    try {
+      await adminAPI.resolveFeedback(feedbackToResolve.id);
+      setDashboard((prev) => {
+        if (!prev) return prev;
+        const nextFeedbacks = (prev.latest_feedbacks || []).filter(
+          (item) => item.id !== feedbackToResolve.id
+        );
+        return { ...prev, latest_feedbacks: nextFeedbacks };
+      });
+      setFeedbackToResolve(null);
+    } catch (err) {
+      setFeedbackResolveError(getApiErrorMessage(err, 'Не удалось отметить отзыв как решённый'));
+    } finally {
+      setIsResolvingFeedback(false);
     }
   };
 
@@ -2125,7 +2167,7 @@ function Admin() {
               </div>
             )}
             {feedbacks.map((feedback) => (
-              <div key={`${feedback.user_id}-${feedback.created_at}-${feedback.topic}`} className="border-b border-white/10 last:border-b-0 pb-4 last:pb-0">
+              <div key={feedback.id} className="border-b border-white/10 last:border-b-0 pb-4 last:pb-0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -2143,7 +2185,15 @@ function Admin() {
                       {formatRelativeTime(feedback.created_at)}
                     </div>
                   </div>
-                  <MessageIcon className="w-4 h-4 text-white/40" />
+                  <button
+                    type="button"
+                    onClick={() => handleStartResolveFeedback(feedback)}
+                    className="h-8 w-8 rounded-[10px] border border-emerald-400/50 bg-emerald-500/20 text-emerald-300 transition-colors hover:bg-emerald-500/30 flex items-center justify-center"
+                    title="Отметить как решённый"
+                    aria-label="Отметить отзыв как решённый"
+                  >
+                    <FlagIcon className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             ))}
@@ -2248,6 +2298,53 @@ function Admin() {
           </div>
         )}
       </SectionCard>
+
+      {feedbackToResolve && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+          <div className="w-full max-w-[520px] rounded-[20px] border border-white/10 bg-[#0B0A10] p-6">
+            <div className="text-[22px] leading-[28px] text-white">
+              Отметить отзыв как решённый?
+            </div>
+            <div className="mt-3 text-[14px] text-white/60">
+              После подтверждения отзыв исчезнет из блока последних сообщений.
+            </div>
+            <div className="mt-4 rounded-[12px] border border-white/10 bg-white/[0.03] p-3">
+              <div className="text-[13px] text-white/80">
+                {feedbackToResolve.username || `Пользователь #${feedbackToResolve.user_id}`}
+              </div>
+              <div className="mt-2 text-[12px] text-white/50">
+                {feedbackToResolve.topic}
+              </div>
+              <div className="mt-2 text-[14px] text-white/70">
+                {feedbackToResolve.message}
+              </div>
+            </div>
+            {feedbackResolveError && (
+              <div className="mt-4 rounded-[12px] border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-200">
+                {feedbackResolveError}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={handleCancelResolveFeedback}
+                disabled={isResolvingFeedback}
+                className="h-10 px-4 rounded-[10px] border border-white/10 bg-white/[0.03] text-white/80 hover:bg-white/[0.06] disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Нет
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmResolveFeedback}
+                disabled={isResolvingFeedback}
+                className="h-10 px-4 rounded-[10px] border border-emerald-400/50 bg-emerald-500/20 text-emerald-200 hover:bg-emerald-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isResolvingFeedback ? 'Сохраняем...' : 'Да'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <KnowledgeBaseModal
         open={isKbOpen}

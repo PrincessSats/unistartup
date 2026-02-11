@@ -89,12 +89,17 @@ async def ensure_auth_schema_compatibility() -> None:
         # Обратная связь используется на главной и в хедере.
         """
         CREATE TABLE IF NOT EXISTS feedback (
+            id BIGSERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             topic TEXT NOT NULL,
             message TEXT NOT NULL,
+            resolved BOOLEAN NOT NULL DEFAULT FALSE,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """,
+        "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS id BIGSERIAL",
+        "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE",
+        "CREATE INDEX IF NOT EXISTS idx_feedback_id ON feedback(id)",
         # Для legacy-пользователей, у которых ещё нет профиля/рейтинга.
         """
         INSERT INTO user_profiles (user_id, username, role)
