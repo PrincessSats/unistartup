@@ -32,5 +32,6 @@ Thumbs.db
 *.key
 .env
 .codex
+dnevnik.txt
 
 security_best_practices_report.md

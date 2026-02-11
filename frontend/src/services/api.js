@@ -175,6 +175,10 @@ export const adminAPI = {
     const response = await api.post('/admin/nvd_sync');
     return response.data;
   },
+  resolveFeedback: async (feedbackId) => {
+    const response = await api.post(`/admin/feedback/${feedbackId}/resolve`);
+    return response.data;
+  },
 };
 
 export const knowledgeAPI = {
