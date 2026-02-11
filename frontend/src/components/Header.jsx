@@ -9,7 +9,7 @@ const iconAssets = {
   person: 'https://www.figma.com/api/mcp/asset/b860bcd5-d904-455c-a685-a2c21ad9e02a',
 };
 
-function Header({ username, avatarUrl }) {  // ← добавили avatarUrl
+function Header({ username, avatarUrl, onSupportClick }) {  // ← добавили avatarUrl
   const navigate = useNavigate();
 
   return (
@@ -29,7 +29,12 @@ function Header({ username, avatarUrl }) {  // ← добавили avatarUrl
       {/* Правая часть */}
       <div className="flex items-center gap-6 ml-8">
         {/* Иконка поддержки */}
-        <button className="w-14 h-14 rounded-[10px] bg-white/[0.05] text-white/80 hover:text-white transition-colors flex items-center justify-center">
+        <button
+          type="button"
+          onClick={onSupportClick}
+          aria-label="Оставить отзыв"
+          className="w-14 h-14 rounded-[10px] bg-white/[0.05] text-white/80 hover:text-white transition-colors flex items-center justify-center"
+        >
           <img src={iconAssets.support} alt="" className="w-5 h-5" />
         </button>
 
