@@ -15,6 +15,7 @@ class User(Base):
     email = Column(Text, nullable=False, unique=True, index=True)
     password_hash = Column(Text, nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)
+    email_verified_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     
     # Связь с профилем (один к одному)
