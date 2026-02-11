@@ -12,10 +12,12 @@ class AdminStats(BaseModel):
 
 
 class AdminFeedback(BaseModel):
+    id: int
     user_id: int
     username: Optional[str] = None
     topic: str
     message: str
+    resolved: bool = False
     created_at: Optional[datetime] = None
 
 
