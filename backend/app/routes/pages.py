@@ -166,11 +166,12 @@ async def admin_panel(
         await db.execute(
             text(
                 """
-                SELECT f.user_id, p.username, f.topic, f.message, f.created_at
+                SELECT f.id, f.user_id, p.username, f.topic, f.message, COALESCE(f.resolved, FALSE) AS resolved, f.created_at
                 FROM feedback f
                 LEFT JOIN user_profiles p ON p.user_id = f.user_id
+                WHERE COALESCE(f.resolved, FALSE) = FALSE
                 ORDER BY f.created_at DESC NULLS LAST
-                LIMIT 4
+                LIMIT 8
                 """
             )
         )
@@ -178,10 +179,12 @@ async def admin_panel(
 
     latest_feedbacks = [
         AdminFeedback(
+            id=row["id"],
             user_id=row["user_id"],
             username=row.get("username"),
             topic=row["topic"],
             message=row["message"],
+            resolved=bool(row.get("resolved")),
             created_at=row.get("created_at"),
         )
         for row in feedback_rows
@@ -238,6 +241,57 @@ async def admin_panel(
             if nvd_row
             else None
         ),
+    )
+
+
+@router.post("/admin/feedback/{feedback_id}/resolve", response_model=AdminFeedback)
+async def resolve_feedback(
+    feedback_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Отметить сообщение обратной связи как resolved.
+    """
+    _user, _profile = current_user_data
+
+    row = (
+        await db.execute(
+            text(
+                """
+                UPDATE feedback
+                SET resolved = TRUE
+                WHERE id = :feedback_id
+                RETURNING id, user_id, topic, message, COALESCE(resolved, FALSE) AS resolved, created_at
+                """
+            ),
+            {"feedback_id": feedback_id},
+        )
+    ).mappings().first()
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Отзыв не найден",
+        )
+
+    username = (
+        await db.execute(
+            text("SELECT username FROM user_profiles WHERE user_id = :user_id"),
+            {"user_id": row["user_id"]},
+        )
+    ).scalar_one_or_none()
+
+    await db.commit()
+
+    return AdminFeedback(
+        id=row["id"],
+        user_id=row["user_id"],
+        username=username,
+        topic=row["topic"],
+        message=row["message"],
+        resolved=bool(row.get("resolved")),
+        created_at=row.get("created_at"),
     )
 
 

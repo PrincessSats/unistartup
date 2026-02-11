@@ -34,11 +34,20 @@ CREATE TABLE user_ratings (
 
 -- 3.1 Обратная связь
 CREATE TABLE feedback (
+    id          BIGSERIAL PRIMARY KEY,
     user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     topic       TEXT NOT NULL,
     message     TEXT NOT NULL,
+    resolved    BOOLEAN NOT NULL DEFAULT FALSE,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Миграция для существующих БД (если таблица feedback уже создана)
+ALTER TABLE feedback
+    ADD COLUMN IF NOT EXISTS id BIGSERIAL;
+
+ALTER TABLE feedback
+    ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
