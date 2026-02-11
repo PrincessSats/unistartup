@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import FeedbackModal from './FeedbackModal';
 import { authAPI, profileAPI } from '../services/api';  // ← заменили userAPI на profileAPI
 
 function Layout({ children }) {
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
 
   useEffect(() => {
     if (!authAPI.isAuthenticated()) {
@@ -62,10 +64,15 @@ function Layout({ children }) {
 
   return (
     <div className="min-h-screen bg-[#0B0A10] flex">
+      <FeedbackModal open={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
       <Sidebar isAdmin={isAdmin} />
 
       <div className="flex-1 flex flex-col border border-white/[0.09]">
-        <Header username={username} avatarUrl={avatarUrl} />  {/* ← передаём avatarUrl */}
+        <Header
+          username={username}
+          avatarUrl={avatarUrl}
+          onSupportClick={() => setIsFeedbackOpen(true)}
+        />  {/* ← передаём avatarUrl */}
 
         <main className="flex-1 px-8 pt-4 pb-8">
           {children}
