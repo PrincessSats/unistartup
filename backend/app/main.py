@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge
+from app.database import ensure_auth_schema_compatibility
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +63,8 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.on_event("startup")
+async def startup_tasks():
+    await ensure_auth_schema_compatibility()
