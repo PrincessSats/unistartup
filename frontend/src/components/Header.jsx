@@ -2,12 +2,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const iconAssets = {
-  search: 'https://www.figma.com/api/mcp/asset/56ed3c84-7b2a-4426-8f44-951d15f32b74',
-  support: 'https://www.figma.com/api/mcp/asset/d553112c-67be-4fd0-9438-ca13931560f1',
-  person: 'https://www.figma.com/api/mcp/asset/b860bcd5-d904-455c-a685-a2c21ad9e02a',
-};
+import AppIcon from './AppIcon';
 
 function Header({ username, avatarUrl, onSupportClick }) {  // ← добавили avatarUrl
   const navigate = useNavigate();
@@ -17,7 +12,7 @@ function Header({ username, avatarUrl, onSupportClick }) {  // ← добави�
       {/* Поле поиска */}
       <div className="flex-1 max-w-[1062px]">
         <div className="flex items-center gap-4 h-14 px-5 rounded-[10px] bg-white/[0.03] border border-white/[0.09]">
-          <img src={iconAssets.search} alt="" className="w-[22px] h-[22px]" />
+          <AppIcon name="search" className="w-[22px] h-[22px] text-white/70" />
           <input
             type="text"
             placeholder="Ищи задания, обучающие материалы или пользователей..."
@@ -35,7 +30,7 @@ function Header({ username, avatarUrl, onSupportClick }) {  // ← добави�
           aria-label="Оставить отзыв"
           className="w-14 h-14 rounded-[10px] bg-white/[0.05] text-white/80 hover:text-white transition-colors flex items-center justify-center"
         >
-          <img src={iconAssets.support} alt="" className="w-5 h-5" />
+          <AppIcon name="support" className="w-5 h-5" />
         </button>
 
         <div className="flex items-center gap-4 border-l border-white/[0.09] pl-4">
@@ -51,7 +46,7 @@ function Header({ username, avatarUrl, onSupportClick }) {  // ← добави�
               {avatarUrl ? (
                 <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <img src={iconAssets.person} alt="" className="w-5 h-5" />
+                <AppIcon name="person" className="w-5 h-5 text-white" />
               )}
             </div>
           </button>
