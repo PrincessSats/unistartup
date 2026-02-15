@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
+import AppIcon from '../components/AppIcon';
 
 const heroGlass = 'https://www.figma.com/api/mcp/asset/83ec0217-d927-43dc-8152-7806866a3c5b';
 const panelGlass = 'https://www.figma.com/api/mcp/asset/3a49cdeb-e88b-4e55-802a-766906beba34';
-const eyeIcon = 'https://www.figma.com/api/mcp/asset/a348367d-ce0d-41b5-a110-8518938db3c4';
-const arrowLeftIcon = 'https://www.figma.com/api/mcp/asset/819d79fe-8cdb-4999-9b58-0fa5de207ba1';
 
 const heroGradient =
   'linear-gradient(86.51923569753619deg, rgb(86, 59, 166) 1.2823%, rgb(87, 56, 158) 15.301%, rgb(89, 60, 158) 35.395%, rgb(131, 89, 221) 62.966%, rgb(159, 99, 255) 98.48%)';
@@ -68,7 +67,7 @@ function RelatedCard({ entry }) {
         <div className="flex flex-wrap items-center justify-between gap-4 text-[14px] text-white/60">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1">
-              <img src={eyeIcon} alt="" className="h-3.5 w-3.5" />
+              <AppIcon name="eye" className="h-3.5 w-3.5" />
               {entry?.views ?? 0}
             </span>
             {primaryTag && (
@@ -300,13 +299,13 @@ export default function KnowledgeArticle() {
               onClick={() => navigate(-1)}
               className="inline-flex w-fit items-center gap-2 rounded-[10px] border border-white/10 bg-white/10 px-4 py-2 text-[14px] text-white/80 transition hover:border-[#9B6BFF]/60 hover:text-white"
             >
-              <img src={arrowLeftIcon} alt="" className="h-5 w-5" />
+              <AppIcon name="arrow-left" className="h-5 w-5" />
               Назад
             </button>
 
             <div className="flex flex-wrap items-center gap-3 text-[14px] text-white/70">
               <span className="inline-flex items-center gap-1">
-                <img src={eyeIcon} alt="" className="h-3.5 w-3.5" />
+                <AppIcon name="eye" className="h-3.5 w-3.5" />
                 {entry?.views ?? 0}
               </span>
               {tags.slice(0, 2).map((tag) => (

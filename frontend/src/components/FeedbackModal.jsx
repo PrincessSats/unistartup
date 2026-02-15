@@ -1,9 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { feedbackAPI } from '../services/api';
-
-const assets = {
-  feedbackClose: 'https://www.figma.com/api/mcp/asset/c8c42221-6151-426f-a44d-ddcb733ec06d',
-};
+import AppIcon from './AppIcon';
 
 function FeedbackModal({ open, onClose }) {
   const topics = [
@@ -65,7 +62,7 @@ function FeedbackModal({ open, onClose }) {
       {status === 'success' ? (
         <div className="relative w-full max-w-[600px] rounded-[20px] bg-[#9B6BFF]/[0.14] backdrop-blur-[32px] shadow-[0_20px_50px_rgba(11,10,16,0.21)] p-8">
           <button onClick={onClose} className="absolute right-5 top-5">
-            <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+            <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
           </button>
           <div className="flex flex-col gap-4">
             <h3 className="text-[23px] leading-[28px] tracking-[0.02em] text-white">
@@ -89,7 +86,7 @@ function FeedbackModal({ open, onClose }) {
       ) : (
         <div className="relative w-full max-w-[600px] rounded-[20px] bg-[#9B6BFF]/[0.14] backdrop-blur-[32px] shadow-[0_20px_50px_rgba(11,10,16,0.21)] p-8">
           <button onClick={onClose} className="absolute right-5 top-5">
-            <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+            <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
           </button>
           <div className="flex flex-col gap-6">
             <div>

@@ -1,24 +1,15 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-
-const iconAssets = {
-  home: 'https://www.figma.com/api/mcp/asset/5b999686-618b-4b69-a7b0-3bcc1ca8b52c',
-  championship: 'https://www.figma.com/api/mcp/asset/c97b5811-3f58-43a6-8440-4066e7758353',
-  education: 'https://www.figma.com/api/mcp/asset/1266fbcc-e7b5-423b-ab51-826960891d83',
-  rating: 'https://www.figma.com/api/mcp/asset/63d69515-1640-4d7a-a1a7-a1667a8394d7',
-  knowledge: 'https://www.figma.com/api/mcp/asset/672fc1c8-5d30-4e84-a6e6-8c1dfdf6d4fb',
-  faq: 'https://www.figma.com/api/mcp/asset/714934b3-a071-4ea1-83c2-483949b73670',
-  admin: 'https://www.figma.com/api/mcp/asset/7ef5f3be-8d99-4176-8e66-49568e7f8777',
-};
+import AppIcon from './AppIcon';
 
 const icons = {
-  home: <img src={iconAssets.home} alt="" className="w-5 h-5" />,
-  championship: <img src={iconAssets.championship} alt="" className="w-5 h-5" />,
-  education: <img src={iconAssets.education} alt="" className="w-5 h-5" />,
-  rating: <img src={iconAssets.rating} alt="" className="w-5 h-5" />,
-  knowledge: <img src={iconAssets.knowledge} alt="" className="w-5 h-5" />,
-  faq: <img src={iconAssets.faq} alt="" className="w-5 h-5" />,
-  admin: <img src={iconAssets.admin} alt="" className="w-5 h-5" />,
+  home: <AppIcon name="home" className="w-5 h-5" />,
+  championship: <AppIcon name="championship" className="w-5 h-5" />,
+  education: <AppIcon name="education" className="w-5 h-5" />,
+  rating: <AppIcon name="rating" className="w-5 h-5" />,
+  knowledge: <AppIcon name="knowledge" className="w-5 h-5" />,
+  faq: <AppIcon name="faq" className="w-5 h-5" />,
+  admin: <AppIcon name="admin" className="w-5 h-5" />,
 };
 
 // Пункты меню
