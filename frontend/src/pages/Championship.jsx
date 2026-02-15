@@ -77,7 +77,16 @@ function Championship() {
 
   const tasksTotal = taskState?.tasks_total ?? contest?.tasks_total ?? 0;
   const tasksSolved = taskState?.solved_task_ids?.length ?? contest?.tasks_solved ?? 0;
-  const progressPercent = tasksTotal ? Math.round((tasksSolved / tasksTotal) * 100) : 0;
+  const taskProgressPercent = tasksTotal ? Math.round((tasksSolved / tasksTotal) * 100) : 0;
+  const deadlineProgressPercent = useMemo(() => {
+    const start = contest?.start_at ? new Date(contest.start_at).getTime() : NaN;
+    const end = contest?.end_at ? new Date(contest.end_at).getTime() : NaN;
+    if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0;
+    const now = Date.now();
+    const ratio = (now - start) / (end - start);
+    const percent = Math.round(ratio * 100);
+    return Math.min(100, Math.max(0, percent));
+  }, [contest?.start_at, contest?.end_at]);
 
   const currentTask = taskState?.task;
   const knowledgeAreas = contest?.knowledge_areas?.length
@@ -235,7 +244,7 @@ function Championship() {
                       <div
                         className="relative h-[76px] w-[76px] rounded-full p-[6px]"
                         style={{
-                          background: `conic-gradient(#9B6BFF 0deg, #9B6BFF ${progressPercent * 3.6}deg, rgba(255,255,255,0.03) ${progressPercent * 3.6}deg, rgba(255,255,255,0.03) 360deg)`,
+                          background: `conic-gradient(#9B6BFF 0deg, #9B6BFF ${taskProgressPercent * 3.6}deg, rgba(255,255,255,0.03) ${taskProgressPercent * 3.6}deg, rgba(255,255,255,0.03) 360deg)`,
                         }}
                       >
                         <div className="flex h-full w-full items-center justify-center rounded-full bg-[#0B0A10] text-[14px] leading-[16px] text-white">
@@ -261,8 +270,14 @@ function Championship() {
                     </div>
 
                     <div className="relative h-2 rounded-full bg-white/[0.09]">
-                      <div className="absolute left-0 top-0 h-2 rounded-full bg-white/60" style={{ width: `${progressPercent}%` }} />
-                      <div className="absolute right-[12%] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-white/60 bg-[#0B0A10]" />
+                      <div
+                        className="absolute left-0 top-0 h-2 rounded-full bg-[#9B6BFF]"
+                        style={{ width: `${deadlineProgressPercent}%` }}
+                      />
+                      <div
+                        className="absolute top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border border-[#9B6BFF] bg-[#0B0A10]"
+                        style={{ left: `calc(${deadlineProgressPercent}% - 6px)` }}
+                      />
                     </div>
 
                     <div className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">Дедлайн</div>
