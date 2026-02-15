@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
+import AppIcon from '../components/AppIcon';
 
 const sortTabs = [
   { label: 'Сначала новые', value: 'desc' },
@@ -8,7 +9,6 @@ const sortTabs = [
 ];
 
 const panelGlass = 'https://www.figma.com/api/mcp/asset/3a49cdeb-e88b-4e55-802a-766906beba34';
-const eyeIcon = 'https://www.figma.com/api/mcp/asset/a348367d-ce0d-41b5-a110-8518938db3c4';
 
 const tagGradients = {
   Web: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
@@ -73,7 +73,7 @@ function KnowledgeCard({ entry }) {
         <div className="flex flex-wrap items-center justify-between gap-4 text-[14px] text-white/60">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-1">
-              <img src={eyeIcon} alt="" className="h-3.5 w-3.5" />
+              <AppIcon name="eye" className="h-3.5 w-3.5" />
               {entry?.views ?? 0}
             </span>
             {primaryTag && (

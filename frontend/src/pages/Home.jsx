@@ -2,16 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { knowledgeAPI, profileAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
+import AppIcon from '../components/AppIcon';
 
 const assets = {
   trainingWeb: 'https://www.figma.com/api/mcp/asset/fc4f12da-20d3-4566-8900-ff0041cc9699',
   trainingForensics: 'https://www.figma.com/api/mcp/asset/e3408f5c-e06c-4501-874e-3db6c3891edb',
   trainingPm: 'https://www.figma.com/api/mcp/asset/1c4915f0-cdae-45d9-84a2-f5336378d0a6',
-  star: 'https://www.figma.com/api/mcp/asset/1266fbcc-e7b5-423b-ab51-826960891d83',
-  doc: 'https://www.figma.com/api/mcp/asset/672fc1c8-5d30-4e84-a6e6-8c1dfdf6d4fb',
-  flag: 'https://www.figma.com/api/mcp/asset/63d69515-1640-4d7a-a1a7-a1667a8394d7',
-  close: 'https://www.figma.com/api/mcp/asset/144edf45-ec18-443a-94d3-98858cb6a783',
-  feedbackClose: 'https://www.figma.com/api/mcp/asset/c8c42221-6151-426f-a44d-ddcb733ec06d',
 };
 
 const DEFAULT_USERNAME = 'Пользователь';
@@ -180,7 +176,7 @@ function TrainingCard({ image, title, description, tags, duration, progress, poi
       <div className="flex items-end justify-between">
         <ProgressBar value={progress} size="small" />
         <div className="flex items-center gap-2">
-          <img src={assets.star} alt="" className="w-5 h-5" />
+          <AppIcon name="star" className="w-5 h-5 text-white/80" />
           <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
             {points}
           </span>
@@ -220,7 +216,7 @@ function TaskRow({ title, category, type, level, progress, points }) {
         </div>
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-2">
-            <img src={assets.star} alt="" className="w-5 h-5" />
+            <AppIcon name="star" className="w-5 h-5 text-white/80" />
             <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
               {points}
             </span>
@@ -260,7 +256,7 @@ function TrainingNotificationCard() {
             <br />в рейтинг
           </div>
         </div>
-        <img src={assets.close} alt="" className="w-[22px] h-[22px]" />
+        <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
       </div>
       <button className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit">
         Пройти
@@ -284,7 +280,7 @@ function FeedbackCard({ onOpen, onClose }) {
           </div>
         </div>
         <button onClick={onClose} className="shrink-0">
-          <img src={assets.feedbackClose} alt="" className="w-[22px] h-[22px]" />
+          <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
         </button>
       </div>
       <button
@@ -301,7 +297,7 @@ function NewsCard({ title, children, icon }) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3 px-4">
-        <img src={icon} alt="" className="w-7 h-7" />
+        <span className="text-white/80">{icon}</span>
         <span className="text-[23px] leading-[28px] tracking-[0.46px] text-white">
           {title}
         </span>
@@ -587,7 +583,7 @@ export default function Home() {
               Новости
             </div>
 
-            <NewsCard title="База знаний" icon={assets.doc}>
+            <NewsCard title="База знаний" icon={<AppIcon name="doc" className="w-7 h-7" />}>
               {knowledgeError && (
                 <NewsItem title={knowledgeError} meta="" />
               )}
@@ -607,7 +603,7 @@ export default function Home() {
               ))}
             </NewsCard>
 
-            <NewsCard title="Новые задания" icon={assets.flag}>
+            <NewsCard title="Новые задания" icon={<AppIcon name="flag" className="w-7 h-7" />}>
               {taskNews.map((item, index) => (
                 <TaskNewsItem key={`${item}-${index}`} title={item} />
               ))}
