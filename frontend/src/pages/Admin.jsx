@@ -1225,11 +1225,36 @@ function ContestPlanningModal({ open, onClose }) {
     }
   }, [open]);
 
-  const formatLocal = (value) => {
+  const formatDateForInput = (value) => {
     if (!value) return '';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '';
-    return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}/${month}/${day}`;
+  };
+
+  const parseDateInputToIso = (value, isEnd = false) => {
+    if (!value) return null;
+    const normalized = value.trim().replaceAll('-', '/');
+    const match = normalized.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    const date = isEnd
+      ? new Date(year, month - 1, day, 23, 59, 59, 999)
+      : new Date(year, month - 1, day, 0, 0, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null;
+    }
+    return date.toISOString();
   };
 
   const handleEditContest = async (contestId) => {
@@ -1241,8 +1266,8 @@ function ContestPlanningModal({ open, onClose }) {
       setContestForm({
         title: data.title || '',
         description: data.description || '',
-        start_at: formatLocal(data.start_at),
-        end_at: formatLocal(data.end_at),
+        start_at: formatDateForInput(data.start_at),
+        end_at: formatDateForInput(data.end_at),
         is_public: data.is_public,
         leaderboard_visible: data.leaderboard_visible,
       });
@@ -1319,6 +1344,17 @@ function ContestPlanningModal({ open, onClose }) {
       setError('Укажите даты начала и конца');
       return;
     }
+    const parsedStartAt = parseDateInputToIso(contestForm.start_at, false);
+    const parsedEndAt = parseDateInputToIso(contestForm.end_at, true);
+    if (!parsedStartAt || !parsedEndAt) {
+      setError('Формат дат: yyyy/mm/dd');
+      return;
+    }
+    if (new Date(parsedStartAt).getTime() > new Date(parsedEndAt).getTime()) {
+      setError('Дата начала должна быть раньше даты окончания');
+      return;
+    }
+
     setStatus('saving');
     setError('');
     try {
@@ -1337,8 +1373,8 @@ function ContestPlanningModal({ open, onClose }) {
       const payload = {
         title: contestForm.title.trim(),
         description: contestForm.description || null,
-        start_at: new Date(contestForm.start_at).toISOString(),
-        end_at: new Date(contestForm.end_at).toISOString(),
+        start_at: parsedStartAt,
+        end_at: parsedEndAt,
         is_public: contestForm.is_public,
         leaderboard_visible: contestForm.leaderboard_visible,
         tasks: tasksPayload,
@@ -1539,16 +1575,20 @@ function ContestPlanningModal({ open, onClose }) {
                 placeholder="Описание"
               />
               <input
-                type="datetime-local"
+                type="text"
                 value={contestForm.start_at}
-                onChange={(e) => setContestForm((prev) => ({ ...prev, start_at: e.target.value }))}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, start_at: e.target.value.replaceAll('-', '/').trimStart() }))}
                 className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="yyyy/mm/dd"
+                inputMode="numeric"
               />
               <input
-                type="datetime-local"
+                type="text"
                 value={contestForm.end_at}
-                onChange={(e) => setContestForm((prev) => ({ ...prev, end_at: e.target.value }))}
+                onChange={(e) => setContestForm((prev) => ({ ...prev, end_at: e.target.value.replaceAll('-', '/').trimStart() }))}
                 className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                placeholder="yyyy/mm/dd"
+                inputMode="numeric"
               />
             </div>
             <div className="flex items-center gap-4 text-[14px] text-white/70">
