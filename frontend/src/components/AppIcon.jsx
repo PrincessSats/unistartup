@@ -72,12 +72,9 @@ function getIconPath(name) {
     case 'support':
       return (
         <>
-          <circle cx="12" cy="12" r="8" />
-          <circle cx="12" cy="12" r="3" />
-          <path d="m7 7 2.2 2.2" />
-          <path d="m14.8 14.8 2.2 2.2" />
-          <path d="m17 7-2.2 2.2" />
-          <path d="M9.2 14.8 7 17" />
+          <path d="M6 5h12a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-7l-5 4v-4H6a3 3 0 0 1-3-3V8a3 3 0 0 1 3-3z" />
+          <path d="M8 10h8" />
+          <path d="M8 13h5" />
         </>
       );
     case 'person':
@@ -89,17 +86,24 @@ function getIconPath(name) {
       );
     case 'star':
       return (
-        <path
-          d="m12 3.5 2.63 5.33 5.87.85-4.25 4.14 1 5.84L12 16.9l-5.25 2.76 1-5.84-4.25-4.14 5.87-.85L12 3.5z"
-          fill="currentColor"
-          stroke="none"
-        />
+        <path d="m12 4 2.44 4.94 5.45.79-3.95 3.84.93 5.43L12 16.42 7.13 19l.93-5.43-3.95-3.84 5.45-.79L12 4z" />
       );
     case 'flag':
       return (
         <>
           <path d="M5 4v16" />
           <path d="M5 5h10l-1.8 3L15 11H5" />
+        </>
+      );
+    case 'cup':
+      return (
+        <>
+          <path d="M8 4h8v3a4 4 0 0 1-8 0V4Z" />
+          <path d="M8 7H5a3 3 0 0 0 3 3" />
+          <path d="M16 7h3a3 3 0 0 1-3 3" />
+          <path d="M12 11v4" />
+          <path d="M9 20h6" />
+          <path d="M10 15h4v5h-4z" />
         </>
       );
     case 'close':

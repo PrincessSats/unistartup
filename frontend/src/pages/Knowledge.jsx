@@ -2,13 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
+import { getKnowledgeCardVisual } from '../utils/knowledgeVisuals';
 
 const sortTabs = [
   { label: 'Сначала новые', value: 'desc' },
   { label: 'Сначала старые', value: 'asc' },
 ];
-
-const panelGlass = 'https://www.figma.com/api/mcp/asset/3a49cdeb-e88b-4e55-802a-766906beba34';
 
 const tagGradients = {
   Web: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
@@ -49,6 +48,7 @@ function KnowledgeCard({ entry }) {
   const primaryTag = tags[0];
   const secondaryTag = tags[1];
   const gradient = tagGradients[primaryTag] || tagGradients.default;
+  const visual = getKnowledgeCardVisual(tags, entry?.id || 0);
   const readTime = estimateReadTime(entry?.ru_explainer || entry?.ru_summary);
   const summary = shortSummary(entry?.ru_summary || entry?.ru_explainer || '');
 
@@ -61,11 +61,12 @@ function KnowledgeCard({ entry }) {
         className="relative h-[268px] overflow-hidden rounded-[16px]"
         style={{ backgroundImage: gradient }}
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),rgba(255,255,255,0)_58%)]" />
         <img
-          src={panelGlass}
+          src={visual.src}
           alt=""
-          aria-hidden="true"
-          className="absolute -left-10 top-3 h-[315px] w-[554px] opacity-90"
+          loading="lazy"
+          className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${visual.imageClassName}`}
         />
       </div>
 
