@@ -2,9 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
-
-const heroGlass = 'https://www.figma.com/api/mcp/asset/83ec0217-d927-43dc-8152-7806866a3c5b';
-const panelGlass = 'https://www.figma.com/api/mcp/asset/3a49cdeb-e88b-4e55-802a-766906beba34';
+import { getKnowledgeCardVisual, getKnowledgeHeroVisual } from '../utils/knowledgeVisuals';
 
 const heroGradient =
   'linear-gradient(86.51923569753619deg, rgb(86, 59, 166) 1.2823%, rgb(87, 56, 158) 15.301%, rgb(89, 60, 158) 35.395%, rgb(131, 89, 221) 62.966%, rgb(159, 99, 255) 98.48%)';
@@ -46,6 +44,7 @@ function RelatedCard({ entry }) {
   const primaryTag = tags[0];
   const secondaryTag = tags[1];
   const gradient = tagGradients[primaryTag] || tagGradients.default;
+  const visual = getKnowledgeCardVisual(tags, entry?.id || 0);
 
   return (
     <Link
@@ -56,11 +55,12 @@ function RelatedCard({ entry }) {
         className="relative h-[268px] overflow-hidden rounded-[16px]"
         style={{ backgroundImage: gradient }}
       >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),rgba(255,255,255,0)_58%)]" />
         <img
-          src={panelGlass}
+          src={visual.src}
           alt=""
-          aria-hidden="true"
-          className="absolute -left-10 top-3 h-[315px] w-[554px] opacity-90"
+          loading="lazy"
+          className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${visual.imageClassName}`}
         />
       </div>
       <div className="flex flex-col gap-6 px-8 py-6">
@@ -258,6 +258,7 @@ export default function KnowledgeArticle() {
   }
 
   const tags = Array.isArray(entry.tags) ? entry.tags : [];
+  const heroVisual = getKnowledgeHeroVisual(tags, entry?.id || 0);
   const readTime = estimateReadTime(entry.ru_explainer);
   const trimmedComment = commentBody.trim();
   const canSubmitComment = trimmedComment.length > 0 && trimmedComment.length <= 2000;
@@ -287,11 +288,11 @@ export default function KnowledgeArticle() {
           className="relative min-h-[426px] px-6 py-6 sm:px-8 sm:py-8"
           style={{ backgroundImage: heroGradient }}
         >
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_72%_20%,rgba(255,255,255,0.26),rgba(255,255,255,0)_58%)]" />
           <img
-            src={heroGlass}
+            src={heroVisual.src}
             alt=""
-            aria-hidden="true"
-            className="pointer-events-none absolute right-[-140px] top-[-220px] h-[847px] w-[1243px] opacity-90"
+            className={`pointer-events-none absolute right-[-220px] top-[-240px] h-[870px] w-[1240px] object-contain opacity-95 ${heroVisual.imageClassName}`}
           />
 
           <div className="relative z-10 flex max-w-[620px] flex-col gap-6">

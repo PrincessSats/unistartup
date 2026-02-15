@@ -1,73 +1,98 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ratingsAPI } from '../services/api';
+import AppIcon from '../components/AppIcon';
 
-const assets = {
-  podiumSecond: 'https://www.figma.com/api/mcp/asset/f1318dcd-ecae-4de1-a32a-341e9b954dd1',
-  podiumFirst: 'https://www.figma.com/api/mcp/asset/7131acba-a9db-4608-8b65-83f10d39c2c1',
-  podiumThird: 'https://www.figma.com/api/mcp/asset/c0a7fd71-4f66-4992-9ab7-5df21b49bf66',
-  podiumBaseTopLeft: 'https://www.figma.com/api/mcp/asset/43f80541-b8d5-4493-9a5a-781fa44dfedf',
-  podiumBaseBottomLeft: 'https://www.figma.com/api/mcp/asset/f80d7ca1-7683-4844-a3e9-ea5b6b1ff67a',
-  podiumBaseTopCenter: 'https://www.figma.com/api/mcp/asset/b083242b-9367-4958-9ef9-ec679b64f221',
-  podiumBaseBottomCenter: 'https://www.figma.com/api/mcp/asset/73605180-5962-48ad-a7cc-fbdce6d2a9ce',
-  podiumBaseTopRight: 'https://www.figma.com/api/mcp/asset/6c869ad4-b102-4e0d-b10b-aa31439fba1b',
-  podiumBaseBottomRight: 'https://www.figma.com/api/mcp/asset/bbfd0429-14e9-45c1-9808-cbc3a2aba635',
-  podiumShelf: 'https://www.figma.com/api/mcp/asset/09ae3d93-d7fa-4bd2-8776-92329daf0629',
-  cup: 'https://www.figma.com/api/mcp/asset/87fe4da5-bf19-4aaf-b43c-1191616297ec',
-};
+const tableColumns =
+  'grid min-w-[940px] grid-cols-[82px_minmax(260px,1fr)_66px_126px_148px_148px] items-center';
 
 const formatNumber = (value) => {
   if (value === null || value === undefined) return '0';
   return new Intl.NumberFormat('ru-RU').format(value);
 };
 
-function PodiumCard({ entry, rank, fallbackAvatar, shadowColor, offsetClass }) {
-  const avatarUrl = entry?.avatar_url || fallbackAvatar;
+function UserAvatar({ entry, sizeClass = 'h-14 w-14', roundedClass = 'rounded-[12px]' }) {
   const username = entry?.username || '—';
-  const rating = entry?.rating ?? 0;
 
   return (
-    <div className={`flex flex-col items-center gap-4 ${offsetClass}`}>
-      <div
-        className={`relative h-[116px] w-[116px] overflow-hidden rounded-[24px] border border-white/[0.08] bg-white/[0.03] shadow-[0px_0px_220px_64px_${shadowColor}]`}
-      >
-        {avatarUrl ? (
-          <img
-            src={avatarUrl}
-            alt={username}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-white/60">
-            <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          </div>
-        )}
-      </div>
-      <div className="font-mono-figma text-[23px] leading-[28px] tracking-[0.02em] text-white">
-        {username}
-      </div>
-      <div className="rounded-[16px] bg-white/[0.03] px-8 py-2">
-        <span className="font-mono-figma text-[23px] leading-[28px] tracking-[0.02em] text-white">
-          {formatNumber(rating)}
-        </span>
-      </div>
+    <div
+      className={`${sizeClass} ${roundedClass} overflow-hidden border border-white/[0.12] bg-white/[0.04] shrink-0`}
+    >
+      {entry?.avatar_url ? (
+        <img src={entry.avatar_url} alt={username} className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-[#9B6BFF]/85 text-white">
+          <AppIcon name="person" className="h-4 w-4" />
+        </div>
+      )}
     </div>
   );
 }
 
-function PodiumBase({ topImage, bottomImage, heightClass, rank }) {
+function TopPlayerCard({ entry, rank }) {
+  const rankTones = {
+    1: {
+      border: 'border-[#E6C36E]/70',
+      shadow: 'shadow-[0_0_130px_-44px_rgba(230,195,110,0.58)]',
+    },
+    2: {
+      border: 'border-[#9B6BFF]/45',
+      shadow: 'shadow-[0_0_130px_-44px_rgba(155,107,255,0.52)]',
+    },
+    3: {
+      border: 'border-[#CE8358]/55',
+      shadow: 'shadow-[0_0_130px_-44px_rgba(206,131,88,0.52)]',
+    },
+  };
+
+  const tone = rankTones[rank] || rankTones[2];
+  const username = entry?.username || '—';
+  const rating = entry?.rating ?? 0;
+
   return (
-    <div className={`relative w-full ${heightClass}`}>
-      <div className="absolute inset-0 flex flex-col">
-        <img src={topImage} alt="" className="h-[30px] w-full object-cover" />
-        <img src={bottomImage} alt="" className="flex-1 w-full object-cover" />
+    <article
+      className={`relative flex min-h-[210px] flex-col items-center justify-center gap-4 rounded-[16px] border bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),_rgba(255,255,255,0.01)_46%,_rgba(255,255,255,0.01))] px-6 py-8 ${tone.border} ${tone.shadow}`}
+    >
+      <UserAvatar
+        entry={entry}
+        sizeClass="h-[88px] w-[88px]"
+        roundedClass={`rounded-[18px] ${rank === 1 ? 'border-[#E6C36E]' : ''}`}
+      />
+      <div className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
+        {username}
       </div>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="text-[54px] leading-[1.2] tracking-[0.02em] text-white">
-          {rank}
+      <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-5 py-2">
+        <span className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
+          {formatNumber(rating)}
         </span>
       </div>
+    </article>
+  );
+}
+
+function LeaderboardRow({ entry, className, attachRef }) {
+  const showCup = Number(entry?.first_blood || 0) > 0;
+
+  return (
+    <div ref={attachRef} className={`${tableColumns} ${className}`}>
+      <span className="text-center text-white">{entry?.rank ?? '—'}</span>
+      <div className="flex min-w-0 items-center gap-4">
+        <UserAvatar entry={entry} sizeClass="h-8 w-8" roundedClass="rounded-[8px]" />
+        <span className="truncate font-mono-figma text-[18px] leading-[1.2] tracking-[0.02em] text-white">
+          {entry?.username || '—'}
+        </span>
+      </div>
+      <div className="flex items-center justify-center">
+        {showCup ? <AppIcon name="cup" className="h-5 w-5 text-[#9B6BFF]" /> : null}
+      </div>
+      <span className="text-center font-mono-figma text-[23px] leading-[1.2] tracking-[0.02em] text-white">
+        {formatNumber(entry?.rating)}
+      </span>
+      <span className="text-center text-[18px] leading-[1.2] tracking-[0.02em] text-white">
+        {formatNumber(entry?.solved)}
+      </span>
+      <span className="text-center text-[18px] leading-[1.2] tracking-[0.02em] text-white">
+        {formatNumber(entry?.first_blood)}
+      </span>
     </div>
   );
 }
@@ -78,6 +103,9 @@ function Rating() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isCurrentRowVisible, setIsCurrentRowVisible] = useState(false);
+  const scrollContainerRef = useRef(null);
+  const currentRowRef = useRef(null);
 
   useEffect(() => {
     const fetchLeaderboard = async () => {
@@ -85,7 +113,7 @@ function Rating() {
         setError('');
         setLoading(true);
         const data = await ratingsAPI.getLeaderboard(kind);
-        setEntries(data?.entries || []);
+        setEntries(Array.isArray(data?.entries) ? data.entries : []);
       } catch (err) {
         setError('Не удалось загрузить рейтинг. Попробуйте позже.');
       } finally {
@@ -96,31 +124,76 @@ function Rating() {
     fetchLeaderboard();
   }, [kind]);
 
-  const paddedEntries = useMemo(() => {
-    const next = [...entries];
-    while (next.length < 3) {
-      next.push(null);
-    }
-    return next;
+  const sortedEntries = useMemo(() => {
+    return [...entries].sort((left, right) => {
+      const leftRank = Number(left?.rank ?? Number.MAX_SAFE_INTEGER);
+      const rightRank = Number(right?.rank ?? Number.MAX_SAFE_INTEGER);
+      return leftRank - rightRank;
+    });
   }, [entries]);
 
-  const [firstEntry, secondEntry, thirdEntry] = paddedEntries;
+  const podiumEntries = useMemo(() => {
+    const byRank = new Map();
+    sortedEntries.forEach((entry) => {
+      const rank = Number(entry?.rank);
+      if (Number.isFinite(rank) && !byRank.has(rank)) {
+        byRank.set(rank, entry);
+      }
+    });
 
-  const tableColumns =
-    'grid min-w-[940px] grid-cols-[82px_minmax(240px,1fr)_66px_148px_148px_148px] items-center';
+    const selected = [1, 2, 3].map((rank) => byRank.get(rank) || null);
+    if (selected.some((item) => !item)) {
+      return [
+        sortedEntries[0] || null,
+        sortedEntries[1] || null,
+        sortedEntries[2] || null,
+      ];
+    }
+    return selected;
+  }, [sortedEntries]);
+
+  const currentEntry = useMemo(
+    () => sortedEntries.find((entry) => entry?.is_current_user) || null,
+    [sortedEntries]
+  );
+
+  useEffect(() => {
+    const root = scrollContainerRef.current;
+    const target = currentRowRef.current;
+
+    if (!root || !target) {
+      setIsCurrentRowVisible(false);
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver(
+      ([observerEntry]) => {
+        setIsCurrentRowVisible(Boolean(observerEntry?.isIntersecting));
+      },
+      { root, threshold: 0.6 }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [sortedEntries, currentEntry?.user_id]);
+
+  const shouldPinCurrentRow =
+    Boolean(currentEntry) &&
+    Number(currentEntry?.rank) > 10 &&
+    !isCurrentRowVisible;
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64 font-sans-figma">
-        <div className="text-white/70 text-lg">Загрузка...</div>
+      <div className="flex h-64 items-center justify-center font-sans-figma">
+        <div className="text-lg text-white/70">Загрузка...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-64 font-sans-figma">
-        <div className="text-white/70 text-lg">{error}</div>
+      <div className="flex h-64 items-center justify-center font-sans-figma">
+        <div className="text-lg text-white/70">{error}</div>
       </div>
     );
   }
@@ -146,7 +219,7 @@ function Rating() {
                 </select>
               </div>
             </div>
-            <div className="flex items-center gap-2 rounded-[16px] bg-white/[0.03] p-1">
+            <div className="flex items-center gap-2 rounded-[12px] bg-white/[0.03] p-1">
               <button
                 onClick={() => setKind('contest')}
                 className={`rounded-[10px] px-5 py-3 text-[16px] leading-[20px] tracking-[0.04em] transition-colors ${
@@ -171,126 +244,62 @@ function Rating() {
           </div>
         </div>
 
-        <section className="relative overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0B0A10]/60 px-8 py-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(155,107,255,0.08),_rgba(11,10,16,0)_55%)]" />
-          <div className="relative">
-            <div className="flex flex-col items-center gap-8 lg:flex-row lg:items-end">
-              <div className="flex flex-1 flex-col items-center gap-8 lg:flex-row lg:items-end">
-                <div className="flex-1">
-                  <PodiumCard
-                    entry={secondEntry}
-                    rank={2}
-                    fallbackAvatar={assets.podiumSecond}
-                    shadowColor="rgba(201,204,214,0.16)"
-                    offsetClass="pt-8"
-                  />
-                  <PodiumBase
-                    topImage={assets.podiumBaseTopLeft}
-                    bottomImage={assets.podiumBaseBottomLeft}
-                    heightClass="h-[150px]"
-                    rank={2}
-                  />
-                </div>
-                <div className="flex-1">
-                  <PodiumCard
-                    entry={firstEntry}
-                    rank={1}
-                    fallbackAvatar={assets.podiumFirst}
-                    shadowColor="rgba(242,201,76,0.16)"
-                    offsetClass="pt-0"
-                  />
-                  <PodiumBase
-                    topImage={assets.podiumBaseTopCenter}
-                    bottomImage={assets.podiumBaseBottomCenter}
-                    heightClass="h-[220px]"
-                    rank={1}
-                  />
-                </div>
-                <div className="flex-1">
-                  <PodiumCard
-                    entry={thirdEntry}
-                    rank={3}
-                    fallbackAvatar={assets.podiumThird}
-                    shadowColor="rgba(184,115,51,0.16)"
-                    offsetClass="pt-8"
-                  />
-                  <PodiumBase
-                    topImage={assets.podiumBaseTopRight}
-                    bottomImage={assets.podiumBaseBottomRight}
-                    heightClass="h-[150px]"
-                    rank={3}
-                  />
-                </div>
-              </div>
-            </div>
-            <img
-              src={assets.podiumShelf}
-              alt=""
-              className="pointer-events-none absolute bottom-0 left-1/2 w-full max-w-[1592px] -translate-x-1/2"
-            />
+        <section className="rounded-[20px] border border-white/[0.09] bg-white/[0.02] p-4 sm:p-6">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <TopPlayerCard entry={podiumEntries[0]} rank={1} />
+            <TopPlayerCard entry={podiumEntries[1]} rank={2} />
+            <TopPlayerCard entry={podiumEntries[2]} rank={3} />
           </div>
         </section>
 
-        <section className="rounded-[20px] border border-white/[0.09] bg-white/[0.03] px-8 pb-8 pt-10">
-          <div className="overflow-x-auto">
-            <div className={`${tableColumns} border-b border-white/[0.09] pb-4 text-[14px] leading-[20px] tracking-[0.04em] text-white/60`}>
+        <section className="relative mx-auto w-full max-w-[1074px] overflow-hidden rounded-[20px] border border-white/[0.09] bg-white/[0.03]">
+          <div className="px-4 pb-4 pt-5 sm:px-6">
+            <div
+              className={`${tableColumns} border-b border-white/[0.09] pb-4 text-[14px] leading-[20px] tracking-[0.04em] text-white/60`}
+            >
               <span className="text-center">Место</span>
               <span>Пользователь</span>
               <span />
-              <span className="text-center">Очки</span>
+              <span className="text-center">Рейтинг</span>
               <span className="text-center">Собрано флагов</span>
-              <span className="text-center">First blood</span>
+              <span className="text-center">Первая кровь</span>
             </div>
-            <div className="mt-2 flex max-h-[880px] flex-col gap-2 overflow-y-auto pr-2">
-              {entries.length === 0 && (
+
+            <div
+              ref={scrollContainerRef}
+              className={`mt-2 flex max-h-[860px] flex-col gap-0.5 overflow-y-auto pr-1 ${
+                shouldPinCurrentRow ? 'pb-[98px]' : ''
+              }`}
+            >
+              {sortedEntries.length === 0 && (
                 <div className="py-12 text-center text-white/60">
                   Пока нет данных для отображения рейтинга.
                 </div>
               )}
-              {entries.map((entry) => {
-                const showCup = entry.first_blood > 0;
-                const isCurrent = entry.is_current_user;
+
+              {sortedEntries.map((entry, index) => {
+                const isCurrent = Boolean(entry?.is_current_user);
+                const zebraClass = index % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.045]';
                 return (
-                  <div
-                    key={entry.user_id}
-                    className={`${tableColumns} rounded-[16px] border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-[18px] leading-[24px] tracking-[0.04em] ${
-                      isCurrent ? 'sticky bottom-8 z-10 border-[#9B6BFF]/40 bg-[#1A1426]' : ''
-                    }`}
-                  >
-                    <span className="text-center text-white/80">{entry.rank}</span>
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="h-14 w-14 overflow-hidden rounded-[10px] bg-white/[0.05]">
-                        {entry.avatar_url ? (
-                          <img src={entry.avatar_url} alt={entry.username} className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-white/60">
-                            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                      <span className="font-mono-figma truncate text-white">
-                        {entry.username}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-center">
-                      {showCup && <img src={assets.cup} alt="" className="h-5 w-5" />}
-                    </div>
-                    <span className="font-mono-figma text-center text-white">
-                      {formatNumber(entry.rating)}
-                    </span>
-                    <span className="text-center text-white/90">
-                      {formatNumber(entry.solved)}
-                    </span>
-                    <span className="text-center text-white/90">
-                      {formatNumber(entry.first_blood)}
-                    </span>
-                  </div>
+                  <LeaderboardRow
+                    key={entry?.user_id ?? `${entry?.rank}-${entry?.username}-${index}`}
+                    entry={entry}
+                    attachRef={isCurrent ? currentRowRef : undefined}
+                    className={`rounded-[12px] border border-transparent px-4 py-3 ${zebraClass}`}
+                  />
                 );
               })}
             </div>
           </div>
+
+          {shouldPinCurrentRow && currentEntry && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-[#9B6BFF] bg-[#0F0F18]/95 px-4 py-3 backdrop-blur-[64px] sm:px-6">
+              <LeaderboardRow
+                entry={currentEntry}
+                className="pointer-events-auto rounded-[12px] border border-[#9B6BFF]/35 bg-black/20 px-4 py-3"
+              />
+            </div>
+          )}
         </section>
       </div>
     </div>

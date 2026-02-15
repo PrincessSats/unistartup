@@ -3,18 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { knowledgeAPI, profileAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
-
-const assets = {
-  trainingWeb: 'https://www.figma.com/api/mcp/asset/fc4f12da-20d3-4566-8900-ff0041cc9699',
-  trainingForensics: 'https://www.figma.com/api/mcp/asset/e3408f5c-e06c-4501-874e-3db6c3891edb',
-  trainingPm: 'https://www.figma.com/api/mcp/asset/1c4915f0-cdae-45d9-84a2-f5336378d0a6',
-};
+import { TrainingIllustration } from '../components/AppIllustration';
 
 const DEFAULT_USERNAME = 'Пользователь';
 
 const trainingCards = [
   {
-    image: assets.trainingWeb,
+    variant: 'web',
     title: 'Основы шифрования RSA',
     description: 'Изучи основы криптографии RSA и безопасного обмена ключами шифрования',
     tags: ['Веб', 'Среднее'],
@@ -23,7 +18,7 @@ const trainingCards = [
     points: 450,
   },
   {
-    image: assets.trainingForensics,
+    variant: 'forensics',
     title: 'Основы шифрования RSA',
     description: 'Изучи основы криптографии RSA и безопасного обмена ключами шифрования',
     tags: ['Форензика', 'Сложно'],
@@ -32,7 +27,7 @@ const trainingCards = [
     points: 450,
   },
   {
-    image: assets.trainingPm,
+    variant: 'pentest',
     title: 'Основы шифрования RSA',
     description: 'Изучи основы криптографии RSA и безопасного обмена ключами шифрования',
     tags: ['Pentest Machine', 'Легко'],
@@ -144,17 +139,13 @@ function ScoreCard({ label, value }) {
   );
 }
 
-function TrainingCard({ image, title, description, tags, duration, progress, points }) {
+function TrainingCard({ variant, title, description, tags, duration, progress, points }) {
   const difficultyTone = tags[1] === 'Легко' ? 'easy' : tags[1] === 'Среднее' ? 'medium' : 'hard';
 
   return (
     <div className="bg-white/[0.05] rounded-[12px] p-6 flex flex-col gap-6 w-full md:w-[352px]">
       <div className="h-[173px] w-[304px] max-w-full relative overflow-hidden mx-auto">
-        <img
-          src={image}
-          alt=""
-          className="absolute inset-0 w-full h-full object-contain"
-        />
+        <TrainingIllustration variant={variant} className="absolute inset-0 w-full h-full" />
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">
