@@ -32,6 +32,12 @@ class ContestSummary(BaseModel):
 
 
 class ContestTaskInfo(BaseModel):
+    class FlagInfo(BaseModel):
+        flag_id: str
+        format: Optional[str] = None
+        description: Optional[str] = None
+        is_solved: bool = False
+
     id: int
     title: str
     category: Optional[str] = None
@@ -41,6 +47,9 @@ class ContestTaskInfo(BaseModel):
     participant_description: Optional[str] = None
     order_index: int = 0
     is_solved: bool = False
+    required_flags: List[FlagInfo] = Field(default_factory=list)
+    required_flags_count: int = 0
+    solved_flags_count: int = 0
 
 
 class ContestJoinResponse(BaseModel):
@@ -61,6 +70,7 @@ class ContestTaskState(BaseModel):
 
 class ContestSubmissionRequest(BaseModel):
     task_id: Optional[int] = None
+    flag_id: Optional[str] = None
     flag: str
 
 
