@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import List
+from typing import Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select, func, distinct
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -35,7 +35,35 @@ def _pick_knowledge_areas(tasks_data: List[tuple[Task, ContestTask]]) -> List[st
     return areas[:4]
 
 
-def _merge_task(task: Task, contest_task: ContestTask) -> ContestTaskInfo:
+def _is_task_completed(
+    task_id: int,
+    required_flag_ids: List[str],
+    solved_flag_ids: Set[str],
+    legacy_solved_task_ids: Set[int],
+) -> bool:
+    if required_flag_ids:
+        return set(required_flag_ids).issubset(solved_flag_ids)
+    return task_id in legacy_solved_task_ids
+
+
+def _merge_task(
+    task: Task,
+    contest_task: ContestTask,
+    task_flags: Optional[List[TaskFlag]] = None,
+    solved_flag_ids: Optional[Set[str]] = None,
+) -> ContestTaskInfo:
+    task_flags = task_flags or []
+    solved_flag_ids = solved_flag_ids or set()
+    required_flags = [
+        ContestTaskInfo.FlagInfo(
+            flag_id=flag.flag_id,
+            format=flag.format,
+            description=flag.description,
+            is_solved=flag.flag_id in solved_flag_ids,
+        )
+        for flag in task_flags
+    ]
+
     return ContestTaskInfo(
         id=task.id,
         title=contest_task.override_title or task.title,
@@ -46,6 +74,9 @@ def _merge_task(task: Task, contest_task: ContestTask) -> ContestTaskInfo:
         participant_description=contest_task.override_participant_description or task.participant_description or task.story,
         order_index=contest_task.order_index,
         is_solved=False,
+        required_flags=required_flags,
+        required_flags_count=len(required_flags),
+        solved_flags_count=sum(1 for flag in required_flags if flag.is_solved),
     )
 
 
@@ -53,6 +84,51 @@ def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value
+
+
+async def _load_task_flags(
+    db: AsyncSession,
+    task_ids: List[int],
+) -> Dict[int, List[TaskFlag]]:
+    if not task_ids:
+        return {}
+
+    flags_result = await db.execute(
+        select(TaskFlag)
+        .where(TaskFlag.task_id.in_(task_ids))
+        .order_by(TaskFlag.task_id.asc(), TaskFlag.id.asc())
+    )
+    flags_by_task: Dict[int, List[TaskFlag]] = {}
+    for flag in flags_result.scalars().all():
+        flags_by_task.setdefault(flag.task_id, []).append(flag)
+    return flags_by_task
+
+
+async def _load_user_correct_progress(
+    db: AsyncSession,
+    contest_id: int,
+    user_id: int,
+    task_ids: List[int],
+) -> Tuple[Dict[int, Set[str]], Set[int]]:
+    if not task_ids:
+        return {}, set()
+
+    solved_rows = await db.execute(
+        select(Submission.task_id, Submission.flag_id).where(
+            Submission.contest_id == contest_id,
+            Submission.user_id == user_id,
+            Submission.task_id.in_(task_ids),
+            Submission.is_correct.is_(True),
+        )
+    )
+
+    solved_flags_by_task: Dict[int, Set[str]] = {}
+    legacy_solved_task_ids: Set[int] = set()
+    for task_id, flag_id in solved_rows.all():
+        legacy_solved_task_ids.add(task_id)
+        if flag_id:
+            solved_flags_by_task.setdefault(task_id, set()).add(flag_id)
+    return solved_flags_by_task, legacy_solved_task_ids
 
 
 @router.get("/active", response_model=ContestSummary)
@@ -99,14 +175,24 @@ async def get_active_contest(
     for task, contest_task in tasks_data:
         reward_points += contest_task.points_override if contest_task.points_override is not None else task.points
 
-    solved_result = await db.execute(
-        select(func.count(distinct(Submission.task_id))).where(
-            Submission.contest_id == contest.id,
-            Submission.user_id == user.id,
-            Submission.is_correct.is_(True)
-        )
+    task_ids = [task.id for task, _contest_task in tasks_data]
+    flags_by_task = await _load_task_flags(db, task_ids)
+    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+        db,
+        contest.id,
+        user.id,
+        task_ids,
     )
-    tasks_solved = solved_result.scalar_one() or 0
+    tasks_solved = 0
+    for task, _contest_task in tasks_data:
+        required_flag_ids = [flag.flag_id for flag in flags_by_task.get(task.id, [])]
+        if _is_task_completed(
+            task.id,
+            required_flag_ids,
+            solved_flags_by_task.get(task.id, set()),
+            legacy_solved_task_ids,
+        ):
+            tasks_solved += 1
 
     participants_result = await db.execute(
         select(func.count(ContestParticipant.user_id)).where(
@@ -270,24 +356,34 @@ async def get_current_task(
             finished=True,
         )
 
-    solved_result = await db.execute(
-        select(distinct(Submission.task_id)).where(
-            Submission.contest_id == contest_id,
-            Submission.user_id == user.id,
-            Submission.is_correct.is_(True),
-        )
+    task_ids = [task.id for _contest_task, task in tasks_rows]
+    flags_by_task = await _load_task_flags(db, task_ids)
+    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+        db,
+        contest_id,
+        user.id,
+        task_ids,
     )
-    solved_task_ids = [row[0] for row in solved_result.all()]
 
-    merged_tasks = []
-    for contest_task, task in tasks_rows:
-        merged_tasks.append(_merge_task(task, contest_task))
-
+    merged_tasks: List[ContestTaskInfo] = []
+    solved_task_ids: List[int] = []
     current_task = None
-    for task in merged_tasks:
-        task.is_solved = task.id in solved_task_ids
-        if current_task is None and not task.is_solved:
-            current_task = task
+    for contest_task, task in tasks_rows:
+        required_flags = flags_by_task.get(task.id, [])
+        solved_flag_ids = solved_flags_by_task.get(task.id, set())
+        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
+        required_flag_ids = [flag.flag_id for flag in required_flags]
+        task_info.is_solved = _is_task_completed(
+            task.id,
+            required_flag_ids,
+            solved_flag_ids,
+            legacy_solved_task_ids,
+        )
+        if task_info.is_solved:
+            solved_task_ids.append(task_info.id)
+        elif current_task is None:
+            current_task = task_info
+        merged_tasks.append(task_info)
 
     previous_tasks = [task for task in merged_tasks if task.is_solved]
     finished = current_task is None and tasks_total > 0
@@ -357,24 +453,31 @@ async def submit_flag(
     if not tasks_rows:
         raise HTTPException(status_code=400, detail="В контесте нет задач")
 
-    solved_result = await db.execute(
-        select(distinct(Submission.task_id)).where(
-            Submission.contest_id == contest_id,
-            Submission.user_id == user.id,
-            Submission.is_correct.is_(True),
-        )
+    task_ids = [task.id for _contest_task, task in tasks_rows]
+    flags_by_task = await _load_task_flags(db, task_ids)
+    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+        db,
+        contest_id,
+        user.id,
+        task_ids,
     )
-    solved_task_ids = [row[0] for row in solved_result.all()]
 
-    merged_tasks = []
-    for contest_task, task in tasks_rows:
-        merged_tasks.append((_merge_task(task, contest_task), contest_task, task))
-
+    merged_tasks: List[tuple[ContestTaskInfo, ContestTask, Task]] = []
     current_task = None
-    for task_info, contest_task, task in merged_tasks:
-        if task_info.id not in solved_task_ids:
+    for contest_task, task in tasks_rows:
+        required_flags = flags_by_task.get(task.id, [])
+        solved_flag_ids = solved_flags_by_task.get(task.id, set())
+        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
+        required_flag_ids = [flag.flag_id for flag in required_flags]
+        task_info.is_solved = _is_task_completed(
+            task.id,
+            required_flag_ids,
+            solved_flag_ids,
+            legacy_solved_task_ids,
+        )
+        merged_tasks.append((task_info, contest_task, task))
+        if current_task is None and not task_info.is_solved:
             current_task = (task_info, contest_task, task)
-            break
 
     if current_task is None:
         return ContestSubmissionResponse(is_correct=False, awarded_points=0, next_task=None, finished=True)
@@ -388,28 +491,50 @@ async def submit_flag(
     if not submitted_value:
         raise HTTPException(status_code=400, detail="Флаг пустой")
 
-    flags_result = await db.execute(
-        select(TaskFlag).where(TaskFlag.task_id == task.id)
-    )
-    flags = flags_result.scalars().all()
+    flags = flags_by_task.get(task.id, [])
+    if not flags:
+        raise HTTPException(status_code=400, detail="У задачи не настроены флаги")
 
     matched_flag = None
-    for flag in flags:
-        if flag.expected_value and flag.expected_value == submitted_value:
-            matched_flag = flag
-            break
+    target_flag_id = (payload.flag_id or "").strip()
+    if target_flag_id:
+        for flag in flags:
+            if flag.flag_id == target_flag_id:
+                matched_flag = flag if flag.expected_value and flag.expected_value == submitted_value else None
+                break
+        else:
+            raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
+    else:
+        for flag in flags:
+            if flag.expected_value and flag.expected_value == submitted_value:
+                matched_flag = flag
+                break
 
     is_correct = matched_flag is not None
-    already_solved = task.id in solved_task_ids
+    solved_flag_ids = set(solved_flags_by_task.get(task.id, set()))
+    was_task_completed = task_info.is_solved
+    if is_correct:
+        solved_flag_ids.add(matched_flag.flag_id)
+        solved_flags_by_task[task.id] = solved_flag_ids
+        legacy_solved_task_ids.add(task.id)
+
+    required_flag_ids = [flag.flag_id for flag in flags]
+    is_task_completed_now = _is_task_completed(
+        task.id,
+        required_flag_ids,
+        solved_flag_ids,
+        legacy_solved_task_ids,
+    )
+
     awarded_points = 0
-    if is_correct and not already_solved:
+    if is_correct and not was_task_completed and is_task_completed_now:
         awarded_points = contest_task.points_override if contest_task.points_override is not None else task.points
 
     submission = Submission(
         contest_id=contest_id,
         task_id=task.id,
         user_id=user.id,
-        flag_id=matched_flag.flag_id if matched_flag else "unknown",
+        flag_id=matched_flag.flag_id if matched_flag else (target_flag_id or "unknown"),
         submitted_value=submitted_value,
         is_correct=is_correct,
         awarded_points=awarded_points,
@@ -418,20 +543,35 @@ async def submit_flag(
 
     participant.last_active_at = datetime.now(timezone.utc)
 
-    if is_correct and not already_solved:
-        solved_task_ids.append(task.id)
-
     next_task = None
-    finished = False
-    for task_info, contest_task, task in merged_tasks:
-        if task_info.id not in solved_task_ids:
-            if task_info.id != task.id or (task_info.id == task.id and not is_correct):
-                next_task = task_info
+    finished = True
+    for _candidate_info, candidate_contest_task, candidate_task in merged_tasks:
+        candidate_required_flags = flags_by_task.get(candidate_task.id, [])
+        candidate_solved_flag_ids = solved_flags_by_task.get(candidate_task.id, set())
+        candidate_required_flag_ids = [flag.flag_id for flag in candidate_required_flags]
+        candidate_is_solved = _is_task_completed(
+            candidate_task.id,
+            candidate_required_flag_ids,
+            candidate_solved_flag_ids,
+            legacy_solved_task_ids,
+        )
+        if not candidate_is_solved:
+            finished = False
+            if (
+                is_correct
+                and is_task_completed_now
+                and candidate_task.id != task.id
+            ):
+                next_task = _merge_task(
+                    candidate_task,
+                    candidate_contest_task,
+                    candidate_required_flags,
+                    candidate_solved_flag_ids,
+                )
             break
-    else:
-        finished = True
-        if participant.completed_at is None:
-            participant.completed_at = datetime.now(timezone.utc)
+
+    if finished and participant.completed_at is None:
+        participant.completed_at = datetime.now(timezone.utc)
 
     await db.commit()
 

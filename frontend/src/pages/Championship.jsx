@@ -30,8 +30,8 @@ function Championship() {
   const [joined, setJoined] = useState(false);
   const [contestInactive, setContestInactive] = useState(false);
   const [taskState, setTaskState] = useState(null);
-  const [flagValue, setFlagValue] = useState('');
-  const [submitStatus, setSubmitStatus] = useState('idle');
+  const [flagValues, setFlagValues] = useState({});
+  const [submittingFlagId, setSubmittingFlagId] = useState(null);
   const [submitMessage, setSubmitMessage] = useState('');
 
   useEffect(() => {
@@ -89,6 +89,24 @@ function Championship() {
   }, [contest?.start_at, contest?.end_at]);
 
   const currentTask = taskState?.task;
+  const requiredFlags = useMemo(() => {
+    return currentTask?.required_flags || [];
+  }, [currentTask]);
+
+  useEffect(() => {
+    if (!joined || !currentTask) {
+      setFlagValues({});
+      return;
+    }
+    setFlagValues((prev) => {
+      const next = {};
+      requiredFlags.forEach((flag) => {
+        next[flag.flag_id] = prev[flag.flag_id] || '';
+      });
+      return next;
+    });
+  }, [joined, currentTask, requiredFlags]);
+
   const knowledgeAreas = contest?.knowledge_areas?.length
     ? contest.knowledge_areas
     : currentTask?.tags?.length
@@ -110,6 +128,7 @@ function Championship() {
       const current = await contestAPI.getCurrentTask(contest.id);
       setTaskState(current);
       setJoined(true);
+      setFlagValues({});
       setSubmitMessage('');
     } catch (err) {
       const detail = err?.response?.data?.detail;
@@ -117,20 +136,37 @@ function Championship() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!contest?.id || !flagValue.trim()) return;
-    setSubmitStatus('sending');
+  const handleSubmit = async (flagId) => {
+    const submittedValue = (flagValues?.[flagId] || '').trim();
+    if (!contest?.id || !submittedValue) return;
+    setSubmittingFlagId(flagId);
     setSubmitMessage('');
     try {
+      const previousTaskId = currentTask?.id;
       const result = await contestAPI.submitFlag(contest.id, {
         task_id: currentTask?.id,
-        flag: flagValue.trim(),
+        flag_id: flagId,
+        flag: submittedValue,
       });
       if (result.is_correct) {
-        setSubmitMessage(result.finished ? 'Контест завершён!' : 'Флаг принят. Следующая задача готова.');
         const current = await contestAPI.getCurrentTask(contest.id);
         setTaskState(current);
-        setFlagValue('');
+        if (result.finished || current?.finished) {
+          setSubmitMessage('Контест завершён!');
+        } else if (current?.task?.id === previousTaskId) {
+          const remaining = Math.max(
+            0,
+            (current?.task?.required_flags_count || 0) - (current?.task?.solved_flags_count || 0),
+          );
+          setSubmitMessage(
+            remaining > 0
+              ? `Флаг принят. Осталось флагов для задачи: ${remaining}.`
+              : 'Флаг принят.',
+          );
+        } else {
+          setSubmitMessage('Флаг принят. Следующая задача готова.');
+        }
+        setFlagValues((prev) => ({ ...prev, [flagId]: '' }));
       } else {
         setSubmitMessage('Неверный флаг. Попробуйте ещё раз.');
       }
@@ -138,7 +174,7 @@ function Championship() {
       const detail = err?.response?.data?.detail;
       setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
     } finally {
-      setSubmitStatus('idle');
+      setSubmittingFlagId(null);
     }
   };
 
@@ -258,7 +294,7 @@ function Championship() {
                         </div>
                       </div>
                       <p className="max-w-[258px] text-center text-[12px] leading-[16px] text-white/60">
-                        Текущее количество найденных флагов. Общее количество покажем, когда найдешь все флаги
+                        Текущее Задание
                       </p>
                     </div>
                   </div>
@@ -289,58 +325,76 @@ function Championship() {
                     <div className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">Дедлайн</div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      if (!joined) {
-                        handleJoin();
-                      }
-                    }}
-                    className="inline-flex items-center gap-2 text-[18px] leading-[24px] tracking-[0.04em] text-white transition-colors duration-300 ease-in-out hover:text-white/80"
-                  >
-                    <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
-                    </svg>
-                    {joined ? 'Перейти к заданию' : 'Вступить в контест'}
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 5v14m0 0l7-7m-7 7l-7-7" />
-                    </svg>
-                  </button>
-
-                  <div className="flex flex-col gap-2">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-                      <input
-                        type="text"
-                        placeholder="Введи флаг сюда"
-                        value={flagValue}
-                        onChange={(event) => setFlagValue(event.target.value)}
-                        disabled={!joined || !currentTask}
-                        className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] leading-[20px] tracking-[0.04em] text-white placeholder:text-white/60 focus:outline-none focus:border-white/30"
-                      />
+                  {!joined ? (
+                    <div className="flex flex-col gap-2">
                       <button
-                        onClick={handleSubmit}
-                        disabled={!joined || !currentTask || submitStatus === 'sending'}
-                        className="inline-flex h-14 shrink-0 items-center gap-2 rounded-[10px] bg-white/[0.03] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white/40 transition-colors duration-300 ease-in-out hover:text-white/70 disabled:opacity-60"
+                        onClick={handleJoin}
+                        className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#9B6BFF] px-8 text-[20px] leading-[24px] tracking-[0.02em] text-white transition-colors duration-300 ease-in-out hover:bg-[#8452FF] md:self-start"
                       >
-                        <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
-                        </svg>
-                        {submitStatus === 'sending' ? 'Отправка...' : 'Сдать флаг'}
+                        Вступить
                       </button>
+                      {submitMessage ? (
+                        <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                          {submitMessage}
+                        </span>
+                      ) : null}
                     </div>
-                    <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
-                      {submitMessage || (taskState?.finished ? 'Контест завершён' : (!joined ? 'Вступите в контест, чтобы начать' : 'Не могу решить'))}
-                    </span>
-                  </div>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {requiredFlags.length ? (
+                        <div className="flex flex-col gap-3">
+                          {requiredFlags.map((flag) => {
+                            const flagId = flag.flag_id;
+                            const fieldValue = flagValues?.[flagId] || '';
+                            const isSubmittingThisFlag = submittingFlagId === flagId;
+                            const isBusy = submittingFlagId !== null;
+                            const isSolved = Boolean(flag.is_solved);
+
+                            return (
+                              <div key={flagId} className="flex flex-col gap-2 lg:flex-row lg:items-center">
+                                <input
+                                  type="text"
+                                  placeholder={flag.description || `Введи флаг (${flagId})`}
+                                  value={fieldValue}
+                                  onChange={(event) => {
+                                    const value = event.target.value;
+                                    setFlagValues((prev) => ({ ...prev, [flagId]: value }));
+                                  }}
+                                  disabled={!currentTask || isSolved || isBusy}
+                                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] leading-[20px] tracking-[0.04em] text-white placeholder:text-white/60 focus:outline-none focus:border-white/30 disabled:opacity-60"
+                                />
+                                <button
+                                  onClick={() => handleSubmit(flagId)}
+                                  disabled={!currentTask || isSolved || isBusy || !fieldValue.trim()}
+                                  className="inline-flex h-14 shrink-0 items-center gap-2 rounded-[10px] bg-white/[0.06] px-6 text-[18px] leading-[24px] tracking-[0.04em] text-white transition-colors duration-300 ease-in-out hover:bg-white/[0.1] disabled:text-white/50 disabled:opacity-60"
+                                >
+                                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
+                                  </svg>
+                                  {isSolved ? 'Принято' : isSubmittingThisFlag ? 'Отправка...' : 'Сдать флаг'}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                          У текущей задачи пока нет настроенных флагов.
+                        </div>
+                      )}
+                      <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                        {submitMessage || (taskState?.finished ? 'Контест завершён' : 'Не могу решить')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <aside className="flex w-full flex-col gap-8 xl:w-[420px]">
                 <button className="inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-[12px] bg-white/[0.03] text-[18px] leading-[22px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.06]">
-                  <svg className="h-5 w-5 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
