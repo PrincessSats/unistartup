@@ -101,6 +101,12 @@ function Championship() {
     if (!contest?.id) return;
     try {
       await contestAPI.joinContest(contest.id);
+      try {
+        const refreshedContest = await contestAPI.getActiveContest();
+        setContest(refreshedContest);
+      } catch {
+        // Keep join flow resilient even if summary refresh fails.
+      }
       const current = await contestAPI.getCurrentTask(contest.id);
       setTaskState(current);
       setJoined(true);

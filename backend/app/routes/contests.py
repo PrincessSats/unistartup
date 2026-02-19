@@ -109,8 +109,8 @@ async def get_active_contest(
     tasks_solved = solved_result.scalar_one() or 0
 
     participants_result = await db.execute(
-        select(func.count(distinct(Submission.user_id))).where(
-            Submission.contest_id == contest.id
+        select(func.count(ContestParticipant.user_id)).where(
+            ContestParticipant.contest_id == contest.id
         )
     )
     participants_count = participants_result.scalar_one() or 0
