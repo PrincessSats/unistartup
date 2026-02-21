@@ -103,6 +103,10 @@ export const adminAPI = {
     const response = await api.get('/admin/tasks', { params });
     return response.data;
   },
+  getTask: async (taskId) => {
+    const response = await api.get(`/admin/tasks/${taskId}`);
+    return response.data;
+  },
   generateTask: async (payload) => {
     const response = await api.post('/admin/tasks/generate', payload);
     return response.data;
@@ -204,6 +208,25 @@ export const knowledgeAPI = {
   },
   createComment: async (entryId, payload) => {
     const response = await api.post(`/kb_entries/${entryId}/comments`, payload);
+    return response.data;
+  },
+};
+
+export const educationAPI = {
+  getPracticeTasks: async (params = {}) => {
+    const response = await api.get('/education/practice/tasks', { params });
+    return response.data;
+  },
+  getPracticeTask: async (taskId) => {
+    const response = await api.get(`/education/practice/tasks/${taskId}`);
+    return response.data;
+  },
+  getPracticeMaterialDownload: async (taskId, materialId) => {
+    const response = await api.post(`/education/practice/tasks/${taskId}/materials/${materialId}/download`);
+    return response.data;
+  },
+  submitPracticeFlag: async (taskId, payload) => {
+    const response = await api.post(`/education/practice/tasks/${taskId}/submit`, payload);
     return response.data;
   },
 };
