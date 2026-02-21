@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -105,6 +105,19 @@ class AdminTaskFlag(BaseModel):
     description: Optional[str] = None
 
 
+AdminTaskAccessType = Literal["vpn", "vm", "link", "file", "just_flag"]
+
+
+class AdminTaskMaterial(BaseModel):
+    id: Optional[int] = None
+    type: str
+    name: str
+    description: Optional[str] = None
+    url: Optional[str] = None
+    storage_key: Optional[str] = None
+    meta: Optional[dict] = None
+
+
 class AdminTaskBase(BaseModel):
     title: str
     category: str
@@ -116,8 +129,10 @@ class AdminTaskBase(BaseModel):
     participant_description: Optional[str] = None
     state: str = "draft"
     task_kind: str = "contest"
+    access_type: AdminTaskAccessType = "just_flag"
     llm_raw_response: Optional[dict] = None
     creation_solution: Optional[str] = None
+    materials: List[AdminTaskMaterial] = Field(default_factory=list)
 
 
 class AdminTaskCreateRequest(AdminTaskBase):
@@ -135,9 +150,11 @@ class AdminTaskUpdateRequest(BaseModel):
     participant_description: Optional[str] = None
     state: Optional[str] = None
     task_kind: Optional[str] = None
+    access_type: Optional[AdminTaskAccessType] = None
     llm_raw_response: Optional[dict] = None
     creation_solution: Optional[str] = None
     flags: Optional[List[AdminTaskFlag]] = None
+    materials: Optional[List[AdminTaskMaterial]] = None
 
 
 class AdminTaskResponse(AdminTaskBase):
