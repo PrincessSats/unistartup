@@ -191,6 +191,7 @@ CREATE TABLE tasks (
     points                  INTEGER NOT NULL DEFAULT 100,
     tags                    TEXT[] DEFAULT '{}',
     task_kind               TEXT NOT NULL DEFAULT 'contest', -- 'contest' | 'practice'
+    access_type             TEXT NOT NULL DEFAULT 'just_flag', -- 'vpn' | 'vm' | 'link' | 'file' | 'just_flag'
     language                TEXT NOT NULL DEFAULT 'ru',
     story                   TEXT,                -- сюжет
     participant_description TEXT,                -- текст для участника
@@ -198,7 +199,8 @@ CREATE TABLE tasks (
     kb_entry_id             BIGINT REFERENCES kb_entries(id),
     llm_raw_response        JSONB,
     created_by              BIGINT REFERENCES users(id),
-    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT tasks_access_type_check CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'just_flag'))
 );
 
 CREATE INDEX idx_tasks_tags_gin ON tasks USING gin(tags);
@@ -218,12 +220,33 @@ CREATE TABLE task_flags (
 CREATE TABLE task_materials (
     id              BIGSERIAL PRIMARY KEY,
     task_id         BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    type            TEXT NOT NULL, -- тип: 'file','service','credentials','other'
+    type            TEXT NOT NULL, -- тип: 'vpn','vm','link','file','credentials','service','other'
     name            TEXT NOT NULL,
     description     TEXT,
     url             TEXT,          -- если это сервис или внешняя ссылка
-    storage_key     TEXT           -- путь в object storage, если это файл
+    storage_key     TEXT,          -- путь в object storage, если это файл
+    meta            JSONB DEFAULT '{}'::jsonb
 );
+
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS access_type TEXT NOT NULL DEFAULT 'just_flag';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'tasks_access_type_check'
+    ) THEN
+        ALTER TABLE tasks
+            ADD CONSTRAINT tasks_access_type_check
+            CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'just_flag'));
+    END IF;
+END;
+$$;
+
+ALTER TABLE task_materials
+    ADD COLUMN IF NOT EXISTS meta JSONB DEFAULT '{}'::jsonb;
 
 -- 9. Решение автора
 CREATE TABLE task_author_solutions (

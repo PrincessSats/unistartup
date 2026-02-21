@@ -122,6 +122,13 @@ function getIconPath(name) {
       );
     case 'arrow-left':
       return <path d="m15 6-6 6 6 6" />;
+    case 'check-circle':
+      return (
+        <>
+          <circle cx="12" cy="12" r="9" />
+          <path d="m8.5 12.2 2.2 2.2 4.8-4.8" />
+        </>
+      );
     default:
       return (
         <>

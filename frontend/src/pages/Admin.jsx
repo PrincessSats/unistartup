@@ -790,12 +790,13 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
 }
 
 function CreateTaskModal({ open, onClose, onCreated }) {
-  const [generateForm, setGenerateForm] = useState({
+  const createEmptyGenerateForm = () => ({
     difficulty: '3',
     tags: '',
     description: '',
   });
-  const [taskForm, setTaskForm] = useState({
+
+  const createEmptyTaskForm = () => ({
     title: '',
     category: 'misc',
     difficulty: 3,
@@ -806,35 +807,202 @@ function CreateTaskModal({ open, onClose, onCreated }) {
     participant_description: '',
     state: 'draft',
     task_kind: 'contest',
+    access_type: 'just_flag',
     creation_solution: '',
     llm_raw_response: null,
   });
-  const [flags, setFlags] = useState([
+
+  const createEmptyAccessConfig = () => ({
+    vpn_config_ip: '',
+    vpn_allowed_ips: '',
+    vpn_created_at: '',
+    vpn_how_to_connect_url: '',
+    vpn_download_storage_key: '',
+    vpn_download_url: '',
+    vm_launch_url: '',
+    link_storage_key: '',
+    link_label: '',
+    file_storage_key: '',
+    file_download_url: '',
+    file_name: '',
+    file_size_label: '',
+    file_badge: '',
+  });
+
+  const createDefaultFlags = () => ([
     { flag_id: 'main', format: 'FLAG{...}', expected_value: '', description: '' },
   ]);
+
+  const [tab, setTab] = useState('create');
+  const [generateForm, setGenerateForm] = useState(createEmptyGenerateForm);
+  const [taskForm, setTaskForm] = useState(createEmptyTaskForm);
+  const [accessConfig, setAccessConfig] = useState(createEmptyAccessConfig);
+  const [flags, setFlags] = useState(createDefaultFlags);
+
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
 
+  const [taskItems, setTaskItems] = useState([]);
+  const [taskItemsLoading, setTaskItemsLoading] = useState(false);
+  const [taskItemsError, setTaskItemsError] = useState('');
+  const [taskSearch, setTaskSearch] = useState('');
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+
+  const isManageMode = tab === 'manage';
+
+  const resetTaskBuilder = () => {
+    setGenerateForm(createEmptyGenerateForm());
+    setTaskForm(createEmptyTaskForm());
+    setAccessConfig(createEmptyAccessConfig());
+    setFlags(createDefaultFlags());
+  };
+
+  const parseAccessConfig = (taskData) => {
+    const next = createEmptyAccessConfig();
+    const materials = Array.isArray(taskData?.materials) ? taskData.materials : [];
+    const declaredAccessType = String(taskData?.access_type || 'just_flag').toLowerCase();
+    const inferredAccessType = materials
+      .map((item) => String(item?.type || '').toLowerCase())
+      .find((type) => ['vpn', 'vm', 'link', 'file'].includes(type));
+    const accessType = declaredAccessType === 'just_flag' && inferredAccessType
+      ? inferredAccessType
+      : declaredAccessType;
+
+    const findMaterial = (type) => materials.find((item) => String(item?.type || '').toLowerCase() === type) || null;
+    const readMeta = (material) => (material && typeof material.meta === 'object' && !Array.isArray(material.meta) ? material.meta : {});
+
+    if (accessType === 'vpn') {
+      const vpnMaterial = findMaterial('vpn') || materials[0] || null;
+      const meta = readMeta(vpnMaterial);
+      next.vpn_config_ip = String(meta.config_ip || '').trim();
+      next.vpn_allowed_ips = String(meta.allowed_ips || '').trim();
+      next.vpn_created_at = String(meta.created_at || '').trim();
+      next.vpn_how_to_connect_url = String(meta.how_to_connect_url || vpnMaterial?.url || '').trim();
+      const downloadRaw = String(
+        meta.download_storage_key || vpnMaterial?.storage_key || meta.storage_key || meta.download_url || ''
+      ).trim();
+      if (downloadRaw.startsWith('http://') || downloadRaw.startsWith('https://')) {
+        next.vpn_download_url = downloadRaw;
+      } else {
+        next.vpn_download_storage_key = downloadRaw;
+      }
+    }
+
+    if (accessType === 'vm') {
+      const vmMaterial = findMaterial('vm') || materials[0] || null;
+      const meta = readMeta(vmMaterial);
+      next.vm_launch_url = String(meta.launch_url || vmMaterial?.url || '').trim();
+    }
+
+    if (accessType === 'link') {
+      const linkMaterial = findMaterial('link') || materials[0] || null;
+      const meta = readMeta(linkMaterial);
+      next.link_storage_key = String(
+        meta.target_storage_key || linkMaterial?.storage_key || meta.storage_key || meta.target_url || linkMaterial?.url || ''
+      ).trim();
+      next.link_label = String(meta.label || linkMaterial?.name || '').trim();
+    }
+
+    if (accessType === 'file') {
+      const fileMaterial = findMaterial('file') || materials[0] || null;
+      const meta = readMeta(fileMaterial);
+      const downloadRaw = String(
+        fileMaterial?.storage_key || meta.download_storage_key || meta.storage_key || meta.download_url || fileMaterial?.url || ''
+      ).trim();
+      if (downloadRaw.startsWith('http://') || downloadRaw.startsWith('https://')) {
+        next.file_download_url = downloadRaw;
+      } else {
+        next.file_storage_key = downloadRaw;
+      }
+      next.file_name = String(meta.file_name || fileMaterial?.name || '').trim();
+      next.file_size_label = String(meta.size_label || meta.file_size_label || '').trim();
+      next.file_badge = String(meta.badge || meta.file_ext || '').trim();
+    }
+
+    return next;
+  };
+
+  const applyTaskData = (taskData) => {
+    const materials = Array.isArray(taskData?.materials) ? taskData.materials : [];
+    const declaredAccessType = String(taskData?.access_type || 'just_flag').toLowerCase();
+    const inferredAccessType = materials
+      .map((item) => String(item?.type || '').toLowerCase())
+      .find((type) => ['vpn', 'vm', 'link', 'file'].includes(type));
+    const resolvedAccessType = declaredAccessType === 'just_flag' && inferredAccessType
+      ? inferredAccessType
+      : declaredAccessType;
+
+    setTaskForm({
+      title: taskData?.title || '',
+      category: taskData?.category || 'misc',
+      difficulty: taskData?.difficulty ?? 3,
+      points: taskData?.points ?? 200,
+      tags: Array.isArray(taskData?.tags) ? taskData.tags.join(', ') : '',
+      language: taskData?.language || 'ru',
+      story: taskData?.story || '',
+      participant_description: taskData?.participant_description || '',
+      state: taskData?.state || 'draft',
+      task_kind: taskData?.task_kind || 'contest',
+      access_type: resolvedAccessType,
+      creation_solution: taskData?.creation_solution || '',
+      llm_raw_response: taskData?.llm_raw_response || null,
+    });
+
+    const taskFlags = Array.isArray(taskData?.flags) && taskData.flags.length > 0
+      ? taskData.flags.map((flag) => ({
+        flag_id: flag.flag_id || 'main',
+        format: flag.format || 'FLAG{...}',
+        expected_value: flag.expected_value || '',
+        description: flag.description || '',
+      }))
+      : createDefaultFlags();
+
+    setFlags(taskFlags);
+    setAccessConfig(parseAccessConfig(taskData));
+  };
+
+  const loadTaskItems = async () => {
+    setTaskItemsLoading(true);
+    setTaskItemsError('');
+    try {
+      const data = await adminAPI.listTasks();
+      setTaskItems(Array.isArray(data) ? data : []);
+    } catch (err) {
+      setTaskItemsError(getApiErrorMessage(err, 'Не удалось загрузить список задач'));
+      setTaskItems([]);
+    } finally {
+      setTaskItemsLoading(false);
+    }
+  };
+
+  const handleSelectTask = async (taskId) => {
+    if (!taskId) return;
+    setStatus('loading_task');
+    setError('');
+    try {
+      const data = await adminAPI.getTask(taskId);
+      setSelectedTaskId(taskId);
+      applyTaskData(data);
+      setStatus('idle');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось загрузить задачу'));
+      setStatus('idle');
+    }
+  };
+
   useEffect(() => {
     if (!open) return;
-    setGenerateForm({ difficulty: '3', tags: '', description: '' });
-    setTaskForm({
-      title: '',
-      category: 'misc',
-      difficulty: 3,
-      points: 200,
-      tags: '',
-      language: 'ru',
-      story: '',
-      participant_description: '',
-      state: 'draft',
-      task_kind: 'contest',
-      creation_solution: '',
-      llm_raw_response: null,
-    });
-    setFlags([{ flag_id: 'main', format: 'FLAG{...}', expected_value: '', description: '' }]);
+    setTab('create');
+    setSelectedTaskId(null);
+    setTaskSearch('');
     setStatus('idle');
     setError('');
+    setTaskItemsError('');
+    setGenerateForm(createEmptyGenerateForm());
+    setTaskForm(createEmptyTaskForm());
+    setAccessConfig(createEmptyAccessConfig());
+    setFlags(createDefaultFlags());
+    loadTaskItems();
   }, [open]);
 
   const handleGenerate = async () => {
@@ -842,6 +1010,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
       setError('Добавьте описание для генерации');
       return;
     }
+
     setStatus('generating');
     setError('');
     try {
@@ -850,32 +1019,165 @@ function CreateTaskModal({ open, onClose, onCreated }) {
         tags: generateForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
         description: generateForm.description.trim(),
       };
+
       const result = await adminAPI.generateTask(payload);
       const data = result?.task || {};
-        setTaskForm((prev) => ({
-          ...prev,
-          title: data.title || '',
-          category: data.category || 'misc',
-          difficulty: data.difficulty ?? Number(generateForm.difficulty || 1),
-          points: data.points ?? (100 + (Number(data.difficulty || generateForm.difficulty || 1) - 1) * 50),
-          tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
-          language: data.language || 'ru',
-          story: data.story || '',
-          participant_description: data.participant_description || '',
-          state: data.state || 'draft',
-          creation_solution: data.creation_solution || '',
-          llm_raw_response: data.llm_raw_response || {
-            model: result.model,
-            raw_text: result.raw_text,
-            parsed: data,
-          },
-        }));
+      setTaskForm((prev) => ({
+        ...prev,
+        title: data.title || '',
+        category: data.category || 'misc',
+        difficulty: data.difficulty ?? Number(generateForm.difficulty || 1),
+        points: data.points ?? (100 + (Number(data.difficulty || generateForm.difficulty || 1) - 1) * 50),
+        tags: Array.isArray(data.tags) ? data.tags.join(', ') : '',
+        language: data.language || 'ru',
+        story: data.story || '',
+        participant_description: data.participant_description || '',
+        state: data.state || 'draft',
+        creation_solution: data.creation_solution || '',
+        llm_raw_response: data.llm_raw_response || {
+          model: result.model,
+          raw_text: result.raw_text,
+          parsed: data,
+        },
+      }));
       setStatus('generated');
     } catch (err) {
       setError(getApiErrorMessage(err, 'Не удалось сгенерировать задачу'));
       setStatus('idle');
     }
   };
+
+  const updateFlag = (index, field, value) => {
+    setFlags((prev) => prev.map((flag, idx) => (idx === index ? { ...flag, [field]: value } : flag)));
+  };
+
+  const addFlag = () => {
+    setFlags((prev) => [...prev, {
+      flag_id: `flag${prev.length + 1}`,
+      format: 'FLAG{...}',
+      expected_value: '',
+      description: '',
+    }]);
+  };
+
+  const removeFlag = (index) => {
+    setFlags((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateAccessConfig = (field, value) => {
+    setAccessConfig((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const buildMaterialsPayload = () => {
+    const accessType = String(taskForm.access_type || 'just_flag').toLowerCase();
+
+    if (accessType === 'vpn') {
+      const meta = {};
+      const downloadStorageKey = accessConfig.vpn_download_storage_key.trim();
+      const downloadUrl = accessConfig.vpn_download_url.trim();
+      const howToConnectUrl = accessConfig.vpn_how_to_connect_url.trim();
+      if (accessConfig.vpn_config_ip.trim()) meta.config_ip = accessConfig.vpn_config_ip.trim();
+      if (accessConfig.vpn_allowed_ips.trim()) meta.allowed_ips = accessConfig.vpn_allowed_ips.trim();
+      if (accessConfig.vpn_created_at.trim()) meta.created_at = accessConfig.vpn_created_at.trim();
+      if (howToConnectUrl) meta.how_to_connect_url = howToConnectUrl;
+      if (downloadStorageKey) meta.download_storage_key = downloadStorageKey;
+      if (downloadUrl) meta.download_url = downloadUrl;
+
+      const hasAnyData = Object.keys(meta).length > 0 || Boolean(downloadStorageKey);
+      if (!hasAnyData) return [];
+
+      return [{
+        type: 'vpn',
+        name: 'VPN configuration',
+        description: null,
+        url: howToConnectUrl || null,
+        storage_key: downloadStorageKey || null,
+        meta,
+      }];
+    }
+
+    if (accessType === 'vm') {
+      const launchUrl = accessConfig.vm_launch_url.trim();
+      if (!launchUrl) return [];
+      return [{
+        type: 'vm',
+        name: 'VM launch',
+        description: null,
+        url: launchUrl,
+        storage_key: null,
+        meta: { launch_url: launchUrl },
+      }];
+    }
+
+    if (accessType === 'link') {
+      const storageKey = accessConfig.link_storage_key.trim();
+      const label = accessConfig.link_label.trim();
+      if (!storageKey && !label) return [];
+      return [{
+        type: 'link',
+        name: label || 'Перейти к заданию',
+        description: null,
+        url: null,
+        storage_key: storageKey || null,
+        meta: {
+          ...(storageKey ? { target_storage_key: storageKey } : {}),
+          ...(label ? { label } : {}),
+        },
+      }];
+    }
+
+    if (accessType === 'file') {
+      const storageKey = accessConfig.file_storage_key.trim();
+      const downloadUrl = accessConfig.file_download_url.trim();
+      const fileName = accessConfig.file_name.trim();
+      const sizeLabel = accessConfig.file_size_label.trim();
+      const badge = accessConfig.file_badge.trim();
+
+      if (!storageKey && !downloadUrl && !fileName && !sizeLabel && !badge) return [];
+
+      const meta = {
+        ...(storageKey ? { download_storage_key: storageKey } : {}),
+        ...(downloadUrl ? { download_url: downloadUrl } : {}),
+        ...(fileName ? { file_name: fileName } : {}),
+        ...(sizeLabel ? { size_label: sizeLabel } : {}),
+        ...(badge ? { badge } : {}),
+      };
+
+      return [{
+        type: 'file',
+        name: fileName || 'Файл',
+        description: null,
+        url: downloadUrl || null,
+        storage_key: storageKey || null,
+        meta: Object.keys(meta).length > 0 ? meta : null,
+      }];
+    }
+
+    return [];
+  };
+
+  const buildTaskPayload = () => ({
+    title: taskForm.title.trim(),
+    category: taskForm.category.trim(),
+    difficulty: Number(taskForm.difficulty || 1),
+    points: Number(taskForm.points || 0),
+    tags: taskForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+    language: taskForm.language || 'ru',
+    story: taskForm.story || null,
+    participant_description: taskForm.participant_description || null,
+    state: taskForm.state || 'draft',
+    task_kind: taskForm.task_kind || 'contest',
+    access_type: taskForm.access_type || 'just_flag',
+    creation_solution: taskForm.creation_solution || null,
+    llm_raw_response: taskForm.llm_raw_response || null,
+    flags: flags.map((flag) => ({
+      flag_id: flag.flag_id || 'main',
+      format: flag.format || 'FLAG{...}',
+      expected_value: flag.expected_value,
+      description: flag.description || null,
+    })),
+    materials: buildMaterialsPayload(),
+  });
 
   const handleSave = async () => {
     if (!taskForm.title.trim()) {
@@ -886,108 +1188,191 @@ function CreateTaskModal({ open, onClose, onCreated }) {
       setError('Укажите значение флага');
       return;
     }
+
     setStatus('saving');
     setError('');
     try {
-      const payload = {
-        title: taskForm.title.trim(),
-        category: taskForm.category.trim(),
-        difficulty: Number(taskForm.difficulty || 1),
-        points: Number(taskForm.points || 0),
-        tags: taskForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-        language: taskForm.language || 'ru',
-        story: taskForm.story || null,
-        participant_description: taskForm.participant_description || null,
-        state: taskForm.state || 'draft',
-        task_kind: taskForm.task_kind || 'contest',
-        creation_solution: taskForm.creation_solution || null,
-        llm_raw_response: taskForm.llm_raw_response || null,
-        flags: flags.map((flag) => ({
-          flag_id: flag.flag_id || 'main',
-          format: flag.format || 'FLAG{...}',
-          expected_value: flag.expected_value,
-          description: flag.description || null,
-        })),
-      };
-      await adminAPI.createTask(payload);
-      setStatus('idle');
+      const payload = buildTaskPayload();
+
+      if (isManageMode && selectedTaskId) {
+        await adminAPI.updateTask(selectedTaskId, payload);
+        const refreshed = await adminAPI.getTask(selectedTaskId);
+        applyTaskData(refreshed);
+      } else {
+        await adminAPI.createTask(payload);
+        resetTaskBuilder();
+      }
+
+      await loadTaskItems();
       onCreated?.();
-      onClose();
+
+      if (!isManageMode) {
+        onClose();
+      }
+
+      setStatus('idle');
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Не удалось создать задачу'));
+      setError(getApiErrorMessage(err, isManageMode ? 'Не удалось обновить задачу' : 'Не удалось создать задачу'));
       setStatus('idle');
     }
   };
 
-  const updateFlag = (index, field, value) => {
-    setFlags((prev) => prev.map((flag, idx) => (idx === index ? { ...flag, [field]: value } : flag)));
+  const handleDeleteTask = async () => {
+    if (!selectedTaskId) return;
+    const selectedTask = taskItems.find((item) => item.id === selectedTaskId);
+    const taskTitle = selectedTask?.title || `#${selectedTaskId}`;
+    const confirmed = window.confirm(`Удалить задачу "${taskTitle}"? Это действие нельзя отменить.`);
+    if (!confirmed) return;
+
+    setStatus('deleting');
+    setError('');
+    try {
+      await adminAPI.deleteTask(selectedTaskId);
+      await loadTaskItems();
+      onCreated?.();
+      setSelectedTaskId(null);
+      resetTaskBuilder();
+      setStatus('idle');
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось удалить задачу'));
+      setStatus('idle');
+    }
   };
 
-  const addFlag = () => {
-    setFlags((prev) => [...prev, { flag_id: `flag${prev.length + 1}`, format: 'FLAG{...}', expected_value: '', description: '' }]);
-  };
-
-  const removeFlag = (index) => {
-    setFlags((prev) => prev.filter((_, idx) => idx !== index));
-  };
+  const filteredTaskItems = taskItems.filter((task) => {
+    if (!taskSearch.trim()) return true;
+    return String(task.title || '').toLowerCase().includes(taskSearch.toLowerCase());
+  });
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4 py-8">
-      <div className="w-full max-w-4xl bg-[#0B0A10] border border-white/10 rounded-[20px] p-6 text-white">
+      <div className="w-full max-w-5xl bg-[#0B0A10] border border-white/10 rounded-[20px] p-6 text-white max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-[22px] leading-[28px]">Создание задачи</h3>
-            <p className="text-[14px] text-white/50 mt-1">Генерация через LLM + ручная правка</p>
+            <h3 className="text-[22px] leading-[28px]">Конфигуратор задач</h3>
+            <p className="text-[14px] text-white/50 mt-1">
+              Создание и управление существующими задачами
+            </p>
           </div>
           <button onClick={onClose} className="text-white/60 hover:text-white">Закрыть</button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div className="mt-6 inline-flex rounded-[12px] border border-white/10 bg-white/[0.03] p-1">
+          <button
+            type="button"
+            onClick={() => {
+              setTab('create');
+              setError('');
+            }}
+            className={`h-10 px-4 rounded-[10px] text-[14px] transition-colors ${
+              tab === 'create' ? 'bg-[#9B6BFF] text-white' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            Создать задачу
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setTab('manage');
+              setError('');
+            }}
+            className={`h-10 px-4 rounded-[10px] text-[14px] transition-colors ${
+              tab === 'manage' ? 'bg-[#9B6BFF] text-white' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            Управлять существующими
+          </button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
-            <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Параметры генерации</div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] text-white/70">Сложность</label>
+            {tab === 'create' ? (
+              <>
+                <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Параметры генерации</div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[13px] text-white/70">Сложность</label>
+                    <input
+                      value={generateForm.difficulty}
+                      onChange={(e) => setGenerateForm((prev) => ({ ...prev, difficulty: e.target.value }))}
+                      className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                      placeholder="Например: 3"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label className="text-[13px] text-white/70">Теги</label>
+                    <input
+                      value={generateForm.tags}
+                      onChange={(e) => setGenerateForm((prev) => ({ ...prev, tags: e.target.value }))}
+                      className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                      placeholder="Например: web, xss"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="text-[13px] text-white/70">Описание для генерации</label>
+                  <textarea
+                    value={generateForm.description}
+                    onChange={(e) => setGenerateForm((prev) => ({ ...prev, description: e.target.value }))}
+                    className="min-h-[120px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                    placeholder="Коротко опишите задачу"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={status === 'generating'}
+                  className="h-11 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] hover:bg-[#8452FF] disabled:opacity-60"
+                >
+                  {status === 'generating' ? 'Генерация...' : 'Сгенерировать'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Список задач</div>
                 <input
-                  value={generateForm.difficulty}
-                  onChange={(e) => setGenerateForm((prev) => ({ ...prev, difficulty: e.target.value }))}
-                  className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Например: 3"
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Поиск по названию"
                 />
-              </div>
-              <div className="flex flex-col gap-2">
-                <label className="text-[13px] text-white/70">Теги</label>
-                <input
-                  value={generateForm.tags}
-                  onChange={(e) => setGenerateForm((prev) => ({ ...prev, tags: e.target.value }))}
-                  className="h-12 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Например: web, xss"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-2">
-              <label className="text-[13px] text-white/70">Описание для генерации</label>
-              <textarea
-                value={generateForm.description}
-                onChange={(e) => setGenerateForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="min-h-[120px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
-                placeholder="Коротко опишите задачу"
-              />
-            </div>
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={status === 'generating'}
-              className="h-11 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] hover:bg-[#8452FF] disabled:opacity-60"
-            >
-              {status === 'generating' ? 'Генерация...' : 'Сгенерировать'}
-            </button>
+                <div className="max-h-[480px] overflow-y-auto pr-2 flex flex-col gap-2">
+                  {taskItemsLoading && (
+                    <div className="text-[13px] text-white/50">Загрузка задач...</div>
+                  )}
+                  {!taskItemsLoading && filteredTaskItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSelectTask(item.id)}
+                      className={`text-left rounded-[12px] border px-3 py-3 transition-colors ${
+                        selectedTaskId === item.id
+                          ? 'border-[#9B6BFF]/60 bg-[#9B6BFF]/10'
+                          : 'border-white/10 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="text-[15px] text-white">{item.title || `Task #${item.id}`}</div>
+                      <div className="mt-1 text-[12px] text-white/50">
+                        #{item.id} · {item.category || 'misc'} · {item.task_kind || 'contest'}
+                      </div>
+                    </button>
+                  ))}
+                  {!taskItemsLoading && filteredTaskItems.length === 0 && (
+                    <div className="text-[13px] text-white/50">Задачи не найдены</div>
+                  )}
+                </div>
+                {taskItemsError && (
+                  <div className="text-[13px] text-rose-300">{taskItemsError}</div>
+                )}
+              </>
+            )}
           </div>
 
           <div className="flex flex-col gap-4">
             <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Данные задачи</div>
+
             <div className="flex flex-col gap-2">
               <label className="text-[13px] text-white/70">Название задачи</label>
               <input
@@ -997,6 +1382,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 placeholder="Введите название"
               />
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
                 <label className="text-[13px] text-white/70">Категория</label>
@@ -1017,6 +1403,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
                 <label className="text-[13px] text-white/70">Сложность</label>
@@ -1037,6 +1424,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 />
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
                 <label className="text-[13px] text-white/70">Тип задачи</label>
@@ -1062,6 +1450,120 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 </select>
               </div>
             </div>
+
+            <div className="flex flex-col gap-2">
+              <label className="text-[13px] text-white/70">Тип доступа</label>
+              <select
+                value={taskForm.access_type}
+                onChange={(e) => setTaskForm((prev) => ({ ...prev, access_type: e.target.value }))}
+                className="h-11 rounded-[12px] bg-white/5 border border-white/10 px-3 text-white"
+              >
+                <option value="vpn">VPN</option>
+                <option value="vm">VM</option>
+                <option value="link">Link</option>
+                <option value="file">File</option>
+                <option value="just_flag">Just flag</option>
+              </select>
+            </div>
+
+            {taskForm.access_type === 'vpn' && (
+              <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <label className="text-[12px] text-white/50">VPN-конфигурация</label>
+                <input
+                  value={accessConfig.vpn_config_ip}
+                  onChange={(e) => updateAccessConfig('vpn_config_ip', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="IP-адрес конфигурации"
+                />
+                <input
+                  value={accessConfig.vpn_allowed_ips}
+                  onChange={(e) => updateAccessConfig('vpn_allowed_ips', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Разрешенные IP-адреса"
+                />
+                <input
+                  value={accessConfig.vpn_created_at}
+                  onChange={(e) => updateAccessConfig('vpn_created_at', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Дата создания (например: 01.11.2025 11:59)"
+                />
+                <input
+                  value={accessConfig.vpn_how_to_connect_url}
+                  onChange={(e) => updateAccessConfig('vpn_how_to_connect_url', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="URL: Как подключить"
+                />
+                <input
+                  value={accessConfig.vpn_download_storage_key}
+                  onChange={(e) => updateAccessConfig('vpn_download_storage_key', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Ключ в Object Storage (например: vpn/task-3/client.conf)"
+                />
+              </div>
+            )}
+
+            {taskForm.access_type === 'vm' && (
+              <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <label className="text-[12px] text-white/50">Запуск VM</label>
+                <input
+                  value={accessConfig.vm_launch_url}
+                  onChange={(e) => updateAccessConfig('vm_launch_url', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="URL запуска машины"
+                />
+              </div>
+            )}
+
+            {taskForm.access_type === 'link' && (
+              <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <label className="text-[12px] text-white/50">Переход по ссылке</label>
+                <input
+                  value={accessConfig.link_label}
+                  onChange={(e) => updateAccessConfig('link_label', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Текст кнопки/ссылки"
+                />
+                <input
+                  value={accessConfig.link_storage_key}
+                  onChange={(e) => updateAccessConfig('link_storage_key', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Ключ в Object Storage (например: images/03_talking_picture.jpeg)"
+                />
+              </div>
+            )}
+
+            {taskForm.access_type === 'file' && (
+              <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <label className="text-[12px] text-white/50">Файл</label>
+                <input
+                  value={accessConfig.file_name}
+                  onChange={(e) => updateAccessConfig('file_name', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Имя файла"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={accessConfig.file_badge}
+                    onChange={(e) => updateAccessConfig('file_badge', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Бейдж (ZIP/PDF)"
+                  />
+                  <input
+                    value={accessConfig.file_size_label}
+                    onChange={(e) => updateAccessConfig('file_size_label', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Размер (1,23 МБ)"
+                  />
+                </div>
+                <input
+                  value={accessConfig.file_storage_key}
+                  onChange={(e) => updateAccessConfig('file_storage_key', e.target.value)}
+                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                  placeholder="Ключ в Object Storage (например: images/03_talking_picture.jpeg)"
+                />
+              </div>
+            )}
+
             <div className="flex flex-col gap-2">
               <label className="text-[13px] text-white/70">Описание для участника</label>
               <textarea
@@ -1070,7 +1572,9 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 className="min-h-[100px] rounded-[12px] bg-white/5 border border-white/10 px-3 py-2 text-white"
                 placeholder="Текст, который увидит участник"
               />
+              <div className="text-[12px] text-white/45">Переносы строк сохраняются на странице задания.</div>
             </div>
+
             <div className="flex flex-col gap-2">
               <label className="text-[13px] text-white/70">Легенда (story)</label>
               <textarea
@@ -1080,6 +1584,7 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 placeholder="Контекст задачи"
               />
             </div>
+
             <div className="flex flex-col gap-2">
               <label className="text-[13px] text-white/70">Решение для организаторов</label>
               <textarea
@@ -1150,6 +1655,16 @@ function CreateTaskModal({ open, onClose, onCreated }) {
         )}
 
         <div className="flex gap-3 mt-6">
+          {isManageMode && (
+            <button
+              type="button"
+              onClick={handleDeleteTask}
+              disabled={!selectedTaskId || status === 'saving' || status === 'deleting'}
+              className="h-12 px-5 bg-rose-500/20 border border-rose-400/40 text-rose-100 rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {status === 'deleting' ? 'Удаление...' : 'Удалить задачу'}
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -1160,17 +1675,16 @@ function CreateTaskModal({ open, onClose, onCreated }) {
           <button
             type="button"
             onClick={handleSave}
-            disabled={status === 'saving'}
+            disabled={status === 'saving' || status === 'loading_task' || (isManageMode && !selectedTaskId)}
             className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8452FF] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {status === 'saving' ? 'Сохранение...' : 'Сохранить задачу'}
+            {status === 'saving' ? 'Сохранение...' : (isManageMode ? 'Сохранить изменения' : 'Сохранить задачу')}
           </button>
         </div>
       </div>
     </div>
   );
 }
-
 function ContestPlanningModal({ open, onClose }) {
   const [contests, setContests] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -2136,7 +2650,7 @@ function Admin() {
               onClick={() => setIsTaskOpen(true)}
               className="h-10 px-4 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] transition-colors duration-200 hover:bg-[#8452FF]"
             >
-              + Создать задачу
+              Задачи
             </button>
             <button
               type="button"
