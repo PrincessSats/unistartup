@@ -68,6 +68,40 @@ class ContestTaskState(BaseModel):
     finished: bool = False
 
 
+class ContestLeaderboardRow(BaseModel):
+    rank: int
+    user_id: int
+    username: str
+    avatar_url: Optional[str] = None
+    points: int = 0
+    flags_collected: int = 0
+    first_blood_count: int = 0
+    last_submission_at: Optional[datetime] = None
+    is_me: bool = False
+
+
+class ContestLeaderboardResponse(BaseModel):
+    contest_id: int
+    total_participants: int
+    rows: List[ContestLeaderboardRow] = Field(default_factory=list)
+    me: Optional[ContestLeaderboardRow] = None
+
+
+class ContestMyResultItem(BaseModel):
+    task_id: int
+    task_title: str
+    flag: str
+    points: int
+    submitted_at: datetime
+
+
+class ContestMyResultsResponse(BaseModel):
+    contest_id: int
+    user_id: int
+    items: List[ContestMyResultItem] = Field(default_factory=list)
+    total_points: int = 0
+
+
 class ContestSubmissionRequest(BaseModel):
     task_id: Optional[int] = None
     flag_id: Optional[str] = None
