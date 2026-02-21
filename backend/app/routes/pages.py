@@ -15,6 +15,7 @@ from app.models.contest import (
     ContestParticipant,
     Task,
     TaskFlag,
+    TaskMaterial,
     TaskAuthorSolution,
     Submission,
     LlmGeneration,
@@ -36,6 +37,7 @@ from app.schemas.admin import (
     AdminTaskUpdateRequest,
     AdminTaskResponse,
     AdminTaskFlag,
+    AdminTaskMaterial,
     AdminContestListItem,
     AdminContestResponse,
     AdminContestCreateRequest,
@@ -307,6 +309,38 @@ def _coerce_task_kind(value: Optional[str]) -> str:
     return value if value in {"contest", "practice"} else "contest"
 
 
+def _coerce_access_type(value: Optional[str]) -> str:
+    if not value:
+        return "just_flag"
+    value = value.strip().lower()
+    allowed = {"vpn", "vm", "link", "file", "just_flag"}
+    return value if value in allowed else "just_flag"
+
+
+def _normalize_task_materials(raw_materials: Optional[list[AdminTaskMaterial]]) -> list[dict]:
+    normalized: list[dict] = []
+    for item in raw_materials or []:
+        item_type = (item.type or "").strip().lower()
+        name = (item.name or "").strip()
+        if not item_type or not name:
+            continue
+
+        raw_meta = item.meta if isinstance(item.meta, dict) else None
+        meta = raw_meta if raw_meta else None
+
+        normalized.append(
+            {
+                "type": item_type,
+                "name": name,
+                "description": (item.description or "").strip() or None,
+                "url": (item.url or "").strip() or None,
+                "storage_key": (item.storage_key or "").strip() or None,
+                "meta": meta,
+            }
+        )
+    return normalized
+
+
 PROMPT_SPECS = [
     {
         "code": "task_prompt",
@@ -360,6 +394,7 @@ async def _resolve_prompt_text(db: AsyncSession, code: str) -> str:
 def _task_to_response(
     task: Task,
     flags: Optional[list[TaskFlag]] = None,
+    materials: Optional[list[TaskMaterial]] = None,
     creation_solution: Optional[str] = None,
 ) -> AdminTaskResponse:
     return AdminTaskResponse(
@@ -374,6 +409,7 @@ def _task_to_response(
         participant_description=task.participant_description,
         state=task.state,
         task_kind=task.task_kind or "contest",
+        access_type=task.access_type or "just_flag",
         llm_raw_response=task.llm_raw_response,
         creation_solution=creation_solution,
         created_at=task.created_at,
@@ -385,6 +421,18 @@ def _task_to_response(
                 description=flag.description,
             )
             for flag in (flags or [])
+        ],
+        materials=[
+            AdminTaskMaterial(
+                id=material.id,
+                type=material.type,
+                name=material.name,
+                description=material.description,
+                url=material.url,
+                storage_key=material.storage_key,
+                meta=material.meta if isinstance(material.meta, dict) else None,
+            )
+            for material in (materials or [])
         ],
     )
 
@@ -728,6 +776,36 @@ async def list_admin_tasks(
     return [_task_to_response(task) for task in rows]
 
 
+@router.get("/admin/tasks/{task_id}", response_model=AdminTaskResponse)
+async def get_admin_task(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+
+    task = (await db.execute(select(Task).where(Task.id == task_id))).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+    flags = (
+        await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id).order_by(TaskFlag.id.asc()))
+    ).scalars().all()
+    materials = (
+        await db.execute(select(TaskMaterial).where(TaskMaterial.task_id == task.id).order_by(TaskMaterial.id.asc()))
+    ).scalars().all()
+    solution = (
+        await db.execute(select(TaskAuthorSolution).where(TaskAuthorSolution.task_id == task.id))
+    ).scalar_one_or_none()
+
+    return _task_to_response(
+        task,
+        flags=flags,
+        materials=materials,
+        creation_solution=solution.creation_solution if solution else None,
+    )
+
+
 @router.post("/admin/tasks/generate", response_model=AdminTaskGenerateResponse)
 async def generate_admin_task(
     data: AdminTaskGenerateRequest,
@@ -792,6 +870,8 @@ async def create_admin_task(
 
     tags = _normalize_tags(data.tags)
     task_kind = _coerce_task_kind(data.task_kind)
+    access_type = _coerce_access_type(data.access_type)
+    normalized_materials = _normalize_task_materials(data.materials)
 
     if not data.flags or any(not flag.expected_value for flag in data.flags):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flags are required")
@@ -818,6 +898,7 @@ async def create_admin_task(
             participant_description=data.participant_description,
             state=data.state,
             task_kind=task_kind,
+            access_type=access_type,
             llm_raw_response=data.llm_raw_response,
             created_by=user.id,
         )
@@ -844,14 +925,30 @@ async def create_admin_task(
                 )
             )
 
+        for material in normalized_materials:
+            db.add(
+                TaskMaterial(
+                    task_id=task.id,
+                    type=material["type"],
+                    name=material["name"],
+                    description=material["description"],
+                    url=material["url"],
+                    storage_key=material["storage_key"],
+                    meta=material["meta"],
+                )
+            )
+
         await db.commit()
         await db.refresh(task)
 
         flags = (
             await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id))
         ).scalars().all()
+        materials = (
+            await db.execute(select(TaskMaterial).where(TaskMaterial.task_id == task.id).order_by(TaskMaterial.id.asc()))
+        ).scalars().all()
 
-        return _task_to_response(task, flags, data.creation_solution)
+        return _task_to_response(task, flags, materials, data.creation_solution)
     except IntegrityError as exc:
         await db.rollback()
         error_text = _format_db_error(exc)
@@ -929,6 +1026,8 @@ async def update_admin_task(
         task.state = data.state
     if data.task_kind is not None:
         task.task_kind = _coerce_task_kind(data.task_kind)
+    if data.access_type is not None:
+        task.access_type = _coerce_access_type(data.access_type)
     if data.llm_raw_response is not None:
         task.llm_raw_response = data.llm_raw_response
 
@@ -956,11 +1055,30 @@ async def update_admin_task(
                 )
             )
 
+    if data.materials is not None:
+        await db.execute(delete(TaskMaterial).where(TaskMaterial.task_id == task.id))
+        normalized_materials = _normalize_task_materials(data.materials)
+        for material in normalized_materials:
+            db.add(
+                TaskMaterial(
+                    task_id=task.id,
+                    type=material["type"],
+                    name=material["name"],
+                    description=material["description"],
+                    url=material["url"],
+                    storage_key=material["storage_key"],
+                    meta=material["meta"],
+                )
+            )
+
     await db.commit()
     await db.refresh(task)
 
     flags = (
         await db.execute(select(TaskFlag).where(TaskFlag.task_id == task.id))
+    ).scalars().all()
+    materials = (
+        await db.execute(select(TaskMaterial).where(TaskMaterial.task_id == task.id).order_by(TaskMaterial.id.asc()))
     ).scalars().all()
     solution = (
         await db.execute(
@@ -968,7 +1086,12 @@ async def update_admin_task(
         )
     ).scalar_one_or_none()
 
-    return _task_to_response(task, flags, solution.creation_solution if solution else None)
+    return _task_to_response(
+        task,
+        flags=flags,
+        materials=materials,
+        creation_solution=solution.creation_solution if solution else None,
+    )
 
 
 @router.delete("/admin/tasks/{task_id}")
@@ -990,6 +1113,7 @@ async def delete_admin_task(
         await db.execute(delete(ContestTask).where(ContestTask.task_id == task_id))
         await db.execute(delete(Submission).where(Submission.task_id == task_id))
         await db.execute(delete(TaskFlag).where(TaskFlag.task_id == task_id))
+        await db.execute(delete(TaskMaterial).where(TaskMaterial.task_id == task_id))
         await db.execute(delete(TaskAuthorSolution).where(TaskAuthorSolution.task_id == task_id))
         await db.execute(
             update(LlmGeneration)

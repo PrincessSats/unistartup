@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     S3_ACCESS_KEY: str = ""
     S3_SECRET_KEY: str = ""
     S3_BUCKET_NAME: str = ""
+    S3_TASK_BUCKET_NAME: str = ""
+    S3_TASK_ACCESS_KEY: str = ""
+    S3_TASK_SECRET_KEY: str = ""
     S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
     S3_REGION: str = "ru-central1"
 
@@ -117,5 +120,26 @@ class Settings(BaseSettings):
     @property
     def database_url(self) -> str:
         return f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    @property
+    def s3_task_bucket_name(self) -> str:
+        explicit = (self.S3_TASK_BUCKET_NAME or "").strip()
+        if explicit:
+            return explicit
+        return (self.S3_BUCKET_NAME or "").strip()
+
+    @property
+    def s3_task_access_key(self) -> str:
+        explicit = (self.S3_TASK_ACCESS_KEY or "").strip()
+        if explicit:
+            return explicit
+        return (self.S3_ACCESS_KEY or "").strip()
+
+    @property
+    def s3_task_secret_key(self) -> str:
+        explicit = (self.S3_TASK_SECRET_KEY or "").strip()
+        if explicit:
+            return explicit
+        return (self.S3_SECRET_KEY or "").strip()
 
 settings = Settings()

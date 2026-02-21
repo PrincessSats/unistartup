@@ -6,6 +6,8 @@ import Profile from './pages/Profile';
 import Championship from './pages/Championship';
 import Knowledge from './pages/Knowledge';
 import KnowledgeArticle from './pages/KnowledgeArticle';
+import Education from './pages/Education';
+import EducationTask from './pages/EducationTask';
 import Home from './pages/Home';
 import Rating from './pages/Rating';
 import Admin from './pages/Admin';
@@ -35,7 +37,8 @@ function App() {
         
         <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
         <Route path="/championship" element={<ProtectedRoute><Layout><Championship /></Layout></ProtectedRoute>} />
-        <Route path="/education" element={<ProtectedRoute><Layout><div className="text-white text-2xl">Обучение — скоро будет</div></Layout></ProtectedRoute>} />
+        <Route path="/education" element={<ProtectedRoute><Layout><Education /></Layout></ProtectedRoute>} />
+        <Route path="/education/:id" element={<ProtectedRoute><Layout><EducationTask /></Layout></ProtectedRoute>} />
         <Route path="/rating" element={<ProtectedRoute><Layout><Rating /></Layout></ProtectedRoute>} />
         <Route path="/knowledge" element={<ProtectedRoute><Layout><Knowledge /></Layout></ProtectedRoute>} />
         <Route path="/knowledge/:id" element={<ProtectedRoute><Layout><KnowledgeArticle /></Layout></ProtectedRoute>} />
