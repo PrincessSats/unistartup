@@ -260,6 +260,14 @@ export const contestAPI = {
     const response = await api.get(`/contests/${contestId}/current-task`);
     return response.data;
   },
+  getLeaderboard: async (contestId) => {
+    const response = await api.get(`/contests/${contestId}/leaderboard`);
+    return response.data;
+  },
+  getMyResults: async (contestId) => {
+    const response = await api.get(`/contests/${contestId}/my-results`);
+    return response.data;
+  },
   submitFlag: async (contestId, payload) => {
     const response = await api.post(`/contests/${contestId}/submit`, payload);
     return response.data;
