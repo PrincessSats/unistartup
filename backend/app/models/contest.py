@@ -35,6 +35,7 @@ class Task(Base):
     points = Column(Integer, nullable=False, default=100)
     tags = Column(ARRAY(Text), default=list)
     task_kind = Column(Text, nullable=False, default="contest")
+    access_type = Column(Text, nullable=False, default="just_flag")
     language = Column(Text, nullable=False, default="ru")
     story = Column(Text)
     participant_description = Column(Text)
@@ -46,6 +47,7 @@ class Task(Base):
 
     contests = relationship("ContestTask", back_populates="task", cascade="all, delete-orphan")
     flags = relationship("TaskFlag", back_populates="task", cascade="all, delete-orphan")
+    materials = relationship("TaskMaterial", back_populates="task", cascade="all, delete-orphan")
     author_solution = relationship("TaskAuthorSolution", back_populates="task", uselist=False, cascade="all, delete-orphan")
 
 
@@ -87,6 +89,21 @@ class TaskFlag(Base):
     description = Column(Text)
 
     task = relationship("Task", back_populates="flags")
+
+
+class TaskMaterial(Base):
+    __tablename__ = "task_materials"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    task_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    type = Column(Text, nullable=False)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    url = Column(Text)
+    storage_key = Column(Text)
+    meta = Column(JSONB)
+
+    task = relationship("Task", back_populates="materials")
 
 
 class TaskAuthorSolution(Base):
