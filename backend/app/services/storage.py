@@ -9,19 +9,25 @@ from app.config import settings
 import uuid
 from PIL import Image
 import io
+import logging
+
+logger = logging.getLogger(__name__)
 
 AVATAR_MAX_SIZE = (256, 256)
 MAX_FILE_SIZE = 5 * 1024 * 1024
 
 
-def get_s3_client():
+def get_s3_client(
+    access_key=None,
+    secret_key=None,
+):
     """Создаёт клиент для работы с S3."""
     return boto3.client(
         's3',
         endpoint_url=settings.S3_ENDPOINT_URL,
         region_name=settings.S3_REGION,
-        aws_access_key_id=settings.S3_ACCESS_KEY,
-        aws_secret_access_key=settings.S3_SECRET_KEY
+        aws_access_key_id=(access_key or settings.S3_ACCESS_KEY),
+        aws_secret_access_key=(secret_key or settings.S3_SECRET_KEY)
     )
 
 
@@ -67,8 +73,9 @@ async def upload_avatar(file_bytes: bytes, user_id: int) -> str:
             ContentType='image/jpeg',
             ACL='public-read',
         )
-    except ClientError as e:
-        raise ValueError(f"Ошибка загрузки в хранилище: {str(e)}")
+    except ClientError:
+        logger.exception("Avatar upload to Object Storage failed for user_id=%s", user_id)
+        raise ValueError("Ошибка загрузки в хранилище. Попробуйте позже.")
     
     public_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{file_name}"
     
