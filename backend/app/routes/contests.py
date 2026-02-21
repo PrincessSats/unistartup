@@ -1,8 +1,9 @@
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -14,6 +15,10 @@ from app.schemas.contest import (
     ContestSummary,
     FeaturedTask,
     ContestJoinResponse,
+    ContestLeaderboardResponse,
+    ContestLeaderboardRow,
+    ContestMyResultItem,
+    ContestMyResultsResponse,
     ContestTaskInfo,
     ContestTaskState,
     ContestSubmissionRequest,
@@ -403,6 +408,183 @@ async def get_current_task(
         solved_task_ids=solved_task_ids,
         previous_tasks=previous_tasks,
         finished=finished,
+    )
+
+
+@router.get("/{contest_id}/leaderboard", response_model=ContestLeaderboardResponse)
+async def get_contest_leaderboard(
+    contest_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
+
+    participants_result = await db.execute(
+        select(ContestParticipant.user_id, UserProfile.username, UserProfile.avatar_url)
+        .outerjoin(UserProfile, UserProfile.user_id == ContestParticipant.user_id)
+        .where(ContestParticipant.contest_id == contest_id)
+        .order_by(ContestParticipant.joined_at.asc())
+    )
+    participant_rows = participants_result.all()
+    if not participant_rows:
+        return ContestLeaderboardResponse(contest_id=contest_id, total_participants=0, rows=[], me=None)
+
+    submissions_result = await db.execute(
+        select(
+            Submission.user_id,
+            Submission.task_id,
+            Submission.flag_id,
+            Submission.awarded_points,
+            Submission.submitted_at,
+            Submission.id,
+        )
+        .where(
+            Submission.contest_id == contest_id,
+            Submission.is_correct.is_(True),
+        )
+        .order_by(Submission.submitted_at.asc(), Submission.id.asc())
+    )
+    submission_rows = submissions_result.all()
+
+    points_by_user: Dict[int, int] = defaultdict(int)
+    flags_by_user: Dict[int, Set[Tuple[int, str]]] = defaultdict(set)
+    last_submission_by_user: Dict[int, datetime] = {}
+    first_blood_winner_by_task: Dict[int, int] = {}
+
+    for row in submission_rows:
+        points_by_user[row.user_id] += int(row.awarded_points or 0)
+        stable_flag_id = row.flag_id or f"submission:{row.id}"
+        flags_by_user[row.user_id].add((row.task_id, stable_flag_id))
+
+        submitted_at = _ensure_utc(row.submitted_at)
+        previous_last = last_submission_by_user.get(row.user_id)
+        if previous_last is None or submitted_at > previous_last:
+            last_submission_by_user[row.user_id] = submitted_at
+
+        if (row.awarded_points or 0) > 0 and row.task_id not in first_blood_winner_by_task:
+            first_blood_winner_by_task[row.task_id] = row.user_id
+
+    first_blood_count_by_user: Dict[int, int] = defaultdict(int)
+    for winner_user_id in first_blood_winner_by_task.values():
+        first_blood_count_by_user[winner_user_id] += 1
+
+    leaderboard_rows: List[ContestLeaderboardRow] = []
+    for participant_user_id, participant_username, participant_avatar_url in participant_rows:
+        leaderboard_rows.append(
+            ContestLeaderboardRow(
+                rank=0,
+                user_id=participant_user_id,
+                username=participant_username or f"user_{participant_user_id}",
+                avatar_url=participant_avatar_url,
+                points=points_by_user.get(participant_user_id, 0),
+                flags_collected=len(flags_by_user.get(participant_user_id, set())),
+                first_blood_count=first_blood_count_by_user.get(participant_user_id, 0),
+                last_submission_at=last_submission_by_user.get(participant_user_id),
+                is_me=participant_user_id == user.id,
+            )
+        )
+
+    far_future = datetime.max.replace(tzinfo=timezone.utc)
+    leaderboard_rows.sort(
+        key=lambda row: (
+            -row.points,
+            row.last_submission_at or far_future,
+            -row.first_blood_count,
+            row.username.lower(),
+            row.user_id,
+        )
+    )
+
+    me_row = None
+    for index, row in enumerate(leaderboard_rows, start=1):
+        row.rank = index
+        if row.is_me:
+            me_row = row
+
+    return ContestLeaderboardResponse(
+        contest_id=contest_id,
+        total_participants=len(leaderboard_rows),
+        rows=leaderboard_rows,
+        me=me_row,
+    )
+
+
+@router.get("/{contest_id}/my-results", response_model=ContestMyResultsResponse)
+async def get_contest_my_results(
+    contest_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
+
+    result = await db.execute(
+        select(
+            Submission.id,
+            Submission.task_id,
+            Submission.flag_id,
+            Submission.submitted_value,
+            Submission.awarded_points,
+            Submission.submitted_at,
+            Task.title,
+            ContestTask.override_title,
+        )
+        .join(Task, Task.id == Submission.task_id)
+        .outerjoin(
+            ContestTask,
+            and_(
+                ContestTask.contest_id == contest_id,
+                ContestTask.task_id == Submission.task_id,
+            ),
+        )
+        .where(
+            Submission.contest_id == contest_id,
+            Submission.user_id == user.id,
+            Submission.is_correct.is_(True),
+        )
+        .order_by(Submission.submitted_at.asc(), Submission.id.asc())
+    )
+    rows = result.all()
+
+    seen_keys: Set[Tuple[int, str]] = set()
+    items: List[ContestMyResultItem] = []
+    total_points = 0
+
+    for row in rows:
+        stable_flag_id = row.flag_id or f"submission:{row.id}"
+        dedupe_key = (row.task_id, stable_flag_id)
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+
+        points = int(row.awarded_points or 0)
+        total_points += points
+        items.append(
+            ContestMyResultItem(
+                task_id=row.task_id,
+                task_title=row.override_title or row.title or f"Task {row.task_id}",
+                flag=row.submitted_value or stable_flag_id,
+                points=points,
+                submitted_at=_ensure_utc(row.submitted_at),
+            )
+        )
+
+    return ContestMyResultsResponse(
+        contest_id=contest_id,
+        user_id=user.id,
+        items=items,
+        total_points=total_points,
     )
 
 
