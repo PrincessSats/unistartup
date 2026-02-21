@@ -225,6 +225,14 @@ export const educationAPI = {
     const response = await api.post(`/education/practice/tasks/${taskId}/materials/${materialId}/download`);
     return response.data;
   },
+  downloadPracticeMaterialContent: async (taskId, materialId) => {
+    const response = await api.post(
+      `/education/practice/tasks/${taskId}/materials/${materialId}/download/content`,
+      null,
+      { responseType: 'blob' }
+    );
+    return response;
+  },
   submitPracticeFlag: async (taskId, payload) => {
     const response = await api.post(`/education/practice/tasks/${taskId}/submit`, payload);
     return response.data;
