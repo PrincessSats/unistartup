@@ -78,9 +78,15 @@ function getFileMaterial(task) {
   return getFirstMaterialByType(task, 'file');
 }
 
-function getFileDownloadUrl(material) {
+function getMaterialStorageKey(material) {
   const meta = getMaterialMeta(material);
-  return firstHttpUrl(meta.download_url, material?.url, meta.url);
+  return String(
+    material?.storage_key
+      || meta.download_storage_key
+      || meta.target_storage_key
+      || meta.storage_key
+      || ''
+  ).trim();
 }
 
 function hasExplicitDownloadSource(material) {
@@ -124,17 +130,62 @@ function getVpnDownloadMaterial(task) {
   return materials.find((item) => hasMaterialDownloadSource(item)) || null;
 }
 
-function triggerDownload(url, filename) {
+function triggerBlobDownload(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement('a');
-  link.href = url;
-  if (filename) {
-    link.setAttribute('download', filename);
-  }
+  link.href = objectUrl;
+  link.setAttribute('download', String(filename || 'download').trim() || 'download');
   link.rel = 'noopener noreferrer';
   link.style.display = 'none';
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+}
+
+function parseFilenameFromContentDisposition(value) {
+  const text = String(value || '');
+  const utf8Match = text.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]).trim();
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+  const basicMatch = text.match(/filename="?([^";]+)"?/i);
+  return basicMatch?.[1]?.trim() || null;
+}
+
+async function parseDownloadErrorMessage(err, fallbackMessage) {
+  const blob = err?.response?.data;
+  if (blob && typeof blob.text === 'function') {
+    try {
+      const rawText = await blob.text();
+      const payload = JSON.parse(rawText);
+      if (typeof payload?.detail === 'string' && payload.detail.trim()) {
+        return payload.detail;
+      }
+    } catch {
+      // noop
+    }
+  }
+  const detail = err?.response?.data?.detail;
+  if (typeof detail === 'string' && detail.trim()) {
+    return detail;
+  }
+  return fallbackMessage;
+}
+
+function isObjectStorageUrl(urlValue) {
+  const value = String(urlValue || '').trim();
+  if (!value) return false;
+  try {
+    const parsed = new URL(value);
+    return parsed.hostname.includes('storage.yandexcloud.net');
+  } catch {
+    return value.includes('storage.yandexcloud.net');
+  }
 }
 
 function getFileBadge(material) {
@@ -223,7 +274,6 @@ export default function EducationTask() {
   const linkMaterial = useMemo(() => getLinkMaterial(task), [task]);
   const linkUrl = useMemo(() => getLinkUrl(task), [task]);
   const fileMaterial = useMemo(() => getFileMaterial(task), [task]);
-  const fileDownloadUrl = useMemo(() => getFileDownloadUrl(fileMaterial), [fileMaterial]);
   const vpnDownloadMaterial = useMemo(() => getVpnDownloadMaterial(task), [task]);
 
   const handleShare = async () => {
@@ -267,27 +317,17 @@ export default function EducationTask() {
       setDownloadLoadingId(loadingKey);
       setSubmitMessage('');
 
-      if (materialId) {
-        const response = await educationAPI.getPracticeMaterialDownload(task.id, materialId);
-        if (!response?.url) {
-          throw new Error('Ссылка на скачивание не получена');
-        }
-        triggerDownload(response.url, response.filename || material.name || 'download');
-        return;
+      if (!materialId) {
+        throw new Error('Материал не поддерживает безопасное скачивание');
       }
-
-      const meta = getMaterialMeta(material);
-      const materialType = String(material?.type || '').trim().toLowerCase();
-      const fallbackUrl = ['file', 'credentials'].includes(materialType)
-        ? firstHttpUrl(meta.download_url, material?.url, meta.url)
-        : firstHttpUrl(meta.download_url, meta.url);
-      if (!fallbackUrl) {
-        throw new Error('Для материала не настроено скачивание');
-      }
-      triggerDownload(fallbackUrl, material?.name || 'download');
+      const response = await educationAPI.downloadPracticeMaterialContent(task.id, materialId);
+      const disposition = response?.headers?.['content-disposition'] || '';
+      const resolvedFilename = parseFilenameFromContentDisposition(disposition) || material.name || 'download';
+      triggerBlobDownload(response.data, resolvedFilename);
     } catch (err) {
       console.error('Не удалось скачать материал', err);
-      setSubmitMessage('Не удалось начать скачивание');
+      const message = await parseDownloadErrorMessage(err, 'Не удалось начать скачивание');
+      setSubmitMessage(message);
     } finally {
       setDownloadLoadingId(null);
     }
@@ -308,15 +348,16 @@ export default function EducationTask() {
   const hintButtons = Array.from({ length: task.hints_count || 0 }, (_, index) => index + 1);
   const activeHintText = task.hints?.[activeHint] || '';
   const linkActionLabel = String(linkMaterial?.name || 'Перейти к заданию').trim() || 'Перейти к заданию';
-  const fileDownloadEnabled = Boolean((fileMaterial && fileMaterial.id) || fileDownloadUrl);
+  const fileDownloadEnabled = Boolean(fileMaterial?.id);
   const fileDownloadLoadingKey = fileMaterial?.id ?? 'fallback-file';
   const isFileDownloading = downloadLoadingId === fileDownloadLoadingKey;
   const vpnHowToConnectUrl = firstHttpUrl(task?.vpn?.how_to_connect_url);
-  const vpnFallbackDownloadUrl = firstHttpUrl(task?.vpn?.download_url);
-  const vpnDownloadEnabled = Boolean(vpnDownloadMaterial || vpnFallbackDownloadUrl);
+  const vpnDownloadEnabled = Boolean(vpnDownloadMaterial?.id);
   const vpnDownloadLoadingKey = vpnDownloadMaterial?.id ?? 'fallback-vpn';
   const isVpnDownloading = downloadLoadingId === vpnDownloadLoadingKey;
-  const linkActionEnabled = Boolean(linkMaterial && (linkMaterial.id || linkUrl));
+  const linkHasStorageKey = Boolean(getMaterialStorageKey(linkMaterial));
+  const linkCanOpenDirect = Boolean(linkUrl) && !isObjectStorageUrl(linkUrl);
+  const linkActionEnabled = Boolean(linkMaterial && (linkHasStorageKey || linkCanOpenDirect));
   const linkLoadingKey = linkMaterial?.id ?? 'fallback-link';
   const isLinkLoading = downloadLoadingId === linkLoadingKey;
 
@@ -416,7 +457,13 @@ export default function EducationTask() {
                 <button
                   type="button"
                   disabled={!vmLaunchUrl}
-                  onClick={() => vmLaunchUrl && window.open(vmLaunchUrl, '_blank', 'noopener,noreferrer')}
+                  onClick={() => {
+                    if (vmLaunchUrl && !isObjectStorageUrl(vmLaunchUrl)) {
+                      window.open(vmLaunchUrl, '_blank', 'noopener,noreferrer');
+                    } else {
+                      setSubmitMessage('Ссылка недоступна');
+                    }
+                  }}
                   className="mt-6 h-12 rounded-[10px] bg-[#9B6BFF] px-5 text-[18px] text-white transition hover:bg-[#A97CFF] disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Запустить машину
@@ -429,27 +476,14 @@ export default function EducationTask() {
                   disabled={!linkActionEnabled || isLinkLoading}
                   onClick={async () => {
                     if (!linkMaterial) return;
-                    if (linkMaterial.id) {
-                      try {
-                        setDownloadLoadingId(linkLoadingKey);
-                        const response = await educationAPI.getPracticeMaterialDownload(task.id, linkMaterial.id);
-                        if (!response?.url) {
-                          throw new Error('Ссылка недоступна');
-                        }
-                        if (response.expires_in === 0 && !response.filename) {
-                          window.open(response.url, '_blank', 'noopener,noreferrer');
-                          return;
-                        }
-                        triggerDownload(response.url, response.filename || linkActionLabel);
-                        return;
-                      } catch (err) {
-                        console.error('Не удалось открыть материал link', err);
-                        setSubmitMessage('Не удалось открыть ссылку');
-                      } finally {
-                        setDownloadLoadingId(null);
-                      }
-                    } else if (linkUrl) {
+                    if (linkHasStorageKey) {
+                      await handleMaterialDownload(linkMaterial);
+                      return;
+                    }
+                    if (linkCanOpenDirect && linkUrl) {
                       window.open(linkUrl, '_blank', 'noopener,noreferrer');
+                    } else {
+                      setSubmitMessage('Ссылка недоступна');
                     }
                   }}
                   className="mt-6 text-left text-[20px] leading-[24px] tracking-[0.03em] text-white/85 underline-offset-4 transition hover:text-white hover:underline disabled:cursor-not-allowed disabled:text-white/35 disabled:no-underline"
@@ -551,7 +585,13 @@ export default function EducationTask() {
                 <button
                   type="button"
                   disabled={!vpnHowToConnectUrl}
-                  onClick={() => vpnHowToConnectUrl && window.open(vpnHowToConnectUrl, '_blank', 'noopener,noreferrer')}
+                  onClick={() => {
+                    if (vpnHowToConnectUrl && !isObjectStorageUrl(vpnHowToConnectUrl)) {
+                      window.open(vpnHowToConnectUrl, '_blank', 'noopener,noreferrer');
+                    } else {
+                      setSubmitMessage('Ссылка недоступна');
+                    }
+                  }}
                   className="h-14 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[18px] text-white/85 transition hover:border-[#9B6BFF]/60 hover:bg-[#9B6BFF]/20 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   Как подключить
@@ -562,10 +602,6 @@ export default function EducationTask() {
                   onClick={() => {
                     if (vpnDownloadMaterial) {
                       handleMaterialDownload(vpnDownloadMaterial);
-                      return;
-                    }
-                    if (vpnFallbackDownloadUrl) {
-                      triggerDownload(vpnFallbackDownloadUrl, 'vpn-config');
                     }
                   }}
                   className="h-14 rounded-[10px] bg-[#9B6BFF] px-4 text-[18px] text-white transition hover:bg-[#A97CFF] disabled:cursor-not-allowed disabled:opacity-45"
