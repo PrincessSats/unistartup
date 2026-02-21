@@ -6,6 +6,7 @@ from typing import Dict, Iterable, List, Optional, Set
 from urllib.parse import unquote, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -186,15 +187,23 @@ def _normalize_storage_key(raw_value: Optional[str]) -> Optional[str]:
     if text_value.startswith("http://") or text_value.startswith("https://"):
         return None
 
-    return text_value.lstrip("/")
+    normalized = text_value.lstrip("/")
+    bucket_name = settings.s3_task_bucket_name
+    if bucket_name and normalized.startswith(f"{bucket_name}/"):
+        normalized = normalized[len(bucket_name) + 1 :]
+    if normalized == bucket_name:
+        return None
+    return normalized
 
 
 def _resolve_material_storage_key(material_row: dict) -> Optional[str]:
     meta = material_row.get("meta") if isinstance(material_row.get("meta"), dict) else {}
     candidates = [
         material_row.get("storage_key"),
+        meta.get("target_storage_key"),
         meta.get("download_storage_key"),
         meta.get("storage_key"),
+        meta.get("target_url"),
         meta.get("download_url"),
     ]
 
@@ -230,6 +239,40 @@ def _material_filename(material_row: dict, storage_key: Optional[str] = None) ->
     return None
 
 
+def _task_s3_client():
+    return get_s3_client(
+        access_key=settings.s3_task_access_key,
+        secret_key=settings.s3_task_secret_key,
+    )
+
+
+def _assert_task_object_exists(storage_key: str) -> None:
+    client = _task_s3_client()
+    try:
+        client.head_object(
+            Bucket=settings.s3_task_bucket_name,
+            Key=storage_key,
+        )
+    except ClientError as exc:
+        code = str((exc.response or {}).get("Error", {}).get("Code", "")).strip()
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Файл не найден в хранилище. Проверьте storage key в задаче.",
+            ) from exc
+        logger.exception("head_object failed for task storage key=%s", storage_key)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось проверить файл в хранилище",
+        ) from exc
+    except BotoCoreError as exc:
+        logger.exception("S3 communication error while checking task storage key=%s", storage_key)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось проверить файл в хранилище",
+        ) from exc
+
+
 def _build_presigned_download_url(storage_key: str, filename: Optional[str]) -> str:
     params: dict = {
         "Bucket": settings.s3_task_bucket_name,
@@ -240,15 +283,18 @@ def _build_presigned_download_url(storage_key: str, filename: Optional[str]) -> 
         if safe_name:
             params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
 
-    client = get_s3_client(
-        access_key=settings.s3_task_access_key,
-        secret_key=settings.s3_task_secret_key,
-    )
+    client = _task_s3_client()
     return client.generate_presigned_url(
         "get_object",
         Params=params,
         ExpiresIn=_PRESIGNED_TTL_SECONDS,
     )
+
+
+def _safe_download_filename(filename: Optional[str]) -> str:
+    value = str(filename or "download").strip()
+    value = value.replace('"', "").replace("\n", " ").replace("\r", " ")
+    return value or "download"
 
 
 def _parse_vpn_info(material_rows: list[dict]) -> PracticeVpnInfo:
@@ -713,7 +759,10 @@ async def get_practice_task_material_download(
                 detail="Object Storage не настроен на сервере",
             )
         try:
+            _assert_task_object_exists(storage_key)
             url = _build_presigned_download_url(storage_key, filename)
+        except HTTPException:
+            raise
         except (BotoCoreError, ClientError) as exc:
             logger.exception("Failed to build presigned url for task_id=%s material_id=%s", task_id, material_id)
             raise HTTPException(
@@ -749,6 +798,90 @@ async def get_practice_task_material_download(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Для материала не настроен источник скачивания",
     )
+
+
+@router.post("/practice/tasks/{task_id}/materials/{material_id}/download/content")
+async def download_practice_task_material_content(
+    task_id: int,
+    material_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+
+    task = (
+        await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.task_kind == "practice",
+                Task.state == "ready",
+            )
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+    materials = await _load_task_materials(db, task_id)
+    material = _find_material_by_id(materials, material_id)
+    if material is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Материал не найден")
+
+    storage_key = _resolve_material_storage_key(material)
+    if not storage_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Для материала не настроен storage key",
+        )
+
+    if not _storage_is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Object Storage не настроен на сервере",
+        )
+
+    _assert_task_object_exists(storage_key)
+    filename = _safe_download_filename(_material_filename(material, storage_key))
+    client = _task_s3_client()
+    try:
+        payload = client.get_object(
+            Bucket=settings.s3_task_bucket_name,
+            Key=storage_key,
+        )
+        body_stream = payload.get("Body")
+        content = body_stream.read() if body_stream is not None else b""
+        if body_stream is not None:
+            body_stream.close()
+        content_type = str(payload.get("ContentType") or "application/octet-stream")
+    except ClientError as exc:
+        code = str((exc.response or {}).get("Error", {}).get("Code", "")).strip()
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Файл не найден в хранилище. Проверьте storage key в задаче.",
+            ) from exc
+        logger.exception("Failed to fetch task object for task_id=%s material_id=%s", task_id, material_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось скачать файл из хранилища",
+        ) from exc
+    except BotoCoreError as exc:
+        logger.exception("Storage communication error for task_id=%s material_id=%s", task_id, material_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось скачать файл из хранилища",
+        ) from exc
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("Unexpected download error for task_id=%s material_id=%s", task_id, material_id)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось скачать файл. Попробуйте позже.",
+        ) from exc
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+    }
+    return Response(content=content, media_type=content_type, headers=headers)
 
 
 @router.post("/practice/tasks/{task_id}/submit", response_model=PracticeTaskSubmitResponse)
