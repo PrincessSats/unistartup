@@ -56,7 +56,8 @@ def _run_generation(
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/qwen3-235b-a22b-fp8/latest"
+    model_name = f"gpt://{folder}/gpt-oss-120b/latest"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
     user_payload = {
         "difficulty": difficulty,
         "tags": tags,
@@ -65,6 +66,7 @@ def _run_generation(
     try:
         response = client.chat.completions.create(
             model=model_name,
+            reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": prompt_text},
                 {"role": "user", "content": json.dumps(user_payload, ensure_ascii=False)},
@@ -84,6 +86,7 @@ def _run_generation(
         )
     return {
         "model": model_name,
+        "reasoning_effort": reasoning_effort,
         "raw_text": text,
         "parsed": parsed,
         "input": user_payload,

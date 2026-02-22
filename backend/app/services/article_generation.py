@@ -55,11 +55,18 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/qwen3-235b-a22b-fp8/latest"
-    logger.info("KB generation started (model=%s, chars=%s)", model_name, len(raw_en_text))
+    model_name = f"gpt://{folder}/gpt-oss-120b/latest"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
+    logger.info(
+        "KB generation started (model=%s, reasoning_effort=%s, chars=%s)",
+        model_name,
+        reasoning_effort,
+        len(raw_en_text),
+    )
     try:
         response = client.chat.completions.create(
             model=model_name,
+            reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": prompt_text},
                 {"role": "user", "content": raw_en_text},
@@ -80,6 +87,7 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
         )
     return {
         "model": model_name,
+        "reasoning_effort": reasoning_effort,
         "raw_text": text,
         "parsed": parsed,
         "input": {"raw_en_text": raw_en_text},

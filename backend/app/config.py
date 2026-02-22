@@ -67,6 +67,14 @@ class Settings(BaseSettings):
             "FOLDER_ID",
         ),
     )
+    YANDEX_REASONING_EFFORT: str = Field(
+        default="medium",
+        validation_alias=AliasChoices(
+            "YANDEX_REASONING_EFFORT",
+            "YANDEX_GPT_REASONING_EFFORT",
+            "REASONING_EFFORT",
+        ),
+    )
     PROMPTS_DIR: str = ""
     
     class Config:
@@ -110,6 +118,19 @@ class Settings(BaseSettings):
         if value is None:
             return ""
         return str(value).strip()
+
+    @field_validator("YANDEX_REASONING_EFFORT", mode="before")
+    @classmethod
+    def normalize_reasoning_effort(cls, value: Any) -> str:
+        normalized = "medium" if value is None else str(value).strip().lower()
+        if not normalized:
+            normalized = "medium"
+        allowed = {"disabled", "low", "medium", "high"}
+        if normalized not in allowed:
+            raise ValueError(
+                "YANDEX_REASONING_EFFORT must be one of: disabled, low, medium, high"
+            )
+        return normalized
 
     @property
     def cors_allow_origins(self) -> list[str]:
