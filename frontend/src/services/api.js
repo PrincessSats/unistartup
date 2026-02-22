@@ -222,13 +222,12 @@ export const educationAPI = {
     return response.data;
   },
   getPracticeMaterialDownload: async (taskId, materialId) => {
-    const response = await api.post(`/education/practice/tasks/${taskId}/materials/${materialId}/download`);
+    const response = await api.get(`/education/practice/tasks/${taskId}/materials/${materialId}/download`);
     return response.data;
   },
   downloadPracticeMaterialContent: async (taskId, materialId) => {
-    const response = await api.post(
+    const response = await api.get(
       `/education/practice/tasks/${taskId}/materials/${materialId}/download/content`,
-      null,
       { responseType: 'blob' }
     );
     return response;

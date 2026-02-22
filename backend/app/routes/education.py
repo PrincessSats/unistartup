@@ -3,7 +3,7 @@ import logging
 from pathlib import PurePosixPath
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Set
-from urllib.parse import unquote, urlparse
+from urllib.parse import quote, unquote, urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
@@ -279,9 +279,7 @@ def _build_presigned_download_url(storage_key: str, filename: Optional[str]) -> 
         "Key": storage_key,
     }
     if filename:
-        safe_name = filename.replace('"', "").replace("\n", " ").replace("\r", " ").strip()
-        if safe_name:
-            params["ResponseContentDisposition"] = f'attachment; filename="{safe_name}"'
+        params["ResponseContentDisposition"] = _content_disposition_value(filename)
 
     client = _task_s3_client()
     return client.generate_presigned_url(
@@ -295,6 +293,13 @@ def _safe_download_filename(filename: Optional[str]) -> str:
     value = str(filename or "download").strip()
     value = value.replace('"', "").replace("\n", " ").replace("\r", " ")
     return value or "download"
+
+
+def _content_disposition_value(filename: Optional[str]) -> str:
+    normalized = _safe_download_filename(filename)
+    ascii_fallback = normalized.encode("ascii", "ignore").decode("ascii").strip() or "download"
+    encoded = quote(normalized, safe="")
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
 
 
 def _parse_vpn_info(material_rows: list[dict]) -> PracticeVpnInfo:
@@ -720,8 +725,9 @@ async def get_practice_task(
     )
 
 
-@router.post(
+@router.api_route(
     "/practice/tasks/{task_id}/materials/{material_id}/download",
+    methods=["GET", "POST"],
     response_model=PracticeTaskMaterialDownloadResponse,
 )
 async def get_practice_task_material_download(
@@ -800,7 +806,10 @@ async def get_practice_task_material_download(
     )
 
 
-@router.post("/practice/tasks/{task_id}/materials/{material_id}/download/content")
+@router.api_route(
+    "/practice/tasks/{task_id}/materials/{material_id}/download/content",
+    methods=["GET", "POST"],
+)
 async def download_practice_task_material_content(
     task_id: int,
     material_id: int,
@@ -878,7 +887,7 @@ async def download_practice_task_material_content(
         ) from exc
 
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": _content_disposition_value(filename),
         "Cache-Control": "no-store",
     }
     return Response(content=content, media_type=content_type, headers=headers)
