@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { knowledgeAPI, profileAPI } from '../services/api';
+import { educationAPI, knowledgeAPI, profileAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
 import { TrainingIllustration } from '../components/AppIllustration';
+import { getEducationCardVisual } from '../utils/educationVisuals';
 
 const DEFAULT_USERNAME = 'Пользователь';
 
@@ -81,6 +82,24 @@ const taskNews = [
   'Новое руководство: продвинутые методы переполнения буфера',
 ];
 
+const practiceStatusOrder = {
+  not_started: 0,
+  in_progress: 1,
+  solved: 2,
+};
+
+const practiceStatusLabel = {
+  not_started: 'Не начато',
+  in_progress: 'В процессе',
+  solved: 'Решено',
+};
+
+const practiceDifficultyBadgeClasses = {
+  Легко: 'border-[#3FD18A]/30 bg-[#3FD18A]/10 text-[#3FD18A]',
+  Средне: 'border-[#F2C94C]/30 bg-[#F2C94C]/10 text-[#F2C94C]',
+  Сложно: 'border-[#FF5A6E]/30 bg-[#FF5A6E]/10 text-[#FF5A6E]',
+};
+
 function Tag({ children, tone = 'neutral' }) {
   const toneStyles = {
     neutral: 'bg-[#8E51FF]/10 border-[#8E51FF]/30 text-[#A684FF]',
@@ -139,13 +158,14 @@ function ScoreCard({ label, value }) {
   );
 }
 
-function TrainingCard({ variant, title, description, tags, duration, progress, points }) {
-  const difficultyTone = tags[1] === 'Легко' ? 'easy' : tags[1] === 'Среднее' ? 'medium' : 'hard';
+function TrainingCard({ variant, title, description, tags, duration, progress, points, to }) {
+  const difficultyTone = tags[1] === 'Легко' ? 'easy' : tags[1] === 'Среднее' || tags[1] === 'Средне' ? 'medium' : 'hard';
+  const containerClasses = `bg-white/[0.05] rounded-[12px] p-6 flex flex-col gap-6 w-full md:w-[352px] ${to ? 'transition hover:border hover:border-[#9B6BFF]/50' : ''}`;
 
-  return (
-    <div className="bg-white/[0.05] rounded-[12px] p-6 flex flex-col gap-6 w-full md:w-[352px]">
+  const content = (
+    <>
       <div className="h-[173px] w-[304px] max-w-full relative overflow-hidden mx-auto">
-        <TrainingIllustration variant={variant} className="absolute inset-0 w-full h-full" />
+        <TrainingIllustration variant={variant || 'web'} className="absolute inset-0 w-full h-full" />
       </div>
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-4">
@@ -173,7 +193,79 @@ function TrainingCard({ variant, title, description, tags, duration, progress, p
           </span>
         </div>
       </div>
+    </>
+  );
+
+  if (to) {
+    return (
+      <Link to={to} className={containerClasses}>
+        {content}
+      </Link>
+    );
+  }
+
+  return (
+    <div className={containerClasses}>
+      {content}
     </div>
+  );
+}
+
+function PracticeTrainingCard({ task }) {
+  const visual = getEducationCardVisual(task);
+  const difficultyClass = practiceDifficultyBadgeClasses[task?.difficulty_label] || practiceDifficultyBadgeClasses.Средне;
+  const isSolved = task?.my_status === 'solved';
+  const statusLabel = practiceStatusLabel[task?.my_status] || 'Не начато';
+
+  return (
+    <Link
+      to={`/education/${task.id}`}
+      className="group h-full rounded-[12px] border border-white/[0.06] bg-white/[0.03] p-5 transition hover:border-[#9B6BFF]/60"
+    >
+      <div className="relative aspect-[16/9] overflow-hidden rounded-[10px] border border-white/[0.06] bg-black/20">
+        <img
+          src={visual}
+          alt=""
+          loading="lazy"
+          className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+        />
+        {isSolved && (
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-2.5 py-1 text-[12px] text-[#3FD18A]">
+            <AppIcon name="check-circle" className="h-3.5 w-3.5" />
+            Решено
+          </span>
+        )}
+      </div>
+
+      <div className="mt-5 flex h-[170px] flex-col justify-between">
+        <div>
+          <h3 className="line-clamp-2 text-[22px] leading-[1.2] tracking-[0.01em] text-white">
+            {task.title}
+          </h3>
+          <p className="mt-3 line-clamp-2 text-[15px] leading-[20px] tracking-[0.04em] text-white/60">
+            {task.summary || 'Описание задачи пока не добавлено'}
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="rounded-[10px] border border-white/[0.14] bg-white/[0.05] px-3 py-1.5 text-[12px] text-white/75">
+              {task.category}
+            </span>
+            <span className={`rounded-[10px] border px-3 py-1.5 text-[12px] ${difficultyClass}`}>
+              {task.difficulty_label}
+            </span>
+            <span className="rounded-[10px] border border-white/[0.12] bg-white/[0.04] px-3 py-1.5 text-[12px] text-white/70">
+              {statusLabel}
+            </span>
+          </div>
+        </div>
+        <div className="mt-4 flex items-center justify-between text-[15px] leading-[20px] tracking-[0.04em] text-white/65">
+          <span>{task.passed_users_count} прошли</span>
+          <span className="inline-flex items-center gap-2 font-mono-figma text-white">
+            <AppIcon name="star" className="h-4 w-4 text-white/80" />
+            {task.points}
+          </span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -362,7 +454,8 @@ function formatRelativeTime(value) {
 }
 
 function getArticleTitle(entry) {
-  return entry?.ru_title || entry?.cve_id || entry?.source_id || 'Без названия';
+  const title = String(entry?.ru_title || '').trim();
+  return title || 'Без названия';
 }
 
 export default function Home() {
@@ -373,6 +466,10 @@ export default function Home() {
   const [knowledgeItems, setKnowledgeItems] = useState([]);
   const [knowledgeLoading, setKnowledgeLoading] = useState(true);
   const [knowledgeError, setKnowledgeError] = useState('');
+  const [trainingTab, setTrainingTab] = useState('theory');
+  const [practiceTrainingItems, setPracticeTrainingItems] = useState([]);
+  const [practiceLoading, setPracticeLoading] = useState(true);
+  const [practiceError, setPracticeError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
@@ -410,7 +507,7 @@ export default function Home() {
     const fetchKnowledge = async () => {
       try {
         setKnowledgeError('');
-        const data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc' });
+        const data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc', only_with_title: true });
         if (isMounted) {
           setKnowledgeItems(Array.isArray(data) ? data : []);
         }
@@ -429,6 +526,44 @@ export default function Home() {
     };
 
     fetchKnowledge();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchPracticeTasks = async () => {
+      try {
+        setPracticeError('');
+        const response = await educationAPI.getPracticeTasks({ limit: 100, offset: 0 });
+        const items = Array.isArray(response?.items) ? response.items : [];
+        const sorted = [...items].sort((a, b) => {
+          const left = practiceStatusOrder[a?.my_status] ?? 99;
+          const right = practiceStatusOrder[b?.my_status] ?? 99;
+          if (left !== right) return left - right;
+          return (Number(b?.points) || 0) - (Number(a?.points) || 0);
+        });
+        if (isMounted) {
+          setPracticeTrainingItems(sorted);
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить практические задачи для главной страницы', error);
+        const detail = error?.response?.data?.detail;
+        if (isMounted) {
+          setPracticeError(typeof detail === 'string' ? detail : 'Не удалось загрузить практические задачи');
+          setPracticeTrainingItems([]);
+        }
+      } finally {
+        if (isMounted) {
+          setPracticeLoading(false);
+        }
+      }
+    };
+
+    fetchPracticeTasks();
 
     return () => {
       isMounted = false;
@@ -505,18 +640,48 @@ export default function Home() {
                   Обучение под мои интересы
                 </h2>
                 <div className="flex items-center gap-2">
-                  <button className="bg-white/10 border border-white/10 rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-[#9B6BFF]">
+                  <button
+                    onClick={() => setTrainingTab('theory')}
+                    className={`rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] border ${
+                      trainingTab === 'theory'
+                        ? 'bg-white/10 border-white/10 text-[#9B6BFF]'
+                        : 'bg-white/5 border-white/10 text-white/60'
+                    }`}
+                  >
                     Теория
                   </button>
-                  <button className="bg-white/5 border border-white/10 rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white/60">
+                  <button
+                    onClick={() => setTrainingTab('practice')}
+                    className={`rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] border ${
+                      trainingTab === 'practice'
+                        ? 'bg-white/10 border-white/10 text-[#9B6BFF]'
+                        : 'bg-white/5 border-white/10 text-white/60'
+                    }`}
+                  >
                     Практика
                   </button>
                 </div>
               </div>
               <div className="flex flex-wrap gap-4">
-                {trainingCards.map((card, index) => (
+                {trainingTab === 'theory' && trainingCards.map((card, index) => (
                   <TrainingCard key={`${card.title}-${index}`} {...card} />
                 ))}
+                {trainingTab === 'practice' && practiceLoading && (
+                  <div className="text-white/60 text-[16px]">Загрузка практических задач...</div>
+                )}
+                {trainingTab === 'practice' && !practiceLoading && practiceError && (
+                  <div className="text-rose-300 text-[16px]">{practiceError}</div>
+                )}
+                {trainingTab === 'practice' && !practiceLoading && !practiceError && practiceTrainingItems.length === 0 && (
+                  <div className="text-white/60 text-[16px]">Подходящих практических задач пока нет.</div>
+                )}
+                {trainingTab === 'practice' && !practiceLoading && !practiceError && (
+                  <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3 auto-rows-fr">
+                    {practiceTrainingItems.map((task) => (
+                      <PracticeTrainingCard key={task.id} task={task} />
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
