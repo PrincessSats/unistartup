@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,22 @@ from app.auth.dependencies import get_current_user
 from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag
 from app.models.user import UserProfile
 from app.security.rate_limit import RateLimit, enforce_rate_limit
+from app.services.chat_task import (
+    abort_active_chat_session,
+    ChatTaskError,
+    ChatTaskSessionExpiredError,
+    ChatTaskSessionReadOnlyError,
+    cleanup_expired_unsolved_chat_sessions,
+    derive_dynamic_flag_token_candidates,
+    extract_flag_token_content,
+    generate_chat_reply,
+    get_chat_limits_for_task,
+    get_or_create_chat_session,
+    get_session_for_chat_submit,
+    list_chat_messages,
+    mark_chat_session_solved,
+    normalize_flag_token_content,
+)
 from app.schemas.contest import (
     ContestSummary,
     FeaturedTask,
@@ -23,6 +39,12 @@ from app.schemas.contest import (
     ContestTaskState,
     ContestSubmissionRequest,
     ContestSubmissionResponse,
+    ContestTaskChatSession,
+    ContestTaskChatSessionResponse,
+    ContestTaskChatMessageRequest,
+    ContestTaskChatMessageResponse,
+    ContestTaskChatMessage,
+    TaskChatLimits,
 )
 
 router = APIRouter(prefix="/contests", tags=["Контесты"])
@@ -69,6 +91,15 @@ def _merge_task(
         for flag in task_flags
     ]
 
+    chat_limits = None
+    if (task.access_type or "").strip().lower() == "chat":
+        limits = get_chat_limits_for_task(task)
+        chat_limits = TaskChatLimits(
+            user_message_max_chars=limits.user_message_max_chars,
+            model_max_output_tokens=limits.model_max_output_tokens,
+            session_ttl_minutes=limits.session_ttl_minutes,
+        )
+
     return ContestTaskInfo(
         id=task.id,
         title=contest_task.override_title or task.title,
@@ -79,6 +110,8 @@ def _merge_task(
         participant_description=contest_task.override_participant_description or task.participant_description or task.story,
         order_index=contest_task.order_index,
         is_solved=False,
+        access_type=task.access_type or "just_flag",
+        chat_limits=chat_limits,
         required_flags=required_flags,
         required_flags_count=len(required_flags),
         solved_flags_count=sum(1 for flag in required_flags if flag.is_solved),
@@ -134,6 +167,115 @@ async def _load_user_correct_progress(
         if flag_id:
             solved_flags_by_task.setdefault(task_id, set()).add(flag_id)
     return solved_flags_by_task, legacy_solved_task_ids
+
+
+def _ensure_contest_access(contest: Optional[Contest], role: str) -> Contest:
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
+    return contest
+
+
+def _ensure_contest_is_active(contest: Contest) -> None:
+    now = datetime.now(timezone.utc)
+    if _ensure_utc(contest.start_at) > now or _ensure_utc(contest.end_at) < now:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест не активен")
+
+
+async def _ensure_contest_participant(
+    db: AsyncSession,
+    *,
+    contest_id: int,
+    user_id: int,
+) -> ContestParticipant:
+    participant = (
+        await db.execute(
+            select(ContestParticipant).where(
+                ContestParticipant.contest_id == contest_id,
+                ContestParticipant.user_id == user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if participant is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нужно вступить в контест")
+    return participant
+
+
+async def _build_contest_progress_context(
+    db: AsyncSession,
+    *,
+    contest_id: int,
+    user_id: int,
+) -> tuple[
+    List[tuple[ContestTaskInfo, ContestTask, Task]],
+    Optional[tuple[ContestTaskInfo, ContestTask, Task]],
+    Dict[int, List[TaskFlag]],
+    Dict[int, Set[str]],
+    Set[int],
+]:
+    tasks_result = await db.execute(
+        select(ContestTask, Task)
+        .join(Task, Task.id == ContestTask.task_id)
+        .where(ContestTask.contest_id == contest_id)
+        .order_by(ContestTask.order_index.asc())
+    )
+    tasks_rows = tasks_result.all()
+    if not tasks_rows:
+        raise HTTPException(status_code=400, detail="В контесте нет задач")
+
+    task_ids = [task.id for _contest_task, task in tasks_rows]
+    flags_by_task = await _load_task_flags(db, task_ids)
+    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+        db,
+        contest_id,
+        user_id,
+        task_ids,
+    )
+
+    merged_tasks: List[tuple[ContestTaskInfo, ContestTask, Task]] = []
+    current_task: Optional[tuple[ContestTaskInfo, ContestTask, Task]] = None
+    for contest_task, task in tasks_rows:
+        required_flags = flags_by_task.get(task.id, [])
+        solved_flag_ids = solved_flags_by_task.get(task.id, set())
+        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
+        required_flag_ids = [flag.flag_id for flag in required_flags]
+        task_info.is_solved = _is_task_completed(
+            task.id,
+            required_flag_ids,
+            solved_flag_ids,
+            legacy_solved_task_ids,
+        )
+        merged_tasks.append((task_info, contest_task, task))
+        if current_task is None and not task_info.is_solved:
+            current_task = (task_info, contest_task, task)
+
+    return (
+        merged_tasks,
+        current_task,
+        flags_by_task,
+        solved_flags_by_task,
+        legacy_solved_task_ids,
+    )
+
+
+def _build_chat_session_payload(
+    *,
+    session_id: int,
+    status_value: str,
+    read_only: bool,
+    expires_at: datetime,
+    limits: TaskChatLimits,
+    messages: List[ContestTaskChatMessage],
+) -> ContestTaskChatSession:
+    return ContestTaskChatSession(
+        session_id=session_id,
+        status=status_value,
+        read_only=read_only,
+        expires_at=_ensure_utc(expires_at),
+        limits=limits,
+        messages=messages,
+    )
 
 
 @router.get("/active", response_model=ContestSummary)
@@ -411,6 +553,235 @@ async def get_current_task(
     )
 
 
+@router.get(
+    "/{contest_id}/tasks/{task_id}/chat/session",
+    response_model=ContestTaskChatSessionResponse,
+)
+async def get_contest_task_chat_session(
+    contest_id: int,
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+
+    contest = _ensure_contest_access(
+        (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none(),
+        profile.role,
+    )
+    _ensure_contest_is_active(contest)
+    participant = await _ensure_contest_participant(db, contest_id=contest_id, user_id=user.id)
+
+    _merged_tasks, current_task, _flags_by_task, _solved_flags_by_task, _legacy_solved_task_ids = (
+        await _build_contest_progress_context(db, contest_id=contest_id, user_id=user.id)
+    )
+    if current_task is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест завершён")
+    _task_info, _contest_task, task = current_task
+    if task.id != task_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Чат доступен только для текущей задачи",
+        )
+    if (task.access_type or "").strip().lower() != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У текущей задачи не настроен чат",
+        )
+
+    session, read_only = await get_or_create_chat_session(
+        db,
+        task=task,
+        user_id=user.id,
+        contest_id=contest_id,
+    )
+    session_messages = await list_chat_messages(db, session_id=session.id)
+    limits = get_chat_limits_for_task(task)
+    payload_messages = [
+        ContestTaskChatMessage(
+            role=item.role,
+            content=item.content,
+            created_at=_ensure_utc(item.created_at),
+        )
+        for item in session_messages
+    ]
+    participant.last_active_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return ContestTaskChatSessionResponse(
+        contest_id=contest_id,
+        task_id=task_id,
+        session=_build_chat_session_payload(
+            session_id=session.id,
+            status_value=session.status,
+            read_only=read_only,
+            expires_at=session.expires_at,
+            limits=TaskChatLimits(
+                user_message_max_chars=limits.user_message_max_chars,
+                model_max_output_tokens=limits.model_max_output_tokens,
+                session_ttl_minutes=limits.session_ttl_minutes,
+            ),
+            messages=payload_messages,
+        ),
+    )
+
+
+@router.post(
+    "/{contest_id}/tasks/{task_id}/chat/messages",
+    response_model=ContestTaskChatMessageResponse,
+)
+async def send_contest_task_chat_message(
+    request: Request,
+    contest_id: int,
+    task_id: int,
+    payload: ContestTaskChatMessageRequest,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+    enforce_rate_limit(
+        request,
+        scope="contest_task_chat_message",
+        subject=f"{user.id}:{contest_id}:{task_id}",
+        rule=RateLimit(max_requests=30, window_seconds=60),
+    )
+
+    contest = _ensure_contest_access(
+        (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none(),
+        profile.role,
+    )
+    _ensure_contest_is_active(contest)
+    participant = await _ensure_contest_participant(db, contest_id=contest_id, user_id=user.id)
+
+    _merged_tasks, current_task, _flags_by_task, _solved_flags_by_task, _legacy_solved_task_ids = (
+        await _build_contest_progress_context(db, contest_id=contest_id, user_id=user.id)
+    )
+    if current_task is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест завершён")
+    _task_info, _contest_task, task = current_task
+    if task.id != task_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Чат доступен только для текущей задачи",
+        )
+    if (task.access_type or "").strip().lower() != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У текущей задачи не настроен чат",
+        )
+
+    session, read_only = await get_or_create_chat_session(
+        db,
+        task=task,
+        user_id=user.id,
+        contest_id=contest_id,
+    )
+    if read_only:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Сессия уже завершена после успешной сдачи флага",
+        )
+
+    try:
+        assistant_message = await generate_chat_reply(
+            db,
+            task=task,
+            session=session,
+            user_message=payload.message,
+        )
+    except ChatTaskSessionReadOnlyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ChatTaskSessionExpiredError as exc:
+        await cleanup_expired_unsolved_chat_sessions(
+            db,
+            task_id=task.id,
+            user_id=user.id,
+            contest_id=contest_id,
+        )
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ChatTaskError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    session_messages = await list_chat_messages(db, session_id=session.id)
+    limits = get_chat_limits_for_task(task)
+    payload_messages = [
+        ContestTaskChatMessage(
+            role=item.role,
+            content=item.content,
+            created_at=_ensure_utc(item.created_at),
+        )
+        for item in session_messages
+    ]
+    participant.last_active_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return ContestTaskChatMessageResponse(
+        contest_id=contest_id,
+        task_id=task_id,
+        assistant_message=assistant_message,
+        session=_build_chat_session_payload(
+            session_id=session.id,
+            status_value=session.status,
+            read_only=False,
+            expires_at=session.expires_at,
+            limits=TaskChatLimits(
+                user_message_max_chars=limits.user_message_max_chars,
+                model_max_output_tokens=limits.model_max_output_tokens,
+                session_ttl_minutes=limits.session_ttl_minutes,
+            ),
+            messages=payload_messages,
+        ),
+    )
+
+
+@router.delete(
+    "/{contest_id}/tasks/{task_id}/chat/session",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def abort_contest_task_chat_session(
+    contest_id: int,
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+
+    contest = _ensure_contest_access(
+        (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none(),
+        profile.role,
+    )
+    _ensure_contest_is_active(contest)
+    participant = await _ensure_contest_participant(db, contest_id=contest_id, user_id=user.id)
+
+    _merged_tasks, current_task, _flags_by_task, _solved_flags_by_task, _legacy_solved_task_ids = (
+        await _build_contest_progress_context(db, contest_id=contest_id, user_id=user.id)
+    )
+    if current_task is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест завершён")
+    _task_info, _contest_task, task = current_task
+    if task.id != task_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Чат доступен только для текущей задачи",
+        )
+    if (task.access_type or "").strip().lower() != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У текущей задачи не настроен чат",
+        )
+
+    await abort_active_chat_session(
+        db,
+        task_id=task.id,
+        user_id=user.id,
+        contest_id=contest_id,
+    )
+    participant.last_active_at = datetime.now(timezone.utc)
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.get("/{contest_id}/leaderboard", response_model=ContestLeaderboardResponse)
 async def get_contest_leaderboard(
     contest_id: int,
@@ -604,62 +975,24 @@ async def submit_flag(
         rule=RateLimit(max_requests=30, window_seconds=60),
     )
 
-    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
-    if contest is None:
-        raise HTTPException(status_code=404, detail="Контест не найден")
-    if not contest.is_public and profile.role != "admin":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
-
-    now = datetime.now(timezone.utc)
-    if _ensure_utc(contest.start_at) > now or _ensure_utc(contest.end_at) < now:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест не активен")
-
-    participant = (
-        await db.execute(
-            select(ContestParticipant).where(
-                ContestParticipant.contest_id == contest_id,
-                ContestParticipant.user_id == user.id,
-            )
-        )
-    ).scalar_one_or_none()
-    if participant is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нужно вступить в контест")
-
-    tasks_result = await db.execute(
-        select(ContestTask, Task)
-        .join(Task, Task.id == ContestTask.task_id)
-        .where(ContestTask.contest_id == contest_id)
-        .order_by(ContestTask.order_index.asc())
+    contest = _ensure_contest_access(
+        (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none(),
+        profile.role,
     )
-    tasks_rows = tasks_result.all()
-    if not tasks_rows:
-        raise HTTPException(status_code=400, detail="В контесте нет задач")
+    _ensure_contest_is_active(contest)
+    participant = await _ensure_contest_participant(db, contest_id=contest_id, user_id=user.id)
 
-    task_ids = [task.id for _contest_task, task in tasks_rows]
-    flags_by_task = await _load_task_flags(db, task_ids)
-    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+    (
+        merged_tasks,
+        current_task,
+        flags_by_task,
+        solved_flags_by_task,
+        legacy_solved_task_ids,
+    ) = await _build_contest_progress_context(
         db,
-        contest_id,
-        user.id,
-        task_ids,
+        contest_id=contest_id,
+        user_id=user.id,
     )
-
-    merged_tasks: List[tuple[ContestTaskInfo, ContestTask, Task]] = []
-    current_task = None
-    for contest_task, task in tasks_rows:
-        required_flags = flags_by_task.get(task.id, [])
-        solved_flag_ids = solved_flags_by_task.get(task.id, set())
-        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
-        required_flag_ids = [flag.flag_id for flag in required_flags]
-        task_info.is_solved = _is_task_completed(
-            task.id,
-            required_flag_ids,
-            solved_flag_ids,
-            legacy_solved_task_ids,
-        )
-        merged_tasks.append((task_info, contest_task, task))
-        if current_task is None and not task_info.is_solved:
-            current_task = (task_info, contest_task, task)
 
     if current_task is None:
         return ContestSubmissionResponse(is_correct=False, awarded_points=0, next_task=None, finished=True)
@@ -674,29 +1007,59 @@ async def submit_flag(
         raise HTTPException(status_code=400, detail="Флаг пустой")
 
     flags = flags_by_task.get(task.id, [])
-    if not flags:
-        raise HTTPException(status_code=400, detail="У задачи не настроены флаги")
-
-    matched_flag = None
     target_flag_id = (payload.flag_id or "").strip()
-    if target_flag_id:
-        for flag in flags:
-            if flag.flag_id == target_flag_id:
-                matched_flag = flag if flag.expected_value and flag.expected_value == submitted_value else None
-                break
-        else:
-            raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
-    else:
-        for flag in flags:
-            if flag.expected_value and flag.expected_value == submitted_value:
-                matched_flag = flag
-                break
+    matched_flag: Optional[TaskFlag] = None
+    resolved_flag_id = target_flag_id or (flags[0].flag_id if flags else "main")
 
-    is_correct = matched_flag is not None
+    is_chat_task = (task.access_type or "").strip().lower() == "chat"
+    if is_chat_task:
+        if target_flag_id and flags and not any(flag.flag_id == target_flag_id for flag in flags):
+            raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
+
+        session = await get_session_for_chat_submit(
+            db,
+            task_id=task.id,
+            user_id=user.id,
+            contest_id=contest_id,
+            include_solved=False,
+        )
+        if session is None:
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Чат-сессия истекла или не создана. Откройте чат задачи.",
+            )
+        try:
+            expected_tokens = derive_dynamic_flag_token_candidates(session.flag_seed)
+        except ChatTaskError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+        submitted_token = normalize_flag_token_content(extract_flag_token_content(submitted_value))
+        is_correct = bool(submitted_token) and submitted_token in expected_tokens
+        if is_correct and session.status == "active":
+            mark_chat_session_solved(session)
+    else:
+        if not flags:
+            raise HTTPException(status_code=400, detail="У задачи не настроены флаги")
+        if target_flag_id:
+            for flag in flags:
+                if flag.flag_id == target_flag_id:
+                    matched_flag = flag if flag.expected_value and flag.expected_value == submitted_value else None
+                    break
+            else:
+                raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
+        else:
+            for flag in flags:
+                if flag.expected_value and flag.expected_value == submitted_value:
+                    matched_flag = flag
+                    break
+        is_correct = matched_flag is not None
+        if is_correct and matched_flag is not None:
+            resolved_flag_id = matched_flag.flag_id
     solved_flag_ids = set(solved_flags_by_task.get(task.id, set()))
     was_task_completed = task_info.is_solved
     if is_correct:
-        solved_flag_ids.add(matched_flag.flag_id)
+        solved_flag_ids.add(resolved_flag_id)
         solved_flags_by_task[task.id] = solved_flag_ids
         legacy_solved_task_ids.add(task.id)
 
@@ -716,7 +1079,7 @@ async def submit_flag(
         contest_id=contest_id,
         task_id=task.id,
         user_id=user.id,
-        flag_id=matched_flag.flag_id if matched_flag else (target_flag_id or "unknown"),
+        flag_id=resolved_flag_id if is_correct else (target_flag_id or resolved_flag_id or "unknown"),
         submitted_value=submitted_value,
         is_correct=is_correct,
         awarded_points=awarded_points,

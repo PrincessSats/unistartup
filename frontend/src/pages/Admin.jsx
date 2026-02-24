@@ -808,6 +808,10 @@ function CreateTaskModal({ open, onClose, onCreated }) {
     state: 'draft',
     task_kind: 'contest',
     access_type: 'just_flag',
+    chat_system_prompt_template: '',
+    chat_user_message_max_chars: 150,
+    chat_model_max_output_tokens: 256,
+    chat_session_ttl_minutes: 180,
     creation_solution: '',
     llm_raw_response: null,
   });
@@ -944,6 +948,10 @@ function CreateTaskModal({ open, onClose, onCreated }) {
       state: taskData?.state || 'draft',
       task_kind: taskData?.task_kind || 'contest',
       access_type: resolvedAccessType,
+      chat_system_prompt_template: taskData?.chat_system_prompt_template || '',
+      chat_user_message_max_chars: Number(taskData?.chat_user_message_max_chars ?? 150),
+      chat_model_max_output_tokens: Number(taskData?.chat_model_max_output_tokens ?? 256),
+      chat_session_ttl_minutes: Number(taskData?.chat_session_ttl_minutes ?? 180),
       creation_solution: taskData?.creation_solution || '',
       llm_raw_response: taskData?.llm_raw_response || null,
     });
@@ -1168,6 +1176,10 @@ function CreateTaskModal({ open, onClose, onCreated }) {
     state: taskForm.state || 'draft',
     task_kind: taskForm.task_kind || 'contest',
     access_type: taskForm.access_type || 'just_flag',
+    chat_system_prompt_template: taskForm.chat_system_prompt_template || null,
+    chat_user_message_max_chars: Number(taskForm.chat_user_message_max_chars || 150),
+    chat_model_max_output_tokens: Number(taskForm.chat_model_max_output_tokens || 256),
+    chat_session_ttl_minutes: Number(taskForm.chat_session_ttl_minutes || 180),
     creation_solution: taskForm.creation_solution || null,
     llm_raw_response: taskForm.llm_raw_response || null,
     flags: flags.map((flag) => ({
@@ -1180,13 +1192,36 @@ function CreateTaskModal({ open, onClose, onCreated }) {
   });
 
   const handleSave = async () => {
+    const accessType = String(taskForm.access_type || 'just_flag').toLowerCase();
     if (!taskForm.title.trim()) {
       setError('Заполните название задачи');
       return;
     }
-    if (flags.some((flag) => !flag.expected_value.trim())) {
+    if (accessType !== 'chat' && flags.some((flag) => !flag.expected_value.trim())) {
       setError('Укажите значение флага');
       return;
+    }
+    if (accessType === 'chat') {
+      const prompt = String(taskForm.chat_system_prompt_template || '').trim();
+      const maxChars = Number(taskForm.chat_user_message_max_chars || 150);
+      const maxTokens = Number(taskForm.chat_model_max_output_tokens || 256);
+      const ttlMinutes = Number(taskForm.chat_session_ttl_minutes || 180);
+      if (!prompt || !prompt.includes('{{FLAG}}')) {
+        setError('Для Chat укажите системный промпт и добавьте {{FLAG}}');
+        return;
+      }
+      if (!Number.isFinite(maxChars) || maxChars < 20 || maxChars > 500) {
+        setError('Лимит символов должен быть в диапазоне 20-500');
+        return;
+      }
+      if (!Number.isFinite(maxTokens) || maxTokens < 32 || maxTokens > 1024) {
+        setError('Лимит output tokens должен быть в диапазоне 32-1024');
+        return;
+      }
+      if (!Number.isFinite(ttlMinutes) || ttlMinutes < 15 || ttlMinutes > 720) {
+        setError('TTL сессии должен быть в диапазоне 15-720 минут');
+        return;
+      }
     }
 
     setStatus('saving');
@@ -1462,9 +1497,52 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 <option value="vm">VM</option>
                 <option value="link">Link</option>
                 <option value="file">File</option>
+                <option value="chat">Chat</option>
                 <option value="just_flag">Just flag</option>
               </select>
             </div>
+
+            {taskForm.access_type === 'chat' && (
+              <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <label className="text-[12px] text-white/50">Chat-настройки</label>
+                <textarea
+                  value={taskForm.chat_system_prompt_template}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, chat_system_prompt_template: e.target.value }))}
+                  className="min-h-[120px] rounded-[10px] bg-white/5 border border-white/10 px-3 py-2 text-white"
+                  placeholder="Системный промпт ассистента. Обязательно включите {{FLAG}}"
+                />
+                <div className="text-[11px] text-white/45">Плейсхолдер <code>{'{{FLAG}}'}</code> обязателен.</div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  <input
+                    type="number"
+                    min="20"
+                    max="500"
+                    value={taskForm.chat_user_message_max_chars}
+                    onChange={(e) => setTaskForm((prev) => ({ ...prev, chat_user_message_max_chars: e.target.value }))}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Лимит символов (20-500)"
+                  />
+                  <input
+                    type="number"
+                    min="32"
+                    max="1024"
+                    value={taskForm.chat_model_max_output_tokens}
+                    onChange={(e) => setTaskForm((prev) => ({ ...prev, chat_model_max_output_tokens: e.target.value }))}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Лимит output tokens (32-1024)"
+                  />
+                  <input
+                    type="number"
+                    min="15"
+                    max="720"
+                    value={taskForm.chat_session_ttl_minutes}
+                    onChange={(e) => setTaskForm((prev) => ({ ...prev, chat_session_ttl_minutes: e.target.value }))}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="TTL сессии, мин (15-720)"
+                  />
+                </div>
+              </div>
+            )}
 
             {taskForm.access_type === 'vpn' && (
               <div className="grid grid-cols-1 gap-2 rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
@@ -1599,53 +1677,59 @@ function CreateTaskModal({ open, onClose, onCreated }) {
 
         <div className="mt-6">
           <div className="text-[14px] uppercase tracking-[0.2em] text-white/40">Флаги</div>
-          <div className="flex flex-col gap-3 mt-3">
-            <div className="hidden md:grid md:grid-cols-5 gap-3 items-center text-[12px] text-white/50 px-1">
-              <div>Flag ID</div>
-              <div>Формат</div>
-              <div>Значение</div>
-              <div>Описание</div>
-              <div>Действие</div>
+          {taskForm.access_type === 'chat' ? (
+            <div className="mt-3 rounded-[12px] border border-white/10 bg-white/[0.02] px-4 py-3 text-[13px] text-white/65">
+              Для chat-задач флаг создается динамически на каждую сессию. Статическое значение флага не используется.
             </div>
-            {flags.map((flag, index) => (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
-                <input
-                  value={flag.flag_id}
-                  onChange={(e) => updateFlag(index, 'flag_id', e.target.value)}
-                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Например: main"
-                />
-                <input
-                  value={flag.format}
-                  onChange={(e) => updateFlag(index, 'format', e.target.value)}
-                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="FLAG{...}"
-                />
-                <input
-                  value={flag.expected_value}
-                  onChange={(e) => updateFlag(index, 'expected_value', e.target.value)}
-                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Ожидаемое значение"
-                />
-                <input
-                  value={flag.description}
-                  onChange={(e) => updateFlag(index, 'description', e.target.value)}
-                  className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
-                  placeholder="Описание"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeFlag(index)}
-                  className="h-10 rounded-[10px] bg-white/5 text-white/60 hover:text-white"
-                >
-                  Удалить
-                </button>
+          ) : (
+            <div className="flex flex-col gap-3 mt-3">
+              <div className="hidden md:grid md:grid-cols-5 gap-3 items-center text-[12px] text-white/50 px-1">
+                <div>Flag ID</div>
+                <div>Формат</div>
+                <div>Значение</div>
+                <div>Описание</div>
+                <div>Действие</div>
               </div>
-            ))}
-            <button type="button" onClick={addFlag} className="self-start text-[14px] text-[#CBB6FF]">
-              + Добавить флаг
-            </button>
-          </div>
+              {flags.map((flag, index) => (
+                <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-3 items-center">
+                  <input
+                    value={flag.flag_id}
+                    onChange={(e) => updateFlag(index, 'flag_id', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Например: main"
+                  />
+                  <input
+                    value={flag.format}
+                    onChange={(e) => updateFlag(index, 'format', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="FLAG{...}"
+                  />
+                  <input
+                    value={flag.expected_value}
+                    onChange={(e) => updateFlag(index, 'expected_value', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Ожидаемое значение"
+                  />
+                  <input
+                    value={flag.description}
+                    onChange={(e) => updateFlag(index, 'description', e.target.value)}
+                    className="h-10 rounded-[10px] bg-white/5 border border-white/10 px-3 text-white"
+                    placeholder="Описание"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeFlag(index)}
+                    className="h-10 rounded-[10px] bg-white/5 text-white/60 hover:text-white"
+                  >
+                    Удалить
+                  </button>
+                </div>
+              ))}
+              <button type="button" onClick={addFlag} className="self-start text-[14px] text-[#CBB6FF]">
+                + Добавить флаг
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (
@@ -1850,8 +1934,8 @@ function ContestPlanningModal({ open, onClose }) {
       setError('Укажите название контеста');
       return;
     }
-    if (selectedTasks.length < 2 || selectedTasks.length > 10) {
-      setError('Контест должен содержать 2-10 задач');
+    if (selectedTasks.length < 1 || selectedTasks.length > 10) {
+      setError('Контест должен содержать 1-10 задач');
       return;
     }
     if (!contestForm.start_at || !contestForm.end_at) {

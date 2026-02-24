@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { contestAPI } from '../services/api';
+import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
 const formatDate = (value) => {
   if (!value) return '';
@@ -36,6 +37,26 @@ const formatDateTime = (value) => {
   }).format(date);
 };
 
+const formatTimeLeft = (value) => {
+  if (!value) return 'Сессия не активна';
+  const end = new Date(value).getTime();
+  if (Number.isNaN(end)) return 'Сессия не активна';
+  const diffMs = end - Date.now();
+  if (diffMs <= 0) return 'Сессия истекла';
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} ч ${minutes} мин`;
+  return `${minutes} мин`;
+};
+
+const extractFlagTokenContent = (value) => {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const match = text.match(/\{([^{}]+)\}/);
+  return match?.[1]?.trim() || text;
+};
+
 function Championship() {
   const [contest, setContest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -46,6 +67,12 @@ function Championship() {
   const [flagValues, setFlagValues] = useState({});
   const [submittingFlagId, setSubmittingFlagId] = useState(null);
   const [submitMessage, setSubmitMessage] = useState('');
+  const [chatSession, setChatSession] = useState(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [chatAborting, setChatAborting] = useState(false);
   const [activeTab, setActiveTab] = useState('description');
   const [leaderboardRows, setLeaderboardRows] = useState([]);
   const [leaderboardMe, setLeaderboardMe] = useState(null);
@@ -180,9 +207,16 @@ function Championship() {
   }, [contest?.start_at, contest?.end_at]);
 
   const currentTask = taskState?.task;
+  const isChatTask = String(currentTask?.access_type || '').toLowerCase() === 'chat';
   const requiredFlags = useMemo(() => {
     return currentTask?.required_flags || [];
   }, [currentTask]);
+  const chatInputMaxChars = Number(
+    chatSession?.limits?.user_message_max_chars
+      ?? currentTask?.chat_limits?.user_message_max_chars
+      ?? 150
+  );
+  const chatInputRemaining = getChatRemaining(chatInput, chatInputMaxChars);
 
   useEffect(() => {
     if (!joined || !currentTask) {
@@ -197,6 +231,39 @@ function Championship() {
       return next;
     });
   }, [joined, currentTask, requiredFlags]);
+
+  useEffect(() => {
+    if (!joined || !contest?.id || !currentTask?.id || !isChatTask) {
+      setChatSession(null);
+      setChatInput('');
+      setChatError('');
+      setChatLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const loadSession = async () => {
+      setChatLoading(true);
+      setChatError('');
+      try {
+        const data = await contestAPI.getTaskChatSession(contest.id, currentTask.id);
+        if (cancelled) return;
+        setChatSession(data?.session || null);
+      } catch (err) {
+        if (cancelled) return;
+        const detail = err?.response?.data?.detail;
+        setChatSession(null);
+        setChatError(typeof detail === 'string' ? detail : 'Не удалось загрузить чат задачи');
+      } finally {
+        if (!cancelled) {
+          setChatLoading(false);
+        }
+      }
+    };
+    loadSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [joined, contest?.id, currentTask?.id, isChatTask]);
 
   const knowledgeAreas = contest?.knowledge_areas?.length
     ? contest.knowledge_areas
@@ -231,7 +298,10 @@ function Championship() {
   };
 
   const handleSubmit = async (flagId) => {
-    const submittedValue = (flagValues?.[flagId] || '').trim();
+    const rawValue = (flagValues?.[flagId] || '').trim();
+    const submittedValue = isChatTask
+      ? extractFlagTokenContent(rawValue)
+      : rawValue;
     if (!contest?.id || !submittedValue) return;
     setSubmittingFlagId(flagId);
     setSubmitMessage('');
@@ -275,6 +345,93 @@ function Championship() {
       setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
     } finally {
       setSubmittingFlagId(null);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    const trimmed = chatInput.trim();
+    if (!contest?.id || !currentTask?.id || !isChatTask || !trimmed || chatSending || chatAborting) {
+      return;
+    }
+    const optimisticCreatedAt = new Date().toISOString();
+    setChatSession((prev) => {
+      const fallbackTtlMinutes = Number(
+        prev?.limits?.session_ttl_minutes
+          ?? currentTask?.chat_limits?.session_ttl_minutes
+          ?? 180
+      );
+      const fallbackLimits = {
+        user_message_max_chars: Number(
+          prev?.limits?.user_message_max_chars
+            ?? currentTask?.chat_limits?.user_message_max_chars
+            ?? 150
+        ),
+        model_max_output_tokens: Number(
+          prev?.limits?.model_max_output_tokens
+            ?? currentTask?.chat_limits?.model_max_output_tokens
+            ?? 256
+        ),
+        session_ttl_minutes: fallbackTtlMinutes,
+      };
+      const base = prev || {
+        session_id: 0,
+        status: 'active',
+        read_only: false,
+        expires_at: new Date(Date.now() + fallbackTtlMinutes * 60 * 1000).toISOString(),
+        limits: fallbackLimits,
+        messages: [],
+      };
+      return {
+        ...base,
+        read_only: false,
+        messages: [
+          ...(Array.isArray(base.messages) ? base.messages : []),
+          { role: 'user', content: trimmed, created_at: optimisticCreatedAt },
+        ],
+      };
+    });
+    setChatInput('');
+    setChatSending(true);
+    setChatError('');
+    try {
+      const result = await contestAPI.sendTaskChatMessage(contest.id, currentTask.id, {
+        message: trimmed,
+      });
+      setChatSession(result?.session || null);
+    } catch (err) {
+      setChatSession((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: (prev.messages || []).filter(
+            (item) => !(item.role === 'user' && item.content === trimmed && item.created_at === optimisticCreatedAt)
+          ),
+        };
+      });
+      setChatInput(trimmed);
+      const detail = err?.response?.data?.detail;
+      setChatError(typeof detail === 'string' ? detail : 'Не удалось отправить сообщение');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  const handleAbortChatSession = async () => {
+    if (!contest?.id || !currentTask?.id || !isChatTask || chatLoading || chatSending || chatAborting) {
+      return;
+    }
+    try {
+      setChatAborting(true);
+      setChatError('');
+      await contestAPI.abortTaskChatSession(contest.id, currentTask.id);
+      setChatSession(null);
+      setChatInput('');
+      setSubmitMessage('Чат прерван. Сессия и сообщения удалены.');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setChatError(typeof detail === 'string' ? detail : 'Не удалось прервать чат');
+    } finally {
+      setChatAborting(false);
     }
   };
 
@@ -527,6 +684,111 @@ function Championship() {
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
+                        {isChatTask ? (
+                          <div className="rounded-[12px] border border-white/[0.09] bg-white/[0.03] p-4 mb-2">
+                            <div className="flex items-center justify-between gap-3 mb-3">
+                              <div className="text-[16px] leading-[20px] text-white">Чат с ассистентом</div>
+                              <div className="flex items-center gap-2">
+                                <div className="text-[12px] text-white/60">
+                                  {formatTimeLeft(chatSession?.expires_at)}
+                                </div>
+                                {chatSession?.session_id && !chatSession?.read_only ? (
+                                  <button
+                                    type="button"
+                                    onClick={handleAbortChatSession}
+                                    disabled={chatLoading || chatSending || chatAborting}
+                                    className="inline-flex h-8 items-center rounded-[8px] border border-rose-400/40 bg-rose-500/10 px-3 text-[12px] text-rose-200 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    {chatAborting ? 'Прерывание...' : 'Прервать Чат'}
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2">
+                              {chatLoading ? (
+                                <div className="text-[13px] text-white/50">Загрузка чата...</div>
+                              ) : chatSession?.messages?.length ? (
+                                chatSession.messages.map((item, index) => (
+                                  <div
+                                    key={`${item.created_at}-${index}`}
+                                    className={`rounded-[10px] px-3 py-2 text-[13px] leading-[18px] ${
+                                      item.role === 'assistant'
+                                        ? 'bg-white/[0.06] text-white/85'
+                                        : 'bg-[#9B6BFF]/20 text-white'
+                                    }`}
+                                  >
+                                    <div className="text-[11px] uppercase tracking-[0.08em] opacity-60 mb-1">
+                                      {item.role === 'assistant' ? 'Ассистент' : 'Вы'}
+                                    </div>
+                                    <div className="whitespace-pre-wrap break-words">{item.content}</div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-[13px] text-white/50">Пока сообщений нет</div>
+                              )}
+                              {chatSending ? (
+                                <div className="rounded-[10px] px-3 py-2 text-[13px] leading-[18px] bg-white/[0.06] text-white/85 animate-pulse">
+                                  <div className="text-[11px] uppercase tracking-[0.08em] opacity-60 mb-1">
+                                    Ассистент
+                                  </div>
+                                  <div>Печатает ответ...</div>
+                                </div>
+                              ) : null}
+                            </div>
+                            <div className="mt-3">
+                              <textarea
+                                value={chatInput}
+                                onChange={(event) => {
+                                  setChatInput(clampChatInput(event.target.value, chatInputMaxChars));
+                                }}
+                                onKeyDown={(event) => {
+                                  if (event.key === 'Enter' && !event.shiftKey) {
+                                    event.preventDefault();
+                                    handleSendChatMessage();
+                                  }
+                                }}
+                                disabled={chatLoading || chatSending || chatAborting || chatSession?.read_only}
+                                className="w-full min-h-[120px] rounded-[10px] border border-white/[0.09] bg-white/[0.02] px-3 py-2 text-[14px] text-white placeholder:text-white/50 focus:outline-none focus:border-white/30 disabled:opacity-60"
+                                placeholder="Напишите сообщение ассистенту"
+                              />
+                              <div className="mt-2 flex items-center justify-between gap-2">
+                                <span className="text-[12px] text-white/55">
+                                  {chatInputRemaining}/{chatInputMaxChars}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={handleSendChatMessage}
+                                  disabled={
+                                    chatLoading
+                                    || chatSending
+                                    || chatAborting
+                                    || chatSession?.read_only
+                                    || !chatInput.trim()
+                                  }
+                                  className="inline-flex h-10 items-center rounded-[10px] bg-white/[0.08] px-4 text-[14px] text-white transition-colors hover:bg-white/[0.12] disabled:opacity-60 disabled:cursor-not-allowed"
+                                >
+                                  {chatSending ? (
+                                    <span className="inline-flex items-center gap-2">
+                                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" />
+                                        <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                                      </svg>
+                                      Отправка...
+                                    </span>
+                                  ) : 'Отправить в чат'}
+                                </button>
+                              </div>
+                              {chatSession?.read_only ? (
+                                <div className="mt-2 text-[12px] text-emerald-300">
+                                  Сессия завершена после успешной сдачи флага.
+                                </div>
+                              ) : null}
+                              {chatError ? (
+                                <div className="mt-2 text-[12px] text-rose-300">{chatError}</div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : null}
                         {requiredFlags.length ? (
                           <div className="flex flex-col gap-3">
                             {requiredFlags.map((flag) => {
@@ -540,7 +802,11 @@ function Championship() {
                                 <div key={flagId} className="flex flex-col gap-2 lg:flex-row lg:items-center">
                                   <input
                                     type="text"
-                                    placeholder={flag.description || `Введи флаг (${flagId})`}
+                                    placeholder={
+                                      isChatTask
+                                        ? 'Введи только код между { }'
+                                        : (flag.description || `Введи флаг (${flagId})`)
+                                    }
                                     value={fieldValue}
                                     onChange={(event) => {
                                       const value = event.target.value;

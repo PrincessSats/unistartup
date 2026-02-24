@@ -31,10 +31,12 @@ class Settings(BaseSettings):
     CORS_ALLOW_ORIGINS: str = (
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
+        "https://hacknet.tech,"
+        "https://www.hacknet.tech,"
         "https://storage.yandexcloud.net"
     )
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = (
-        r"^https://[a-zA-Z0-9-]+\.website\.yandexcloud\.net$"
+        r"^https://[a-zA-Z0-9-]+\.(website|storage)\.yandexcloud\.net$"
     )
     CORS_ALLOW_CREDENTIALS: bool = False
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
