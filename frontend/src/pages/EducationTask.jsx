@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
 import { educationAPI } from '../services/api';
@@ -253,6 +253,7 @@ export default function EducationTask() {
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
   const [chatAborting, setChatAborting] = useState(false);
+  const chatMessagesRef = useRef(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -342,6 +343,16 @@ export default function EducationTask() {
       isCancelled = true;
     };
   }, [task?.id, isChatTask]);
+
+  useEffect(() => {
+    if (!isChatTask) return;
+    const container = chatMessagesRef.current;
+    if (!container) return;
+    const frame = window.requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isChatTask, chatSession?.messages?.length, chatSending, chatLoading]);
 
   const handleShare = async () => {
     try {
@@ -721,7 +732,10 @@ export default function EducationTask() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2">
+                  <div
+                    ref={chatMessagesRef}
+                    className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2"
+                  >
                     {chatLoading ? (
                       <div className="text-[13px] text-white/50">Загрузка чата...</div>
                     ) : chatSession?.messages?.length ? (
@@ -777,15 +791,7 @@ export default function EducationTask() {
                         disabled={chatLoading || chatSending || chatAborting || chatSession?.read_only || !chatInput.trim()}
                         className="inline-flex h-10 items-center rounded-[10px] bg-white/[0.08] px-4 text-[14px] text-white transition-colors hover:bg-white/[0.12] disabled:opacity-60 disabled:cursor-not-allowed"
                       >
-                        {chatSending ? (
-                          <span className="inline-flex items-center gap-2">
-                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" />
-                              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                            Отправка...
-                          </span>
-                        ) : 'Отправить в чат'}
+                        Отправить в чат
                       </button>
                     </div>
                     {chatSession?.read_only ? (
