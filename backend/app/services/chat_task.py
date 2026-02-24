@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import re
 import secrets
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
@@ -23,6 +24,11 @@ CHAT_USER_MESSAGE_MAX_CHARS_RANGE = (20, 500)
 CHAT_MODEL_MAX_OUTPUT_TOKENS_RANGE = (32, 1024)
 CHAT_SESSION_TTL_MINUTES_RANGE = (15, 720)
 CHAT_CONTEXT_MESSAGE_LIMIT = 24
+LLM_COMPLETION_MAX_ATTEMPTS = 3
+LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
+EMPTY_LLM_RESPONSE_FALLBACK = (
+    "Сервис модели временно не вернул текстовый ответ. Попробуйте переформулировать запрос."
+)
 
 _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
@@ -373,13 +379,23 @@ async def get_session_for_chat_submit(
         user_id=user_id,
         contest_id=contest_id,
     )
-    statuses = ("active", "solved") if include_solved else ("active",)
+    active_session = await _load_latest_session(
+        db,
+        task_id=task_id,
+        user_id=user_id,
+        contest_id=contest_id,
+        statuses=("active",),
+    )
+    if active_session is not None:
+        return active_session
+    if not include_solved:
+        return None
     return await _load_latest_session(
         db,
         task_id=task_id,
         user_id=user_id,
         contest_id=contest_id,
-        statuses=statuses,
+        statuses=("solved",),
     )
 
 
@@ -433,6 +449,95 @@ async def add_chat_message(
     return message
 
 
+def _extract_text_from_llm_content(content: Any) -> str:
+    if isinstance(content, str):
+        return content.strip()
+
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            text = _extract_text_from_llm_content(item)
+            if text:
+                parts.append(text)
+        return "\n".join(parts).strip()
+
+    if isinstance(content, dict):
+        for key in ("text", "content", "value"):
+            next_value = content.get(key)
+            if next_value is content:
+                continue
+            text = _extract_text_from_llm_content(next_value)
+            if text:
+                return text
+        return ""
+
+    for attr in ("text", "content", "value"):
+        next_value = getattr(content, attr, None)
+        if next_value is content:
+            continue
+        text = _extract_text_from_llm_content(next_value)
+        if text:
+            return text
+    return ""
+
+
+def _extract_text_from_llm_response(response: Any) -> str:
+    choices = getattr(response, "choices", None)
+    if choices is None and isinstance(response, dict):
+        choices = response.get("choices")
+    if not choices:
+        return ""
+
+    first_choice = choices[0]
+    message = getattr(first_choice, "message", None)
+    if message is None and isinstance(first_choice, dict):
+        message = first_choice.get("message")
+    if message is not None:
+        content = getattr(message, "content", None)
+        if content is None and isinstance(message, dict):
+            content = message.get("content")
+        text = _extract_text_from_llm_content(content)
+        if text:
+            return text
+
+    fallback_text = getattr(first_choice, "text", None)
+    if fallback_text is None and isinstance(first_choice, dict):
+        fallback_text = first_choice.get("text")
+    return _extract_text_from_llm_content(fallback_text)
+
+
+def _extract_error_status_code(error: Exception) -> Optional[int]:
+    status = getattr(error, "status_code", None)
+    if isinstance(status, int):
+        return status
+    response = getattr(error, "response", None)
+    response_status = getattr(response, "status_code", None)
+    if isinstance(response_status, int):
+        return response_status
+    return None
+
+
+def _is_retryable_llm_error(error: Exception) -> bool:
+    status_code = _extract_error_status_code(error)
+    if status_code is not None:
+        return status_code >= 500 or status_code in {408, 429}
+    lowered_text = str(error).lower()
+    transient_markers = (
+        "server_error",
+        "internal server error",
+        "timeout",
+        "timed out",
+        "connection",
+    )
+    return any(marker in lowered_text for marker in transient_markers)
+
+
+def _retry_delay_for_attempt(attempt_index: int) -> float:
+    if attempt_index < len(LLM_COMPLETION_RETRY_DELAYS_SECONDS):
+        return LLM_COMPLETION_RETRY_DELAYS_SECONDS[attempt_index]
+    return LLM_COMPLETION_RETRY_DELAYS_SECONDS[-1]
+
+
 def _run_llm_chat_completion(
     *,
     messages: list[dict[str, str]],
@@ -442,20 +547,35 @@ def _run_llm_chat_completion(
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     model_name = f"gpt://{folder}/gpt-oss-120b/latest"
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
-    try:
-        response = client.chat.completions.create(
-            model=model_name,
-            reasoning_effort=reasoning_effort,
-            max_tokens=max_output_tokens,
-            messages=messages,
-        )
-    except Exception as exc:  # noqa: BLE001
-        raise ChatTaskError(f"Yandex model request failed: {exc}") from exc
+    last_error: Optional[Exception] = None
+    for attempt in range(LLM_COMPLETION_MAX_ATTEMPTS):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                reasoning_effort=reasoning_effort,
+                max_tokens=max_output_tokens,
+                messages=messages,
+            )
+        except Exception as exc:  # noqa: BLE001
+            last_error = exc
+            if not _is_retryable_llm_error(exc):
+                raise ChatTaskError("Yandex model request failed") from exc
+            if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
+                time.sleep(_retry_delay_for_attempt(attempt))
+                continue
+            return EMPTY_LLM_RESPONSE_FALLBACK
 
-    text = (response.choices[0].message.content or "").strip()
-    if not text:
-        raise ChatTaskError("Yandex model returned empty response")
-    return text
+        text = _extract_text_from_llm_response(response)
+        if text:
+            return text
+        if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
+            time.sleep(_retry_delay_for_attempt(attempt))
+
+    if last_error is not None:
+        if _is_retryable_llm_error(last_error):
+            return EMPTY_LLM_RESPONSE_FALLBACK
+        raise ChatTaskError("Yandex model request failed") from last_error
+    return EMPTY_LLM_RESPONSE_FALLBACK
 
 
 async def generate_chat_reply(
