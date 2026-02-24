@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -5,7 +6,13 @@ from pydantic import BaseModel, Field
 
 PracticeStatus = Literal["not_started", "in_progress", "solved"]
 DifficultyLabel = Literal["Легко", "Средне", "Сложно"]
-PracticeAccessType = Literal["vpn", "vm", "link", "file", "just_flag"]
+PracticeAccessType = Literal["vpn", "vm", "link", "file", "chat", "just_flag"]
+
+
+class PracticeTaskChatLimits(BaseModel):
+    user_message_max_chars: int = 150
+    model_max_output_tokens: int = 256
+    session_ttl_minutes: int = 180
 
 
 class PracticeVpnInfo(BaseModel):
@@ -63,6 +70,7 @@ class PracticeTaskDetailResponse(BaseModel):
     hints: List[str] = Field(default_factory=list)
     connection_ip: Optional[str] = None
     access_type: PracticeAccessType = "just_flag"
+    chat_limits: Optional[PracticeTaskChatLimits] = None
     materials: List[PracticeTaskMaterial] = Field(default_factory=list)
     vpn: Optional[PracticeVpnInfo] = None
 
@@ -85,3 +93,33 @@ class PracticeTaskMaterialDownloadResponse(BaseModel):
     url: str
     expires_in: int = 300
     filename: Optional[str] = None
+
+
+class PracticeTaskChatMessage(BaseModel):
+    role: str
+    content: str
+    created_at: datetime
+
+
+class PracticeTaskChatSession(BaseModel):
+    session_id: int
+    status: str
+    read_only: bool
+    expires_at: datetime
+    limits: PracticeTaskChatLimits
+    messages: List[PracticeTaskChatMessage] = Field(default_factory=list)
+
+
+class PracticeTaskChatSessionResponse(BaseModel):
+    task_id: int
+    session: PracticeTaskChatSession
+
+
+class PracticeTaskChatMessageRequest(BaseModel):
+    message: str
+
+
+class PracticeTaskChatMessageResponse(BaseModel):
+    task_id: int
+    assistant_message: str
+    session: PracticeTaskChatSession

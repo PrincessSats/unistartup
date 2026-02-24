@@ -105,7 +105,7 @@ class AdminTaskFlag(BaseModel):
     description: Optional[str] = None
 
 
-AdminTaskAccessType = Literal["vpn", "vm", "link", "file", "just_flag"]
+AdminTaskAccessType = Literal["vpn", "vm", "link", "file", "chat", "just_flag"]
 
 
 class AdminTaskMaterial(BaseModel):
@@ -130,6 +130,10 @@ class AdminTaskBase(BaseModel):
     state: str = "draft"
     task_kind: str = "contest"
     access_type: AdminTaskAccessType = "just_flag"
+    chat_system_prompt_template: Optional[str] = None
+    chat_user_message_max_chars: int = 150
+    chat_model_max_output_tokens: int = 256
+    chat_session_ttl_minutes: int = 180
     llm_raw_response: Optional[dict] = None
     creation_solution: Optional[str] = None
     materials: List[AdminTaskMaterial] = Field(default_factory=list)
@@ -151,6 +155,10 @@ class AdminTaskUpdateRequest(BaseModel):
     state: Optional[str] = None
     task_kind: Optional[str] = None
     access_type: Optional[AdminTaskAccessType] = None
+    chat_system_prompt_template: Optional[str] = None
+    chat_user_message_max_chars: Optional[int] = None
+    chat_model_max_output_tokens: Optional[int] = None
+    chat_session_ttl_minutes: Optional[int] = None
     llm_raw_response: Optional[dict] = None
     creation_solution: Optional[str] = None
     flags: Optional[List[AdminTaskFlag]] = None

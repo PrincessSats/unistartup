@@ -141,6 +141,14 @@ jobs:
           REACT_APP_API_BASE_URL: ${{ secrets.REACT_APP_API_BASE_URL }}
         run: |
           set -euo pipefail
+          if [ -z "${REACT_APP_API_BASE_URL:-}" ]; then
+            echo "Missing required secret: REACT_APP_API_BASE_URL"
+            exit 1
+          fi
+          if ! printf '%s' "$REACT_APP_API_BASE_URL" | grep -Eq '^https?://'; then
+            echo "REACT_APP_API_BASE_URL must start with http:// or https://"
+            exit 1
+          fi
           npm ci --legacy-peer-deps
           CI=true npm run build
 

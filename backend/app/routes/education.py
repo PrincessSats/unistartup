@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Set
 from urllib.parse import quote, unquote, urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import Response
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import ProgrammingError
@@ -17,9 +17,33 @@ from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.models.contest import Submission, Task, TaskFlag
 from app.models.user import UserRating
+from app.security.rate_limit import RateLimit, enforce_rate_limit
+from app.services.chat_task import (
+    abort_active_chat_session,
+    ChatTaskError,
+    ChatTaskSessionExpiredError,
+    ChatTaskSessionReadOnlyError,
+    cleanup_expired_unsolved_chat_sessions,
+    derive_dynamic_flag_token_candidates,
+    extract_flag_token_content,
+    generate_chat_reply,
+    get_chat_limits_for_task,
+    get_or_create_chat_session,
+    get_session_for_chat_submit,
+    list_chat_messages,
+    mark_chat_session_solved,
+    normalize_flag_token_content,
+    restart_chat_session,
+)
 from app.services.storage import get_s3_client
 from app.schemas.education import (
     PracticeTaskCard,
+    PracticeTaskChatLimits,
+    PracticeTaskChatMessage,
+    PracticeTaskChatMessageRequest,
+    PracticeTaskChatMessageResponse,
+    PracticeTaskChatSession,
+    PracticeTaskChatSessionResponse,
     PracticeTaskDetailResponse,
     PracticeTaskMaterialDownloadResponse,
     PracticeTaskMaterial,
@@ -59,7 +83,7 @@ def difficulty_bounds(bucket: str) -> tuple[int, int]:
 
 def coerce_access_type(value: Optional[str]) -> str:
     normalized = str(value or "").strip().lower()
-    if normalized in {"vpn", "vm", "link", "file", "just_flag"}:
+    if normalized in {"vpn", "vm", "link", "file", "chat", "just_flag"}:
         return normalized
     return "just_flag"
 
@@ -389,6 +413,27 @@ def _extract_connection_ip(*text_values: Optional[str]) -> Optional[str]:
     return None
 
 
+def _build_practice_chat_session_payload(
+    *,
+    session_id: int,
+    status_value: str,
+    read_only: bool,
+    expires_at: datetime,
+    limits: PracticeTaskChatLimits,
+    messages: list[PracticeTaskChatMessage],
+) -> PracticeTaskChatSession:
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return PracticeTaskChatSession(
+        session_id=session_id,
+        status=status_value,
+        read_only=read_only,
+        expires_at=expires_at,
+        limits=limits,
+        messages=messages,
+    )
+
+
 async def _load_task_flags_map(
     db: AsyncSession,
     task_ids: Iterable[int],
@@ -701,6 +746,14 @@ async def get_practice_task(
         required_flag_ids,
         correct_flags_by_task_user.get(task.id, {}),
     )
+    chat_limits_payload = None
+    if access_type == "chat":
+        limits = get_chat_limits_for_task(task)
+        chat_limits_payload = PracticeTaskChatLimits(
+            user_message_max_chars=limits.user_message_max_chars,
+            model_max_output_tokens=limits.model_max_output_tokens,
+            session_ttl_minutes=limits.session_ttl_minutes,
+        )
 
     return PracticeTaskDetailResponse(
         id=task.id,
@@ -720,8 +773,262 @@ async def get_practice_task(
         hints=hints,
         connection_ip=connection_ip,
         access_type=access_type,
+        chat_limits=chat_limits_payload,
         materials=materials_payload,
         vpn=vpn_info if has_vpn_payload else None,
+    )
+
+
+@router.get(
+    "/practice/tasks/{task_id}/chat/session",
+    response_model=PracticeTaskChatSessionResponse,
+)
+async def get_practice_task_chat_session(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+
+    task = (
+        await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.task_kind == "practice",
+                Task.state == "ready",
+            )
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    if coerce_access_type(task.access_type) != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У этой задачи не настроен чат",
+        )
+
+    session, read_only = await get_or_create_chat_session(
+        db,
+        task=task,
+        user_id=user.id,
+        contest_id=None,
+    )
+    session_messages = await list_chat_messages(db, session_id=session.id)
+    limits = get_chat_limits_for_task(task)
+    payload_messages = [
+        PracticeTaskChatMessage(
+            role=item.role,
+            content=item.content,
+            created_at=item.created_at if item.created_at.tzinfo else item.created_at.replace(tzinfo=timezone.utc),
+        )
+        for item in session_messages
+    ]
+    await db.commit()
+
+    return PracticeTaskChatSessionResponse(
+        task_id=task_id,
+        session=_build_practice_chat_session_payload(
+            session_id=session.id,
+            status_value=session.status,
+            read_only=read_only,
+            expires_at=session.expires_at,
+            limits=PracticeTaskChatLimits(
+                user_message_max_chars=limits.user_message_max_chars,
+                model_max_output_tokens=limits.model_max_output_tokens,
+                session_ttl_minutes=limits.session_ttl_minutes,
+            ),
+            messages=payload_messages,
+        ),
+    )
+
+
+@router.post(
+    "/practice/tasks/{task_id}/chat/messages",
+    response_model=PracticeTaskChatMessageResponse,
+)
+async def send_practice_task_chat_message(
+    request: Request,
+    task_id: int,
+    payload: PracticeTaskChatMessageRequest,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    enforce_rate_limit(
+        request,
+        scope="practice_task_chat_message",
+        subject=f"{user.id}:{task_id}",
+        rule=RateLimit(max_requests=30, window_seconds=60),
+    )
+
+    task = (
+        await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.task_kind == "practice",
+                Task.state == "ready",
+            )
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    if coerce_access_type(task.access_type) != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У этой задачи не настроен чат",
+        )
+
+    session, read_only = await get_or_create_chat_session(
+        db,
+        task=task,
+        user_id=user.id,
+        contest_id=None,
+    )
+    if read_only:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Сессия уже завершена после успешной сдачи флага",
+        )
+    try:
+        assistant_message = await generate_chat_reply(
+            db,
+            task=task,
+            session=session,
+            user_message=payload.message,
+        )
+    except ChatTaskSessionReadOnlyError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ChatTaskSessionExpiredError as exc:
+        await cleanup_expired_unsolved_chat_sessions(
+            db,
+            task_id=task.id,
+            user_id=user.id,
+            contest_id=None,
+        )
+        await db.commit()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ChatTaskError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    session_messages = await list_chat_messages(db, session_id=session.id)
+    limits = get_chat_limits_for_task(task)
+    payload_messages = [
+        PracticeTaskChatMessage(
+            role=item.role,
+            content=item.content,
+            created_at=item.created_at if item.created_at.tzinfo else item.created_at.replace(tzinfo=timezone.utc),
+        )
+        for item in session_messages
+    ]
+    await db.commit()
+
+    return PracticeTaskChatMessageResponse(
+        task_id=task_id,
+        assistant_message=assistant_message,
+        session=_build_practice_chat_session_payload(
+            session_id=session.id,
+            status_value=session.status,
+            read_only=False,
+            expires_at=session.expires_at,
+            limits=PracticeTaskChatLimits(
+                user_message_max_chars=limits.user_message_max_chars,
+                model_max_output_tokens=limits.model_max_output_tokens,
+                session_ttl_minutes=limits.session_ttl_minutes,
+            ),
+            messages=payload_messages,
+        ),
+    )
+
+
+@router.delete(
+    "/practice/tasks/{task_id}/chat/session",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def abort_practice_task_chat_session(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+
+    task = (
+        await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.task_kind == "practice",
+                Task.state == "ready",
+            )
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    if coerce_access_type(task.access_type) != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У этой задачи не настроен чат",
+        )
+
+    await abort_active_chat_session(
+        db,
+        task_id=task.id,
+        user_id=user.id,
+        contest_id=None,
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/practice/tasks/{task_id}/chat/session/restart",
+    response_model=PracticeTaskChatSessionResponse,
+)
+async def restart_practice_task_chat_session(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+
+    task = (
+        await db.execute(
+            select(Task).where(
+                Task.id == task_id,
+                Task.task_kind == "practice",
+                Task.state == "ready",
+            )
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+    if coerce_access_type(task.access_type) != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="У этой задачи не настроен чат",
+        )
+
+    session = await restart_chat_session(
+        db,
+        task=task,
+        user_id=user.id,
+        contest_id=None,
+    )
+    limits = get_chat_limits_for_task(task)
+    await db.commit()
+
+    return PracticeTaskChatSessionResponse(
+        task_id=task_id,
+        session=_build_practice_chat_session_payload(
+            session_id=session.id,
+            status_value=session.status,
+            read_only=False,
+            expires_at=session.expires_at,
+            limits=PracticeTaskChatLimits(
+                user_message_max_chars=limits.user_message_max_chars,
+                model_max_output_tokens=limits.model_max_output_tokens,
+                session_ttl_minutes=limits.session_ttl_minutes,
+            ),
+            messages=[],
+        ),
     )
 
 
@@ -923,13 +1230,16 @@ async def submit_practice_flag(
             select(TaskFlag).where(TaskFlag.task_id == task.id).order_by(TaskFlag.id.asc())
         )
     ).scalars().all()
-    if not task_flags:
+    is_chat_task = coerce_access_type(task.access_type) == "chat"
+    if not task_flags and not is_chat_task:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="У задачи не настроены флаги")
 
     user_has_submission, user_solved_flags_map, user_has_correct = await _load_user_submission_state(
         db, user.id, [task.id]
     )
     required_flag_ids = {flag.flag_id for flag in task_flags if flag.flag_id}
+    if is_chat_task and not required_flag_ids:
+        required_flag_ids = {"main"}
     solved_flags_before = set(user_solved_flags_map.get(task.id, set()))
     has_correct_before = task.id in user_has_correct
     has_submission_before = task.id in user_has_submission
@@ -940,28 +1250,57 @@ async def submit_practice_flag(
         has_any_correct_submission=has_correct_before,
     )
 
-    matched_flag: Optional[TaskFlag] = None
     target_flag_id = (payload.flag_id or "").strip()
-    if target_flag_id:
-        for candidate in task_flags:
-            if candidate.flag_id != target_flag_id:
-                continue
-            expected = (candidate.expected_value or "").strip()
-            matched_flag = candidate if expected and expected == submitted_flag else None
-            break
-        else:
+    resolved_flag_id = target_flag_id or (next(iter(required_flag_ids), "main"))
+    matched_flag: Optional[TaskFlag] = None
+    if is_chat_task:
+        if target_flag_id and target_flag_id not in required_flag_ids:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестный flag_id для задачи")
-    else:
-        for candidate in task_flags:
-            expected = (candidate.expected_value or "").strip()
-            if expected and expected == submitted_flag:
-                matched_flag = candidate
-                break
 
-    is_correct = matched_flag is not None
+        session = await get_session_for_chat_submit(
+            db,
+            task_id=task.id,
+            user_id=user.id,
+            contest_id=None,
+            include_solved=True,
+        )
+        if session is None:
+            await db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Чат-сессия истекла или не создана. Откройте чат задачи.",
+            )
+        try:
+            expected_tokens = derive_dynamic_flag_token_candidates(session.flag_seed)
+        except ChatTaskError as exc:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+        submitted_token = normalize_flag_token_content(extract_flag_token_content(submitted_flag))
+        is_correct = bool(submitted_token) and submitted_token in expected_tokens
+        if is_correct and session.status == "active":
+            mark_chat_session_solved(session)
+    else:
+        if target_flag_id:
+            for candidate in task_flags:
+                if candidate.flag_id != target_flag_id:
+                    continue
+                expected = (candidate.expected_value or "").strip()
+                matched_flag = candidate if expected and expected == submitted_flag else None
+                break
+            else:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неизвестный flag_id для задачи")
+        else:
+            for candidate in task_flags:
+                expected = (candidate.expected_value or "").strip()
+                if expected and expected == submitted_flag:
+                    matched_flag = candidate
+                    break
+        is_correct = matched_flag is not None
+        if is_correct and matched_flag is not None:
+            resolved_flag_id = matched_flag.flag_id
+
     solved_flags_after = set(solved_flags_before)
-    if is_correct and matched_flag.flag_id:
-        solved_flags_after.add(matched_flag.flag_id)
+    if is_correct:
+        solved_flags_after.add(resolved_flag_id)
 
     has_correct_after = has_correct_before or is_correct
     is_solved_after = is_task_solved(
@@ -976,7 +1315,7 @@ async def submit_practice_flag(
             contest_id=None,
             task_id=task.id,
             user_id=user.id,
-            flag_id=matched_flag.flag_id if matched_flag else (target_flag_id or "unknown"),
+            flag_id=resolved_flag_id if is_correct else (target_flag_id or resolved_flag_id or "unknown"),
             submitted_value=submitted_flag,
             is_correct=is_correct,
             awarded_points=awarded_points,

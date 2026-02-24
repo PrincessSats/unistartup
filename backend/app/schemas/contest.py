@@ -3,6 +3,12 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 
+class TaskChatLimits(BaseModel):
+    user_message_max_chars: int = 150
+    model_max_output_tokens: int = 256
+    session_ttl_minutes: int = 180
+
+
 class FeaturedTask(BaseModel):
     id: int
     title: str
@@ -47,6 +53,8 @@ class ContestTaskInfo(BaseModel):
     participant_description: Optional[str] = None
     order_index: int = 0
     is_solved: bool = False
+    access_type: str = "just_flag"
+    chat_limits: Optional[TaskChatLimits] = None
     required_flags: List[FlagInfo] = Field(default_factory=list)
     required_flags_count: int = 0
     solved_flags_count: int = 0
@@ -113,3 +121,35 @@ class ContestSubmissionResponse(BaseModel):
     awarded_points: int
     next_task: Optional[ContestTaskInfo] = None
     finished: bool = False
+
+
+class ContestTaskChatMessage(BaseModel):
+    role: str
+    content: str
+    created_at: datetime
+
+
+class ContestTaskChatSession(BaseModel):
+    session_id: int
+    status: str
+    read_only: bool
+    expires_at: datetime
+    limits: TaskChatLimits
+    messages: List[ContestTaskChatMessage] = Field(default_factory=list)
+
+
+class ContestTaskChatSessionResponse(BaseModel):
+    contest_id: int
+    task_id: int
+    session: ContestTaskChatSession
+
+
+class ContestTaskChatMessageRequest(BaseModel):
+    message: str
+
+
+class ContestTaskChatMessageResponse(BaseModel):
+    contest_id: int
+    task_id: int
+    assistant_message: str
+    session: ContestTaskChatSession

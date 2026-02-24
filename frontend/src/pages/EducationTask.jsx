@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
 import { educationAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
+import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
 const difficultyBadgeClasses = {
   Легко: 'border-[#3FD18A]/30 bg-[#3FD18A]/10 text-[#3FD18A]',
@@ -10,7 +11,7 @@ const difficultyBadgeClasses = {
   Сложно: 'border-[#FF5A6E]/30 bg-[#FF5A6E]/10 text-[#FF5A6E]',
 };
 
-const knownAccessTypes = new Set(['vpn', 'vm', 'link', 'file', 'just_flag']);
+const knownAccessTypes = new Set(['vpn', 'vm', 'link', 'file', 'chat', 'just_flag']);
 
 function getStatusLabel(value) {
   if (value === 'solved') return 'Решено';
@@ -177,6 +178,19 @@ async function parseDownloadErrorMessage(err, fallbackMessage) {
   return fallbackMessage;
 }
 
+function formatTimeLeft(value) {
+  if (!value) return 'Сессия не активна';
+  const target = new Date(value).getTime();
+  if (Number.isNaN(target)) return 'Сессия не активна';
+  const diffMs = target - Date.now();
+  if (diffMs <= 0) return 'Сессия истекла';
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours} ч ${minutes} мин`;
+  return `${minutes} мин`;
+}
+
 function isObjectStorageUrl(urlValue) {
   const value = String(urlValue || '').trim();
   if (!value) return false;
@@ -215,6 +229,13 @@ function getFileSizeLabel(material) {
   return sizeMatch ? sizeMatch[1] : null;
 }
 
+function extractFlagTokenContent(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const match = text.match(/\{([^{}]+)\}/);
+  return match?.[1]?.trim() || text;
+}
+
 export default function EducationTask() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -226,6 +247,12 @@ export default function EducationTask() {
   const [submitLoading, setSubmitLoading] = useState(false);
   const [downloadLoadingId, setDownloadLoadingId] = useState(null);
   const [activeHint, setActiveHint] = useState(0);
+  const [chatSession, setChatSession] = useState(null);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatError, setChatError] = useState('');
+  const [chatInput, setChatInput] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const [chatAborting, setChatAborting] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -269,12 +296,52 @@ export default function EducationTask() {
   ), [task?.difficulty_label]);
   const heroVisual = useMemo(() => getEducationCardVisual(task), [task]);
   const accessType = useMemo(() => normalizeAccessType(task?.access_type), [task?.access_type]);
+  const isChatTask = accessType === 'chat';
+  const chatInputMaxChars = Number(
+    chatSession?.limits?.user_message_max_chars
+      ?? task?.chat_limits?.user_message_max_chars
+      ?? 150
+  );
+  const chatInputRemaining = getChatRemaining(chatInput, chatInputMaxChars);
 
   const vmLaunchUrl = useMemo(() => getVmLaunchUrl(task), [task]);
   const linkMaterial = useMemo(() => getLinkMaterial(task), [task]);
   const linkUrl = useMemo(() => getLinkUrl(task), [task]);
   const fileMaterial = useMemo(() => getFileMaterial(task), [task]);
   const vpnDownloadMaterial = useMemo(() => getVpnDownloadMaterial(task), [task]);
+
+  useEffect(() => {
+    if (!task?.id || !isChatTask) {
+      setChatSession(null);
+      setChatInput('');
+      setChatError('');
+      setChatLoading(false);
+      return;
+    }
+    let isCancelled = false;
+    const loadChatSession = async () => {
+      setChatLoading(true);
+      setChatError('');
+      try {
+        const data = await educationAPI.getPracticeTaskChatSession(task.id);
+        if (isCancelled) return;
+        setChatSession(data?.session || null);
+      } catch (err) {
+        if (isCancelled) return;
+        const detail = err?.response?.data?.detail;
+        setChatSession(null);
+        setChatError(typeof detail === 'string' ? detail : 'Не удалось загрузить чат задачи');
+      } finally {
+        if (!isCancelled) {
+          setChatLoading(false);
+        }
+      }
+    };
+    loadChatSession();
+    return () => {
+      isCancelled = true;
+    };
+  }, [task?.id, isChatTask]);
 
   const handleShare = async () => {
     try {
@@ -287,7 +354,9 @@ export default function EducationTask() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const normalized = flagValue.trim();
+    const normalized = isChatTask
+      ? extractFlagTokenContent(flagValue)
+      : flagValue.trim();
     if (!normalized || submitLoading || !task?.id) return;
 
     try {
@@ -298,12 +367,121 @@ export default function EducationTask() {
       setFlagValue('');
       const refreshed = await educationAPI.getPracticeTask(task.id);
       setTask(refreshed);
+      if (isChatTask && response?.is_correct) {
+        try {
+          const chatPayload = await educationAPI.getPracticeTaskChatSession(task.id);
+          setChatSession(chatPayload?.session || null);
+        } catch {
+          // Keep flag submit successful even if chat refresh failed.
+        }
+      }
     } catch (err) {
       console.error('Не удалось отправить флаг', err);
       const detail = err?.response?.data?.detail;
       setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
     } finally {
       setSubmitLoading(false);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    const trimmed = chatInput.trim();
+    if (!task?.id || !isChatTask || !trimmed || chatSending || chatAborting) return;
+    const optimisticCreatedAt = new Date().toISOString();
+
+    try {
+      setChatSession((prev) => {
+        const fallbackTtlMinutes = Number(
+          prev?.limits?.session_ttl_minutes
+            ?? task?.chat_limits?.session_ttl_minutes
+            ?? 180
+        );
+        const fallbackLimits = {
+          user_message_max_chars: Number(
+            prev?.limits?.user_message_max_chars
+              ?? task?.chat_limits?.user_message_max_chars
+              ?? 150
+          ),
+          model_max_output_tokens: Number(
+            prev?.limits?.model_max_output_tokens
+              ?? task?.chat_limits?.model_max_output_tokens
+              ?? 256
+          ),
+          session_ttl_minutes: fallbackTtlMinutes,
+        };
+        const base = prev || {
+          session_id: 0,
+          status: 'active',
+          read_only: false,
+          expires_at: new Date(Date.now() + fallbackTtlMinutes * 60 * 1000).toISOString(),
+          limits: fallbackLimits,
+          messages: [],
+        };
+        return {
+          ...base,
+          read_only: false,
+          messages: [
+            ...(Array.isArray(base.messages) ? base.messages : []),
+            { role: 'user', content: trimmed, created_at: optimisticCreatedAt },
+          ],
+        };
+      });
+      setChatInput('');
+      setChatSending(true);
+      setChatError('');
+      const response = await educationAPI.sendPracticeTaskChatMessage(task.id, { message: trimmed });
+      setChatSession(response?.session || null);
+    } catch (err) {
+      setChatSession((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          messages: (prev.messages || []).filter(
+            (item) => !(item.role === 'user' && item.content === trimmed && item.created_at === optimisticCreatedAt)
+          ),
+        };
+      });
+      setChatInput(trimmed);
+      const detail = err?.response?.data?.detail;
+      setChatError(typeof detail === 'string' ? detail : 'Не удалось отправить сообщение');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  const handleRestartPracticeChatSession = async () => {
+    if (!task?.id || !isChatTask || chatLoading || chatSending || chatAborting) return;
+
+    try {
+      setChatLoading(true);
+      setChatError('');
+      const response = await educationAPI.restartPracticeTaskChatSession(task.id);
+      setChatSession(response?.session || null);
+      setChatInput('');
+      setSubmitMessage('Новая чат-сессия запущена');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setChatError(typeof detail === 'string' ? detail : 'Не удалось перезапустить чат-сессию');
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleAbortPracticeChatSession = async () => {
+    if (!task?.id || !isChatTask || chatLoading || chatSending || chatAborting) return;
+
+    try {
+      setChatAborting(true);
+      setChatError('');
+      await educationAPI.abortPracticeTaskChatSession(task.id);
+      setChatSession(null);
+      setChatInput('');
+      setSubmitMessage('Чат прерван. Сессия и сообщения удалены.');
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setChatError(typeof detail === 'string' ? detail : 'Не удалось прервать чат');
+    } finally {
+      setChatAborting(false);
     }
   };
 
@@ -525,12 +703,119 @@ export default function EducationTask() {
                 </p>
               )}
 
+              {isChatTask && (
+                <div className="mt-6 rounded-[12px] border border-white/[0.09] bg-white/[0.03] p-4">
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div className="text-[16px] leading-[20px] text-white">Чат с ассистентом</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-[12px] text-white/60">{formatTimeLeft(chatSession?.expires_at)}</div>
+                      {chatSession?.session_id && !chatSession?.read_only ? (
+                        <button
+                          type="button"
+                          onClick={handleAbortPracticeChatSession}
+                          disabled={chatLoading || chatSending || chatAborting}
+                          className="inline-flex h-8 items-center rounded-[8px] border border-rose-400/40 bg-rose-500/10 px-3 text-[12px] text-rose-200 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {chatAborting ? 'Прерывание...' : 'Прервать Чат'}
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2">
+                    {chatLoading ? (
+                      <div className="text-[13px] text-white/50">Загрузка чата...</div>
+                    ) : chatSession?.messages?.length ? (
+                      chatSession.messages.map((item, index) => (
+                        <div
+                          key={`${item.created_at}-${index}`}
+                          className={`rounded-[10px] px-3 py-2 text-[13px] leading-[18px] ${
+                            item.role === 'assistant'
+                              ? 'bg-white/[0.06] text-white/85'
+                              : 'bg-[#9B6BFF]/20 text-white'
+                          }`}
+                        >
+                          <div className="text-[11px] uppercase tracking-[0.08em] opacity-60 mb-1">
+                            {item.role === 'assistant' ? 'Ассистент' : 'Вы'}
+                          </div>
+                          <div className="whitespace-pre-wrap break-words">{item.content}</div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-[13px] text-white/50">Пока сообщений нет</div>
+                    )}
+                    {chatSending ? (
+                      <div className="rounded-[10px] px-3 py-2 text-[13px] leading-[18px] bg-white/[0.06] text-white/85 animate-pulse">
+                        <div className="text-[11px] uppercase tracking-[0.08em] opacity-60 mb-1">
+                          Ассистент
+                        </div>
+                        <div>Печатает ответ...</div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3">
+                    <textarea
+                      value={chatInput}
+                      onChange={(event) => {
+                        setChatInput(clampChatInput(event.target.value, chatInputMaxChars));
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                          event.preventDefault();
+                          handleSendChatMessage();
+                        }
+                      }}
+                      disabled={chatLoading || chatSending || chatAborting || chatSession?.read_only}
+                      className="w-full min-h-[120px] rounded-[10px] border border-white/[0.09] bg-white/[0.02] px-3 py-2 text-[14px] text-white placeholder:text-white/50 focus:outline-none focus:border-white/30 disabled:opacity-60"
+                      placeholder="Напишите сообщение ассистенту"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[12px] text-white/55">{chatInputRemaining}/{chatInputMaxChars}</span>
+                      <button
+                        type="button"
+                        onClick={handleSendChatMessage}
+                        disabled={chatLoading || chatSending || chatAborting || chatSession?.read_only || !chatInput.trim()}
+                        className="inline-flex h-10 items-center rounded-[10px] bg-white/[0.08] px-4 text-[14px] text-white transition-colors hover:bg-white/[0.12] disabled:opacity-60 disabled:cursor-not-allowed"
+                      >
+                        {chatSending ? (
+                          <span className="inline-flex items-center gap-2">
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.35" strokeWidth="2" />
+                              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                            </svg>
+                            Отправка...
+                          </span>
+                        ) : 'Отправить в чат'}
+                      </button>
+                    </div>
+                    {chatSession?.read_only ? (
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div className="text-[12px] text-emerald-300">
+                          Сессия завершена после успешной сдачи флага.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRestartPracticeChatSession}
+                          disabled={chatLoading || chatSending || chatAborting}
+                          className="inline-flex h-8 items-center rounded-[8px] border border-emerald-300/40 bg-emerald-400/10 px-3 text-[12px] text-emerald-200 transition-colors hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Пройти задание еще раз
+                        </button>
+                      </div>
+                    ) : null}
+                    {chatError ? (
+                      <div className="mt-2 text-[12px] text-rose-300">{chatError}</div>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-2">
                 <input
                   type="text"
                   value={flagValue}
                   onChange={(event) => setFlagValue(event.target.value)}
-                  placeholder="Введи флаг сюда"
+                  placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
                   className="h-14 min-w-[260px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70"
                 />
                 <button

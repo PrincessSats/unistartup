@@ -56,6 +56,13 @@ from app.services.article_generation import (
     generate_article_payload_with_prompt,
     ArticleGenerationError,
 )
+from app.services.chat_task import (
+    ChatTaskConfigError,
+    DEFAULT_CHAT_MODEL_MAX_OUTPUT_TOKENS,
+    DEFAULT_CHAT_SESSION_TTL_MINUTES,
+    DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS,
+    validate_chat_task_config_values,
+)
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 router = APIRouter(tags=["Тестовые страницы"])
@@ -313,8 +320,19 @@ def _coerce_access_type(value: Optional[str]) -> str:
     if not value:
         return "just_flag"
     value = value.strip().lower()
-    allowed = {"vpn", "vm", "link", "file", "just_flag"}
+    allowed = {"vpn", "vm", "link", "file", "chat", "just_flag"}
     return value if value in allowed else "just_flag"
+
+
+def _build_chat_flags() -> list[dict]:
+    return [
+        {
+            "flag_id": "main",
+            "format": "FLAG{8HEX}",
+            "expected_value": None,
+            "description": "Dynamic session flag",
+        }
+    ]
 
 
 def _normalize_task_materials(raw_materials: Optional[list[AdminTaskMaterial]]) -> list[dict]:
@@ -410,6 +428,10 @@ def _task_to_response(
         state=task.state,
         task_kind=task.task_kind or "contest",
         access_type=task.access_type or "just_flag",
+        chat_system_prompt_template=task.chat_system_prompt_template,
+        chat_user_message_max_chars=task.chat_user_message_max_chars or DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS,
+        chat_model_max_output_tokens=task.chat_model_max_output_tokens or DEFAULT_CHAT_MODEL_MAX_OUTPUT_TOKENS,
+        chat_session_ttl_minutes=task.chat_session_ttl_minutes or DEFAULT_CHAT_SESSION_TTL_MINUTES,
         llm_raw_response=task.llm_raw_response,
         creation_solution=creation_solution,
         created_at=task.created_at,
@@ -439,6 +461,48 @@ def _task_to_response(
 
 def _format_db_error(exc: Exception) -> str:
     return str(getattr(exc, "orig", exc))
+
+
+def _validate_chat_fields_or_400(
+    *,
+    access_type: str,
+    chat_system_prompt_template: Optional[str],
+    chat_user_message_max_chars: Optional[int],
+    chat_model_max_output_tokens: Optional[int],
+    chat_session_ttl_minutes: Optional[int],
+) -> tuple[Optional[str], int, int, int]:
+    try:
+        prompt_text, limits = validate_chat_task_config_values(
+            access_type=access_type,
+            chat_system_prompt_template=chat_system_prompt_template,
+            chat_user_message_max_chars=(
+                chat_user_message_max_chars
+                if chat_user_message_max_chars is not None
+                else DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS
+            ),
+            chat_model_max_output_tokens=(
+                chat_model_max_output_tokens
+                if chat_model_max_output_tokens is not None
+                else DEFAULT_CHAT_MODEL_MAX_OUTPUT_TOKENS
+            ),
+            chat_session_ttl_minutes=(
+                chat_session_ttl_minutes
+                if chat_session_ttl_minutes is not None
+                else DEFAULT_CHAT_SESSION_TTL_MINUTES
+            ),
+        )
+    except ChatTaskConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return (
+        prompt_text,
+        limits.user_message_max_chars,
+        limits.model_max_output_tokens,
+        limits.session_ttl_minutes,
+    )
 
 
 @router.post("/admin/kb_entries", response_model=AdminArticle)
@@ -872,17 +936,35 @@ async def create_admin_task(
     task_kind = _coerce_task_kind(data.task_kind)
     access_type = _coerce_access_type(data.access_type)
     normalized_materials = _normalize_task_materials(data.materials)
-
-    if not data.flags or any(not flag.expected_value for flag in data.flags):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flags are required")
-    normalized_flag_ids = [(flag.flag_id or "").strip() for flag in data.flags]
-    if any(not flag_id for flag_id in normalized_flag_ids):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flag_id is required for each flag")
-    if len(set(normalized_flag_ids)) != len(normalized_flag_ids):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Duplicate flag_id in payload. Each flag_id must be unique per task.",
-        )
+    chat_prompt_text, chat_max_chars, chat_max_tokens, chat_ttl_minutes = _validate_chat_fields_or_400(
+        access_type=access_type,
+        chat_system_prompt_template=data.chat_system_prompt_template,
+        chat_user_message_max_chars=data.chat_user_message_max_chars,
+        chat_model_max_output_tokens=data.chat_model_max_output_tokens,
+        chat_session_ttl_minutes=data.chat_session_ttl_minutes,
+    )
+    if access_type == "chat":
+        flags_to_save = _build_chat_flags()
+    else:
+        if not data.flags or any(not (flag.expected_value or "").strip() for flag in data.flags):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flags are required")
+        normalized_flag_ids = [(flag.flag_id or "").strip() for flag in data.flags]
+        if any(not flag_id for flag_id in normalized_flag_ids):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flag_id is required for each flag")
+        if len(set(normalized_flag_ids)) != len(normalized_flag_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate flag_id in payload. Each flag_id must be unique per task.",
+            )
+        flags_to_save = [
+            {
+                "flag_id": (flag.flag_id or "").strip(),
+                "format": (flag.format or "FLAG{...}").strip() or "FLAG{...}",
+                "expected_value": (flag.expected_value or "").strip(),
+                "description": flag.description,
+            }
+            for flag in data.flags
+        ]
     if not data.title or not data.category:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="title and category are required")
 
@@ -899,6 +981,10 @@ async def create_admin_task(
             state=data.state,
             task_kind=task_kind,
             access_type=access_type,
+            chat_system_prompt_template=chat_prompt_text,
+            chat_user_message_max_chars=chat_max_chars,
+            chat_model_max_output_tokens=chat_max_tokens,
+            chat_session_ttl_minutes=chat_ttl_minutes,
             llm_raw_response=data.llm_raw_response,
             created_by=user.id,
         )
@@ -914,14 +1000,14 @@ async def create_admin_task(
                 )
             )
 
-        for flag in data.flags:
+        for flag in flags_to_save:
             db.add(
                 TaskFlag(
                     task_id=task.id,
-                    flag_id=flag.flag_id,
-                    format=flag.format,
-                    expected_value=flag.expected_value.strip(),
-                    description=flag.description,
+                    flag_id=flag["flag_id"],
+                    format=flag["format"],
+                    expected_value=flag["expected_value"],
+                    description=flag["description"],
                 )
             )
 
@@ -1006,6 +1092,41 @@ async def update_admin_task(
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
+    previous_access_type = _coerce_access_type(task.access_type)
+    next_access_type = (
+        _coerce_access_type(data.access_type)
+        if data.access_type is not None
+        else previous_access_type
+    )
+
+    resolved_chat_prompt = (
+        data.chat_system_prompt_template
+        if data.chat_system_prompt_template is not None
+        else task.chat_system_prompt_template
+    )
+    resolved_chat_max_chars = (
+        data.chat_user_message_max_chars
+        if data.chat_user_message_max_chars is not None
+        else task.chat_user_message_max_chars
+    )
+    resolved_chat_max_tokens = (
+        data.chat_model_max_output_tokens
+        if data.chat_model_max_output_tokens is not None
+        else task.chat_model_max_output_tokens
+    )
+    resolved_chat_ttl_minutes = (
+        data.chat_session_ttl_minutes
+        if data.chat_session_ttl_minutes is not None
+        else task.chat_session_ttl_minutes
+    )
+    chat_prompt_text, chat_max_chars, chat_max_tokens, chat_ttl_minutes = _validate_chat_fields_or_400(
+        access_type=next_access_type,
+        chat_system_prompt_template=resolved_chat_prompt,
+        chat_user_message_max_chars=resolved_chat_max_chars,
+        chat_model_max_output_tokens=resolved_chat_max_tokens,
+        chat_session_ttl_minutes=resolved_chat_ttl_minutes,
+    )
+
     if data.title is not None:
         task.title = data.title.strip()
     if data.category is not None:
@@ -1026,8 +1147,11 @@ async def update_admin_task(
         task.state = data.state
     if data.task_kind is not None:
         task.task_kind = _coerce_task_kind(data.task_kind)
-    if data.access_type is not None:
-        task.access_type = _coerce_access_type(data.access_type)
+    task.access_type = next_access_type
+    task.chat_system_prompt_template = chat_prompt_text
+    task.chat_user_message_max_chars = chat_max_chars
+    task.chat_model_max_output_tokens = chat_max_tokens
+    task.chat_session_ttl_minutes = chat_ttl_minutes
     if data.llm_raw_response is not None:
         task.llm_raw_response = data.llm_raw_response
 
@@ -1042,18 +1166,45 @@ async def update_admin_task(
             db.add(solution)
         solution.creation_solution = data.creation_solution
 
-    if data.flags is not None:
+    if next_access_type == "chat":
+        await db.execute(delete(TaskFlag).where(TaskFlag.task_id == task.id))
+        for flag in _build_chat_flags():
+            db.add(
+                TaskFlag(
+                    task_id=task.id,
+                    flag_id=flag["flag_id"],
+                    format=flag["format"],
+                    expected_value=flag["expected_value"],
+                    description=flag["description"],
+                )
+            )
+    elif data.flags is not None:
+        normalized_flag_ids = [(flag.flag_id or "").strip() for flag in data.flags]
+        if any(not flag_id for flag_id in normalized_flag_ids):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flag_id is required for each flag")
+        if any(not (flag.expected_value or "").strip() for flag in data.flags):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="flags are required")
+        if len(set(normalized_flag_ids)) != len(normalized_flag_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate flag_id in payload. Each flag_id must be unique per task.",
+            )
         await db.execute(delete(TaskFlag).where(TaskFlag.task_id == task.id))
         for flag in data.flags:
             db.add(
                 TaskFlag(
                     task_id=task.id,
-                    flag_id=flag.flag_id,
-                    format=flag.format,
-                    expected_value=flag.expected_value.strip(),
+                    flag_id=(flag.flag_id or "").strip(),
+                    format=(flag.format or "FLAG{...}").strip() or "FLAG{...}",
+                    expected_value=(flag.expected_value or "").strip(),
                     description=flag.description,
                 )
             )
+    elif previous_access_type == "chat" and next_access_type != "chat":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="flags are required when switching task from chat to non-chat access type",
+        )
 
     if data.materials is not None:
         await db.execute(delete(TaskMaterial).where(TaskMaterial.task_id == task.id))
@@ -1338,8 +1489,8 @@ async def get_admin_contest(
 
 
 def _validate_contest_tasks(tasks: list[AdminContestTask]) -> None:
-    if not (2 <= len(tasks) <= 10):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест должен иметь 2-10 задач")
+    if not (1 <= len(tasks) <= 10):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Контест должен иметь 1-10 задач")
 
 
 @router.post("/admin/contests", response_model=AdminContestResponse)

@@ -191,16 +191,34 @@ CREATE TABLE tasks (
     points                  INTEGER NOT NULL DEFAULT 100,
     tags                    TEXT[] DEFAULT '{}',
     task_kind               TEXT NOT NULL DEFAULT 'contest', -- 'contest' | 'practice'
-    access_type             TEXT NOT NULL DEFAULT 'just_flag', -- 'vpn' | 'vm' | 'link' | 'file' | 'just_flag'
+    access_type             TEXT NOT NULL DEFAULT 'just_flag', -- 'vpn' | 'vm' | 'link' | 'file' | 'chat' | 'just_flag'
     language                TEXT NOT NULL DEFAULT 'ru',
     story                   TEXT,                -- сюжет
     participant_description TEXT,                -- текст для участника
+    chat_system_prompt_template TEXT,
+    chat_user_message_max_chars INTEGER NOT NULL DEFAULT 150,
+    chat_model_max_output_tokens INTEGER NOT NULL DEFAULT 256,
+    chat_session_ttl_minutes INTEGER NOT NULL DEFAULT 180,
     state                   TEXT NOT NULL DEFAULT 'draft', -- состояние: 'draft','ready','published','archived'
     kb_entry_id             BIGINT REFERENCES kb_entries(id),
     llm_raw_response        JSONB,
     created_by              BIGINT REFERENCES users(id),
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT tasks_access_type_check CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'just_flag'))
+    CONSTRAINT tasks_access_type_check CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'chat', 'just_flag')),
+    CONSTRAINT tasks_chat_user_message_max_chars_check
+        CHECK (chat_user_message_max_chars BETWEEN 20 AND 500),
+    CONSTRAINT tasks_chat_model_max_output_tokens_check
+        CHECK (chat_model_max_output_tokens BETWEEN 32 AND 1024),
+    CONSTRAINT tasks_chat_session_ttl_minutes_check
+        CHECK (chat_session_ttl_minutes BETWEEN 15 AND 720),
+    CONSTRAINT tasks_chat_prompt_template_required_check
+        CHECK (
+            access_type <> 'chat'
+            OR (
+                chat_system_prompt_template IS NOT NULL
+                AND POSITION('{{FLAG}}' IN chat_system_prompt_template) > 0
+            )
+        )
 );
 
 CREATE INDEX idx_tasks_tags_gin ON tasks USING gin(tags);
@@ -233,15 +251,83 @@ ALTER TABLE tasks
 
 DO $$
 BEGIN
-    IF NOT EXISTS (
+    IF EXISTS (
         SELECT 1
         FROM pg_constraint
         WHERE conname = 'tasks_access_type_check'
     ) THEN
-        ALTER TABLE tasks
-            ADD CONSTRAINT tasks_access_type_check
-            CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'just_flag'));
+        ALTER TABLE tasks DROP CONSTRAINT tasks_access_type_check;
     END IF;
+
+    ALTER TABLE tasks
+        ADD CONSTRAINT tasks_access_type_check
+        CHECK (access_type IN ('vpn', 'vm', 'link', 'file', 'chat', 'just_flag'));
+END;
+$$;
+
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS chat_system_prompt_template TEXT;
+
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS chat_user_message_max_chars INTEGER NOT NULL DEFAULT 150;
+
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS chat_model_max_output_tokens INTEGER NOT NULL DEFAULT 256;
+
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS chat_session_ttl_minutes INTEGER NOT NULL DEFAULT 180;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'tasks_chat_user_message_max_chars_check'
+    ) THEN
+        ALTER TABLE tasks DROP CONSTRAINT tasks_chat_user_message_max_chars_check;
+    END IF;
+    ALTER TABLE tasks
+        ADD CONSTRAINT tasks_chat_user_message_max_chars_check
+        CHECK (chat_user_message_max_chars BETWEEN 20 AND 500);
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'tasks_chat_model_max_output_tokens_check'
+    ) THEN
+        ALTER TABLE tasks DROP CONSTRAINT tasks_chat_model_max_output_tokens_check;
+    END IF;
+    ALTER TABLE tasks
+        ADD CONSTRAINT tasks_chat_model_max_output_tokens_check
+        CHECK (chat_model_max_output_tokens BETWEEN 32 AND 1024);
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'tasks_chat_session_ttl_minutes_check'
+    ) THEN
+        ALTER TABLE tasks DROP CONSTRAINT tasks_chat_session_ttl_minutes_check;
+    END IF;
+    ALTER TABLE tasks
+        ADD CONSTRAINT tasks_chat_session_ttl_minutes_check
+        CHECK (chat_session_ttl_minutes BETWEEN 15 AND 720);
+
+    IF EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'tasks_chat_prompt_template_required_check'
+    ) THEN
+        ALTER TABLE tasks DROP CONSTRAINT tasks_chat_prompt_template_required_check;
+    END IF;
+    ALTER TABLE tasks
+        ADD CONSTRAINT tasks_chat_prompt_template_required_check
+        CHECK (
+            access_type <> 'chat'
+            OR (
+                chat_system_prompt_template IS NOT NULL
+                AND POSITION('{{FLAG}}' IN chat_system_prompt_template) > 0
+            )
+        );
 END;
 $$;
 
@@ -278,6 +364,45 @@ CREATE TABLE contest_participants (
     completed_at    TIMESTAMPTZ,
     PRIMARY KEY (contest_id, user_id)
 );
+
+-- 10.2. Сессии чата для динамических флагов
+CREATE TABLE IF NOT EXISTS task_chat_sessions (
+    id                  BIGSERIAL PRIMARY KEY,
+    task_id             BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    contest_id          BIGINT REFERENCES contests(id) ON DELETE CASCADE,
+    status              TEXT NOT NULL DEFAULT 'active', -- active | solved
+    flag_seed           TEXT NOT NULL,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expires_at          TIMESTAMPTZ NOT NULL,
+    last_activity_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    solved_at           TIMESTAMPTZ,
+    CONSTRAINT task_chat_sessions_status_check CHECK (status IN ('active', 'solved'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_chat_sessions_task_user_context
+    ON task_chat_sessions(task_id, user_id, contest_id);
+
+CREATE INDEX IF NOT EXISTS idx_task_chat_sessions_expiry_unsolved
+    ON task_chat_sessions(expires_at)
+    WHERE status = 'active';
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_chat_sessions_active_unique
+    ON task_chat_sessions(task_id, user_id, COALESCE(contest_id, 0))
+    WHERE status = 'active';
+
+-- 10.3. Сообщения внутри сессии чата
+CREATE TABLE IF NOT EXISTS task_chat_messages (
+    id              BIGSERIAL PRIMARY KEY,
+    session_id      BIGINT NOT NULL REFERENCES task_chat_sessions(id) ON DELETE CASCADE,
+    role            TEXT NOT NULL, -- user | assistant
+    content         TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT task_chat_messages_role_check CHECK (role IN ('user', 'assistant'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_chat_messages_session_created
+    ON task_chat_messages(session_id, created_at ASC, id ASC);
 
 -- 11. Связка задач с чемпионатами
 CREATE TABLE contest_tasks (

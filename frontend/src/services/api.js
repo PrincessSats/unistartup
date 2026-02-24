@@ -236,6 +236,21 @@ export const educationAPI = {
     const response = await api.post(`/education/practice/tasks/${taskId}/submit`, payload);
     return response.data;
   },
+  getPracticeTaskChatSession: async (taskId) => {
+    const response = await api.get(`/education/practice/tasks/${taskId}/chat/session`);
+    return response.data;
+  },
+  abortPracticeTaskChatSession: async (taskId) => {
+    await api.delete(`/education/practice/tasks/${taskId}/chat/session`);
+  },
+  restartPracticeTaskChatSession: async (taskId) => {
+    const response = await api.post(`/education/practice/tasks/${taskId}/chat/session/restart`);
+    return response.data;
+  },
+  sendPracticeTaskChatMessage: async (taskId, payload) => {
+    const response = await api.post(`/education/practice/tasks/${taskId}/chat/messages`, payload);
+    return response.data;
+  },
 };
 
 // API профиля (НОВОЕ)
@@ -300,6 +315,17 @@ export const contestAPI = {
   },
   submitFlag: async (contestId, payload) => {
     const response = await api.post(`/contests/${contestId}/submit`, payload);
+    return response.data;
+  },
+  getTaskChatSession: async (contestId, taskId) => {
+    const response = await api.get(`/contests/${contestId}/tasks/${taskId}/chat/session`);
+    return response.data;
+  },
+  abortTaskChatSession: async (contestId, taskId) => {
+    await api.delete(`/contests/${contestId}/tasks/${taskId}/chat/session`);
+  },
+  sendTaskChatMessage: async (contestId, taskId, payload) => {
+    const response = await api.post(`/contests/${contestId}/tasks/${taskId}/chat/messages`, payload);
     return response.data;
   },
 };
