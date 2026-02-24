@@ -2,6 +2,7 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from sqlalchemy.dialects import postgresql
 
@@ -13,14 +14,18 @@ os.environ.setdefault("DB_PASSWORD", "pass")
 os.environ.setdefault("SECRET_KEY", "secret")
 
 from app.services.chat_task import (  # noqa: E402
+    _run_llm_chat_completion,
     abort_active_chat_session,
     ChatTaskConfigError,
     ChatTaskSessionReadOnlyError,
     cleanup_expired_unsolved_chat_sessions,
     derive_dynamic_flag,
     derive_dynamic_flag_token_candidates,
+    EMPTY_LLM_RESPONSE_FALLBACK,
     extract_flag_token_content,
     generate_chat_reply,
+    get_session_for_chat_submit,
+    LLM_COMPLETION_MAX_ATTEMPTS,
     mark_chat_session_solved,
     normalize_flag_token_content,
     restart_chat_session,
@@ -48,6 +53,85 @@ class ChatTaskServiceTests(unittest.TestCase):
         tokens = derive_dynamic_flag_token_candidates("seed-1")
         self.assertTrue(any(len(token) == 8 for token in tokens))
         self.assertTrue(any(len(token) == 32 for token in tokens))
+
+    def test_run_llm_chat_completion_returns_fallback_on_empty_response(self) -> None:
+        empty_response = SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=""))]
+        )
+        completions = SimpleNamespace(
+            calls=0,
+            create=lambda **_kwargs: empty_response,
+        )
+
+        def counting_create(**_kwargs):
+            completions.calls += 1
+            return empty_response
+
+        completions.create = counting_create
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+        with (
+            patch("app.services.chat_task._build_client", return_value=fake_client),
+            patch("app.services.chat_task.time.sleep", return_value=None),
+        ):
+            result = _run_llm_chat_completion(
+                messages=[{"role": "user", "content": "hi"}],
+                max_output_tokens=64,
+            )
+
+        self.assertEqual(result, EMPTY_LLM_RESPONSE_FALLBACK)
+        self.assertEqual(completions.calls, LLM_COMPLETION_MAX_ATTEMPTS)
+
+    def test_run_llm_chat_completion_returns_fallback_on_retryable_server_error(self) -> None:
+        class RetryableServerError(Exception):
+            def __init__(self, message: str) -> None:
+                super().__init__(message)
+                self.status_code = 500
+
+        completions = SimpleNamespace(calls=0)
+
+        def failing_create(**_kwargs):
+            completions.calls += 1
+            raise RetryableServerError("Internal server error")
+
+        completions.create = failing_create
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
+
+        with (
+            patch("app.services.chat_task._build_client", return_value=fake_client),
+            patch("app.services.chat_task.time.sleep", return_value=None),
+        ):
+            result = _run_llm_chat_completion(
+                messages=[{"role": "user", "content": "hi"}],
+                max_output_tokens=64,
+            )
+
+        self.assertEqual(result, EMPTY_LLM_RESPONSE_FALLBACK)
+        self.assertEqual(completions.calls, LLM_COMPLETION_MAX_ATTEMPTS)
+
+    def test_run_llm_chat_completion_extracts_text_from_list_content(self) -> None:
+        list_content_response = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(content=[{"type": "text", "text": "Ответ модели"}])
+                )
+            ]
+        )
+        fake_client = SimpleNamespace(
+            chat=SimpleNamespace(
+                completions=SimpleNamespace(
+                    create=lambda **_kwargs: list_content_response,
+                )
+            )
+        )
+
+        with patch("app.services.chat_task._build_client", return_value=fake_client):
+            result = _run_llm_chat_completion(
+                messages=[{"role": "user", "content": "hi"}],
+                max_output_tokens=64,
+            )
+
+        self.assertEqual(result, "Ответ модели")
 
     def test_validate_chat_config_requires_placeholder_for_chat(self) -> None:
         with self.assertRaises(ChatTaskConfigError):
@@ -201,6 +285,7 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(db.added), 1)
         delete_sql_text = str(db.statements[-1].compile(dialect=postgresql.dialect()))
         self.assertIn("DELETE FROM task_chat_sessions", delete_sql_text)
+        self.assertIn("task_chat_sessions.status", delete_sql_text)
 
     async def test_abort_active_chat_session_filters_by_active_status(self) -> None:
         db = _DummyAsyncSession()
@@ -215,6 +300,59 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("DELETE FROM task_chat_sessions", sql_text)
         self.assertIn("task_chat_sessions.status", sql_text)
         self.assertIn("task_chat_sessions.contest_id IS NULL", sql_text)
+
+    async def test_get_session_for_chat_submit_prefers_active_session(self) -> None:
+        active_session = SimpleNamespace(id=11, status="active")
+        with (
+            patch(
+                "app.services.chat_task.cleanup_expired_unsolved_chat_sessions",
+                new=AsyncMock(),
+            ) as cleanup_mock,
+            patch(
+                "app.services.chat_task._load_latest_session",
+                new=AsyncMock(return_value=active_session),
+            ) as load_mock,
+        ):
+            result = await get_session_for_chat_submit(
+                _DummyAsyncSession(),
+                task_id=1,
+                user_id=2,
+                contest_id=None,
+                include_solved=True,
+            )
+
+        self.assertIs(result, active_session)
+        cleanup_mock.assert_awaited_once()
+        load_mock.assert_awaited_once()
+        first_call_kwargs = load_mock.await_args.kwargs
+        self.assertEqual(first_call_kwargs.get("statuses"), ("active",))
+
+    async def test_get_session_for_chat_submit_falls_back_to_solved(self) -> None:
+        solved_session = SimpleNamespace(id=12, status="solved")
+        with (
+            patch(
+                "app.services.chat_task.cleanup_expired_unsolved_chat_sessions",
+                new=AsyncMock(),
+            ),
+            patch(
+                "app.services.chat_task._load_latest_session",
+                new=AsyncMock(side_effect=[None, solved_session]),
+            ) as load_mock,
+        ):
+            result = await get_session_for_chat_submit(
+                _DummyAsyncSession(),
+                task_id=1,
+                user_id=2,
+                contest_id=None,
+                include_solved=True,
+            )
+
+        self.assertIs(result, solved_session)
+        self.assertEqual(load_mock.await_count, 2)
+        first_call_kwargs = load_mock.await_args_list[0].kwargs
+        second_call_kwargs = load_mock.await_args_list[1].kwargs
+        self.assertEqual(first_call_kwargs.get("statuses"), ("active",))
+        self.assertEqual(second_call_kwargs.get("statuses"), ("solved",))
 
 
 if __name__ == "__main__":
