@@ -39,6 +39,10 @@ class Task(Base):
     language = Column(Text, nullable=False, default="ru")
     story = Column(Text)
     participant_description = Column(Text)
+    chat_system_prompt_template = Column(Text)
+    chat_user_message_max_chars = Column(Integer, nullable=False, default=150)
+    chat_model_max_output_tokens = Column(Integer, nullable=False, default=256)
+    chat_session_ttl_minutes = Column(Integer, nullable=False, default=180)
     state = Column(Text, nullable=False, default="draft")
     kb_entry_id = Column(BigInteger, ForeignKey("kb_entries.id"))
     llm_raw_response = Column(JSONB)
@@ -49,6 +53,7 @@ class Task(Base):
     flags = relationship("TaskFlag", back_populates="task", cascade="all, delete-orphan")
     materials = relationship("TaskMaterial", back_populates="task", cascade="all, delete-orphan")
     author_solution = relationship("TaskAuthorSolution", back_populates="task", uselist=False, cascade="all, delete-orphan")
+    chat_sessions = relationship("TaskChatSession", back_populates="task", cascade="all, delete-orphan")
 
 
 class ContestTask(Base):
@@ -76,6 +81,36 @@ class ContestParticipant(Base):
     joined_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     last_active_at = Column(TIMESTAMP(timezone=True))
     completed_at = Column(TIMESTAMP(timezone=True))
+
+
+class TaskChatSession(Base):
+    __tablename__ = "task_chat_sessions"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    task_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    contest_id = Column(BigInteger, ForeignKey("contests.id", ondelete="CASCADE"))
+    status = Column(Text, nullable=False, default="active")
+    flag_seed = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    last_activity_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    solved_at = Column(TIMESTAMP(timezone=True))
+
+    task = relationship("Task", back_populates="chat_sessions")
+    messages = relationship("TaskChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class TaskChatMessage(Base):
+    __tablename__ = "task_chat_messages"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    session_id = Column(BigInteger, ForeignKey("task_chat_sessions.id", ondelete="CASCADE"), nullable=False)
+    role = Column(Text, nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    session = relationship("TaskChatSession", back_populates="messages")
 
 
 class TaskFlag(Base):
