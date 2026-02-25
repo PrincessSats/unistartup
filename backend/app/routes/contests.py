@@ -771,6 +771,19 @@ async def abort_contest_task_chat_session(
             detail="У текущей задачи не настроен чат",
         )
 
+    session = await get_session_for_chat_submit(
+        db,
+        task_id=task.id,
+        user_id=user.id,
+        contest_id=contest_id,
+        include_solved=True,
+    )
+    if session is not None and session.status == "solved":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="После сдачи флага в чемпионате чат нельзя перезапускать",
+        )
+
     await abort_active_chat_session(
         db,
         task_id=task.id,
