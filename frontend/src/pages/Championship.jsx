@@ -326,6 +326,14 @@ function Championship() {
       if (result.is_correct) {
         const current = await contestAPI.getCurrentTask(contest.id);
         setTaskState(current);
+        if (isChatTask && current?.task?.id === previousTaskId) {
+          try {
+            const chatPayload = await contestAPI.getTaskChatSession(contest.id, previousTaskId);
+            setChatSession(chatPayload?.session || null);
+          } catch {
+            // Keep flag submit successful even if chat refresh failed.
+          }
+        }
         if (result.finished || current?.finished) {
           setSubmitMessage('Контест завершён!');
         } else if (current?.task?.id === previousTaskId) {
