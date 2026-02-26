@@ -593,7 +593,7 @@ export default function EducationTask() {
                 </span>
               </div>
 
-              <h1 className="relative mt-4 max-w-[560px] text-[39px] leading-[44px] tracking-[0.02em] md:max-w-[460px]">
+              <h1 className="relative mt-4 max-w-[560px] text-[30px] leading-[36px] tracking-[0.02em] sm:text-[39px] sm:leading-[44px] md:max-w-[460px]">
                 {task.title}
               </h1>
 
@@ -607,7 +607,7 @@ export default function EducationTask() {
             </div>
 
             <div className="bg-[#111118] px-6 py-8 md:px-8">
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <p className="max-w-[650px] whitespace-pre-line text-[18px] leading-[24px] tracking-[0.04em] text-white/70">
                   {task.participant_description || task.story || 'Описание задачи пока не добавлено.'}
                 </p>
@@ -822,7 +822,7 @@ export default function EducationTask() {
                   value={flagValue}
                   onChange={(event) => setFlagValue(event.target.value)}
                   placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
-                  className="h-14 min-w-[260px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70"
+                  className="h-14 min-w-[200px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70 sm:min-w-[260px]"
                 />
                 <button
                   type="submit"

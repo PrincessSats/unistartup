@@ -253,47 +253,49 @@ function Rating() {
         </section>
 
         <section className="relative mx-auto w-full max-w-[1074px] overflow-hidden rounded-[20px] border border-white/[0.09] bg-white/[0.03]">
-          <div className="px-4 pb-4 pt-5 sm:px-6">
-            <div
-              className={`${tableColumns} border-b border-white/[0.09] pb-4 text-[14px] leading-[20px] tracking-[0.04em] text-white/60`}
-            >
-              <span className="text-center">Место</span>
-              <span>Пользователь</span>
-              <span />
-              <span className="text-center">Рейтинг</span>
-              <span className="text-center">Собрано флагов</span>
-              <span className="text-center">Первая кровь</span>
-            </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[940px] px-4 pb-4 pt-5 sm:px-6">
+              <div
+                className={`${tableColumns} border-b border-white/[0.09] pb-4 text-[14px] leading-[20px] tracking-[0.04em] text-white/60`}
+              >
+                <span className="text-center">Место</span>
+                <span>Пользователь</span>
+                <span />
+                <span className="text-center">Рейтинг</span>
+                <span className="text-center">Собрано флагов</span>
+                <span className="text-center">Первая кровь</span>
+              </div>
 
-            <div
-              ref={scrollContainerRef}
-              className={`mt-2 flex max-h-[860px] flex-col gap-0.5 overflow-y-auto pr-1 ${
-                shouldPinCurrentRow ? 'pb-[98px]' : ''
-              }`}
-            >
-              {sortedEntries.length === 0 && (
-                <div className="py-12 text-center text-white/60">
-                  Пока нет данных для отображения рейтинга.
-                </div>
-              )}
+              <div
+                ref={scrollContainerRef}
+                className={`mt-2 flex max-h-[860px] flex-col gap-0.5 overflow-y-auto pr-1 ${
+                  shouldPinCurrentRow ? 'lg:pb-[98px]' : ''
+                }`}
+              >
+                {sortedEntries.length === 0 && (
+                  <div className="py-12 text-center text-white/60">
+                    Пока нет данных для отображения рейтинга.
+                  </div>
+                )}
 
-              {sortedEntries.map((entry, index) => {
-                const isCurrent = Boolean(entry?.is_current_user);
-                const zebraClass = index % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.045]';
-                return (
-                  <LeaderboardRow
-                    key={entry?.user_id ?? `${entry?.rank}-${entry?.username}-${index}`}
-                    entry={entry}
-                    attachRef={isCurrent ? currentRowRef : undefined}
-                    className={`rounded-[12px] border border-transparent px-4 py-3 ${zebraClass}`}
-                  />
-                );
-              })}
+                {sortedEntries.map((entry, index) => {
+                  const isCurrent = Boolean(entry?.is_current_user);
+                  const zebraClass = index % 2 === 0 ? 'bg-white/[0.02]' : 'bg-white/[0.045]';
+                  return (
+                    <LeaderboardRow
+                      key={entry?.user_id ?? `${entry?.rank}-${entry?.username}-${index}`}
+                      entry={entry}
+                      attachRef={isCurrent ? currentRowRef : undefined}
+                      className={`rounded-[12px] border border-transparent px-4 py-3 ${zebraClass}`}
+                    />
+                  );
+                })}
+              </div>
             </div>
           </div>
 
           {shouldPinCurrentRow && currentEntry && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 border-t border-[#9B6BFF] bg-[#0F0F18]/95 px-4 py-3 backdrop-blur-[64px] sm:px-6">
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 hidden border-t border-[#9B6BFF] bg-[#0F0F18]/95 px-4 py-3 backdrop-blur-[64px] sm:px-6 lg:block">
               <LeaderboardRow
                 entry={currentEntry}
                 className="pointer-events-auto rounded-[12px] border border-[#9B6BFF]/35 bg-black/20 px-4 py-3"
