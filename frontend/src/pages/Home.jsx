@@ -88,6 +88,16 @@ const practiceStatusOrder = {
   solved: 2,
 };
 
+function getPracticePriority(task) {
+  const status = String(task?.my_status || '').trim().toLowerCase();
+  const accessType = String(task?.access_type || '').trim().toLowerCase();
+  // Chat-задачи можно перепроходить, поэтому не прячем их в конце как обычные solved.
+  if (status === 'solved' && accessType === 'chat') {
+    return practiceStatusOrder.not_started;
+  }
+  return practiceStatusOrder[status] ?? 99;
+}
+
 const practiceStatusLabel = {
   not_started: 'Не начато',
   in_progress: 'В процессе',
@@ -541,8 +551,8 @@ export default function Home() {
         const response = await educationAPI.getPracticeTasks({ limit: 100, offset: 0 });
         const items = Array.isArray(response?.items) ? response.items : [];
         const sorted = [...items].sort((a, b) => {
-          const left = practiceStatusOrder[a?.my_status] ?? 99;
-          const right = practiceStatusOrder[b?.my_status] ?? 99;
+          const left = getPracticePriority(a);
+          const right = getPracticePriority(b);
           if (left !== right) return left - right;
           return (Number(b?.points) || 0) - (Number(a?.points) || 0);
         });
