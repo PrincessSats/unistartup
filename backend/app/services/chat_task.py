@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import hmac
+import logging
 import re
 import secrets
 import time
@@ -15,6 +16,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.contest import Task, TaskChatMessage, TaskChatSession
 
+logger = logging.getLogger(__name__)
+
 FLAG_PLACEHOLDER = "{{FLAG}}"
 FLAG_TOKEN_LENGTH = 8
 DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS = 150
@@ -26,9 +29,8 @@ CHAT_SESSION_TTL_MINUTES_RANGE = (15, 720)
 CHAT_CONTEXT_MESSAGE_LIMIT = 24
 LLM_COMPLETION_MAX_ATTEMPTS = 3
 LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
-EMPTY_LLM_RESPONSE_FALLBACK = (
-    "Сервис модели временно не вернул текстовый ответ. Попробуйте переформулировать запрос."
-)
+CHAT_ASSISTANT_REPLY_MAX_ROUNDS = 8
+CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS = (0.35, 0.8, 1.3)
 
 _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
@@ -506,6 +508,55 @@ def _extract_text_from_llm_response(response: Any) -> str:
     return _extract_text_from_llm_content(fallback_text)
 
 
+def _extract_error_details(error: Exception) -> tuple[Optional[int], Optional[str], Optional[str], str]:
+    status_code = _extract_error_status_code(error)
+    error_type = getattr(error, "type", None)
+    error_code = getattr(error, "code", None)
+    message = str(error)
+
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        payload = body.get("error") if isinstance(body.get("error"), dict) else body
+        if isinstance(payload, dict):
+            error_type = error_type or payload.get("type")
+            error_code = error_code or payload.get("code")
+            body_message = payload.get("message")
+            if body_message:
+                message = str(body_message)
+
+    truncated_message = " ".join(str(message or "").split())
+    if len(truncated_message) > 500:
+        truncated_message = f"{truncated_message[:500]}..."
+    return (
+        status_code,
+        str(error_type) if error_type else None,
+        str(error_code) if error_code else None,
+        truncated_message or "unknown",
+    )
+
+
+def _describe_llm_response_shape(response: Any) -> str:
+    choices = getattr(response, "choices", None)
+    if choices is None and isinstance(response, dict):
+        choices = response.get("choices")
+    if not choices:
+        return "choices=0"
+    first_choice = choices[0]
+    message = getattr(first_choice, "message", None)
+    if message is None and isinstance(first_choice, dict):
+        message = first_choice.get("message")
+    content = None
+    if message is not None:
+        content = getattr(message, "content", None)
+        if content is None and isinstance(message, dict):
+            content = message.get("content")
+    if content is None:
+        content = getattr(first_choice, "text", None)
+        if content is None and isinstance(first_choice, dict):
+            content = first_choice.get("text")
+    return f"choices={len(choices)} content_type={type(content).__name__}"
+
+
 def _extract_error_status_code(error: Exception) -> Optional[int]:
     status = getattr(error, "status_code", None)
     if isinstance(status, int):
@@ -538,11 +589,19 @@ def _retry_delay_for_attempt(attempt_index: int) -> float:
     return LLM_COMPLETION_RETRY_DELAYS_SECONDS[-1]
 
 
+def _reply_retry_delay_for_round(round_index: int) -> float:
+    if round_index < len(CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS):
+        return CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS[round_index]
+    return CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS[-1]
+
+
 def _run_llm_chat_completion(
     *,
     messages: list[dict[str, str]],
     max_output_tokens: int,
-) -> str:
+    retry_round: int,
+    log_context: Optional[dict[str, Any]] = None,
+) -> Optional[str]:
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     model_name = f"gpt://{folder}/gpt-oss-120b/latest"
@@ -558,24 +617,46 @@ def _run_llm_chat_completion(
             )
         except Exception as exc:  # noqa: BLE001
             last_error = exc
-            if not _is_retryable_llm_error(exc):
+            retryable = _is_retryable_llm_error(exc)
+            status_code, error_type, error_code, error_message = _extract_error_details(exc)
+            logger.warning(
+                "Chat LLM request failed (round=%s attempt=%s/%s retryable=%s status=%s type=%s code=%s message=%s context=%s)",
+                retry_round,
+                attempt + 1,
+                LLM_COMPLETION_MAX_ATTEMPTS,
+                retryable,
+                status_code,
+                error_type,
+                error_code,
+                error_message,
+                log_context or {},
+            )
+            if not retryable:
                 raise ChatTaskError("Yandex model request failed") from exc
             if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
                 time.sleep(_retry_delay_for_attempt(attempt))
                 continue
-            return EMPTY_LLM_RESPONSE_FALLBACK
+            return None
 
         text = _extract_text_from_llm_response(response)
         if text:
             return text
+        logger.warning(
+            "Chat LLM returned empty content (round=%s attempt=%s/%s shape=%s context=%s)",
+            retry_round,
+            attempt + 1,
+            LLM_COMPLETION_MAX_ATTEMPTS,
+            _describe_llm_response_shape(response),
+            log_context or {},
+        )
         if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
             time.sleep(_retry_delay_for_attempt(attempt))
 
     if last_error is not None:
         if _is_retryable_llm_error(last_error):
-            return EMPTY_LLM_RESPONSE_FALLBACK
+            return None
         raise ChatTaskError("Yandex model request failed") from last_error
-    return EMPTY_LLM_RESPONSE_FALLBACK
+    return None
 
 
 async def generate_chat_reply(
@@ -621,11 +702,42 @@ async def generate_chat_reply(
             for message in context_rows
         ],
     ]
-    assistant_text = await asyncio.to_thread(
-        _run_llm_chat_completion,
-        messages=payload_messages,
-        max_output_tokens=limits.model_max_output_tokens,
-    )
+    log_context = {
+        "task_id": task.id,
+        "session_id": session.id,
+        "contest_id": session.contest_id,
+        "user_id": session.user_id,
+    }
+    assistant_text: Optional[str] = None
+    for round_index in range(CHAT_ASSISTANT_REPLY_MAX_ROUNDS):
+        assistant_text = await asyncio.to_thread(
+            _run_llm_chat_completion,
+            messages=payload_messages,
+            max_output_tokens=limits.model_max_output_tokens,
+            retry_round=round_index + 1,
+            log_context=log_context,
+        )
+        if assistant_text:
+            break
+        if round_index + 1 < CHAT_ASSISTANT_REPLY_MAX_ROUNDS:
+            retry_delay = _reply_retry_delay_for_round(round_index)
+            logger.warning(
+                "Chat LLM returned no text, retrying same user message (round=%s/%s delay=%.2fs context=%s)",
+                round_index + 1,
+                CHAT_ASSISTANT_REPLY_MAX_ROUNDS,
+                retry_delay,
+                log_context,
+            )
+            await asyncio.sleep(retry_delay)
+
+    if not assistant_text:
+        logger.error(
+            "Chat LLM exhausted silent retries without text response (rounds=%s context=%s)",
+            CHAT_ASSISTANT_REPLY_MAX_ROUNDS,
+            log_context,
+        )
+        raise ChatTaskError("Не удалось получить ответ модели. Попробуйте ещё раз.")
+
     await add_chat_message(
         db,
         session_id=session.id,
