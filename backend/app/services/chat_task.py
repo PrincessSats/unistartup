@@ -4,12 +4,11 @@ import hmac
 import logging
 import re
 import secrets
-import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,9 +30,12 @@ LLM_COMPLETION_MAX_ATTEMPTS = 3
 LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
 CHAT_ASSISTANT_REPLY_MAX_ROUNDS = 8
 CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS = (0.35, 0.8, 1.3)
+YANDEX_CHAT_MODEL_ID = "qwen3-235b-a22b-fp8"
+YANDEX_CHAT_MODEL_VERSION = "latest"
 
 _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
+_async_client: Optional[AsyncOpenAI] = None
 
 
 class ChatTaskError(RuntimeError):
@@ -137,7 +139,8 @@ def get_chat_limits_for_task(task: Task) -> ChatLimits:
     return limits
 
 
-def _build_client() -> OpenAI:
+def _build_async_client() -> AsyncOpenAI:
+    global _async_client
     api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     missing: list[str] = []
@@ -147,11 +150,13 @@ def _build_client() -> OpenAI:
         missing.append("YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID / YC_FOLDER_ID)")
     if missing:
         raise ChatTaskError(f"Missing Yandex LLM config: {', '.join(missing)}")
-    return OpenAI(
-        api_key=api_key,
-        base_url="https://llm.api.cloud.yandex.net/v1",
-        project=folder,
-    )
+    if _async_client is None:
+        _async_client = AsyncOpenAI(
+            api_key=api_key,
+            base_url="https://llm.api.cloud.yandex.net/v1",
+            project=folder,
+        )
+    return _async_client
 
 
 def derive_dynamic_flag(flag_seed: str) -> str:
@@ -595,21 +600,21 @@ def _reply_retry_delay_for_round(round_index: int) -> float:
     return CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS[-1]
 
 
-def _run_llm_chat_completion(
+async def _run_llm_chat_completion(
     *,
     messages: list[dict[str, str]],
     max_output_tokens: int,
     retry_round: int,
     log_context: Optional[dict[str, Any]] = None,
 ) -> Optional[str]:
-    client = _build_client()
+    client = _build_async_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/gpt-oss-120b/latest"
+    model_name = f"gpt://{folder}/{YANDEX_CHAT_MODEL_ID}/{YANDEX_CHAT_MODEL_VERSION}"
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
     last_error: Optional[Exception] = None
     for attempt in range(LLM_COMPLETION_MAX_ATTEMPTS):
         try:
-            response = client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model_name,
                 reasoning_effort=reasoning_effort,
                 max_tokens=max_output_tokens,
@@ -634,7 +639,7 @@ def _run_llm_chat_completion(
             if not retryable:
                 raise ChatTaskError("Yandex model request failed") from exc
             if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
-                time.sleep(_retry_delay_for_attempt(attempt))
+                await asyncio.sleep(_retry_delay_for_attempt(attempt))
                 continue
             return None
 
@@ -650,7 +655,7 @@ def _run_llm_chat_completion(
             log_context or {},
         )
         if attempt + 1 < LLM_COMPLETION_MAX_ATTEMPTS:
-            time.sleep(_retry_delay_for_attempt(attempt))
+            await asyncio.sleep(_retry_delay_for_attempt(attempt))
 
     if last_error is not None:
         if _is_retryable_llm_error(last_error):
@@ -710,8 +715,7 @@ async def generate_chat_reply(
     }
     assistant_text: Optional[str] = None
     for round_index in range(CHAT_ASSISTANT_REPLY_MAX_ROUNDS):
-        assistant_text = await asyncio.to_thread(
-            _run_llm_chat_completion,
+        assistant_text = await _run_llm_chat_completion(
             messages=payload_messages,
             max_output_tokens=limits.model_max_output_tokens,
             retry_round=round_index + 1,
