@@ -43,6 +43,7 @@ class PracticeTaskCard(BaseModel):
     points: int
     passed_users_count: int = 0
     my_status: PracticeStatus
+    access_type: PracticeAccessType = "just_flag"
     tags: List[str] = Field(default_factory=list)
 
 
