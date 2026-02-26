@@ -654,6 +654,7 @@ async def list_practice_tasks(
                     correct_flags_by_task_user.get(task.id, {}),
                 ),
                 my_status=my_status,
+                access_type=coerce_access_type(getattr(task, "access_type", None)),
                 tags=task.tags or [],
             )
         )
