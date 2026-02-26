@@ -1,3 +1,4 @@
+import asyncio
 import os
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -60,29 +61,26 @@ class ChatTaskServiceTests(unittest.TestCase):
             choices=[SimpleNamespace(message=SimpleNamespace(content=""))]
         )
         completions = SimpleNamespace(
-            calls=0,
-            create=lambda **_kwargs: empty_response,
+            create=AsyncMock(
+                side_effect=[empty_response for _ in range(LLM_COMPLETION_MAX_ATTEMPTS)]
+            )
         )
-
-        def counting_create(**_kwargs):
-            completions.calls += 1
-            return empty_response
-
-        completions.create = counting_create
         fake_client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
         with (
-            patch("app.services.chat_task._build_client", return_value=fake_client),
-            patch("app.services.chat_task.time.sleep", return_value=None),
+            patch("app.services.chat_task._build_async_client", return_value=fake_client),
+            patch("app.services.chat_task.asyncio.sleep", new=AsyncMock()),
         ):
-            result = _run_llm_chat_completion(
-                messages=[{"role": "user", "content": "hi"}],
-                max_output_tokens=64,
-                retry_round=1,
+            result = asyncio.run(
+                _run_llm_chat_completion(
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_output_tokens=64,
+                    retry_round=1,
+                )
             )
 
         self.assertIsNone(result)
-        self.assertEqual(completions.calls, LLM_COMPLETION_MAX_ATTEMPTS)
+        self.assertEqual(completions.create.await_count, LLM_COMPLETION_MAX_ATTEMPTS)
 
     def test_run_llm_chat_completion_returns_none_on_retryable_server_error(self) -> None:
         class RetryableServerError(Exception):
@@ -90,27 +88,27 @@ class ChatTaskServiceTests(unittest.TestCase):
                 super().__init__(message)
                 self.status_code = 500
 
-        completions = SimpleNamespace(calls=0)
-
-        def failing_create(**_kwargs):
-            completions.calls += 1
-            raise RetryableServerError("Internal server error")
-
-        completions.create = failing_create
+        completions = SimpleNamespace(
+            create=AsyncMock(
+                side_effect=[RetryableServerError("Internal server error") for _ in range(LLM_COMPLETION_MAX_ATTEMPTS)]
+            )
+        )
         fake_client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
 
         with (
-            patch("app.services.chat_task._build_client", return_value=fake_client),
-            patch("app.services.chat_task.time.sleep", return_value=None),
+            patch("app.services.chat_task._build_async_client", return_value=fake_client),
+            patch("app.services.chat_task.asyncio.sleep", new=AsyncMock()),
         ):
-            result = _run_llm_chat_completion(
-                messages=[{"role": "user", "content": "hi"}],
-                max_output_tokens=64,
-                retry_round=1,
+            result = asyncio.run(
+                _run_llm_chat_completion(
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_output_tokens=64,
+                    retry_round=1,
+                )
             )
 
         self.assertIsNone(result)
-        self.assertEqual(completions.calls, LLM_COMPLETION_MAX_ATTEMPTS)
+        self.assertEqual(completions.create.await_count, LLM_COMPLETION_MAX_ATTEMPTS)
 
     def test_run_llm_chat_completion_extracts_text_from_list_content(self) -> None:
         list_content_response = SimpleNamespace(
@@ -123,16 +121,18 @@ class ChatTaskServiceTests(unittest.TestCase):
         fake_client = SimpleNamespace(
             chat=SimpleNamespace(
                 completions=SimpleNamespace(
-                    create=lambda **_kwargs: list_content_response,
+                    create=AsyncMock(return_value=list_content_response),
                 )
             )
         )
 
-        with patch("app.services.chat_task._build_client", return_value=fake_client):
-            result = _run_llm_chat_completion(
-                messages=[{"role": "user", "content": "hi"}],
-                max_output_tokens=64,
-                retry_round=1,
+        with patch("app.services.chat_task._build_async_client", return_value=fake_client):
+            result = asyncio.run(
+                _run_llm_chat_completion(
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_output_tokens=64,
+                    retry_round=1,
+                )
             )
 
         self.assertEqual(result, "Ответ модели")
@@ -279,9 +279,9 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=[SimpleNamespace(role="user", content="Привет")]),
             ),
             patch(
-                "app.services.chat_task.asyncio.to_thread",
+                "app.services.chat_task._run_llm_chat_completion",
                 new=AsyncMock(side_effect=[None, "Ответ модели"]),
-            ) as to_thread_mock,
+            ) as run_llm_mock,
             patch(
                 "app.services.chat_task.asyncio.sleep",
                 new=AsyncMock(),
@@ -295,7 +295,7 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertEqual(reply, "Ответ модели")
-        self.assertEqual(to_thread_mock.await_count, 2)
+        self.assertEqual(run_llm_mock.await_count, 2)
         sleep_mock.assert_awaited_once()
         self.assertEqual(add_message_mock.await_count, 2)
 
@@ -328,9 +328,9 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
                 new=AsyncMock(return_value=[SimpleNamespace(role="user", content="Привет")]),
             ),
             patch(
-                "app.services.chat_task.asyncio.to_thread",
+                "app.services.chat_task._run_llm_chat_completion",
                 new=AsyncMock(return_value=None),
-            ) as to_thread_mock,
+            ) as run_llm_mock,
             patch(
                 "app.services.chat_task.asyncio.sleep",
                 new=AsyncMock(),
@@ -344,7 +344,7 @@ class ChatTaskServiceAsyncTests(unittest.IsolatedAsyncioTestCase):
                     user_message="Привет",
                 )
 
-        self.assertEqual(to_thread_mock.await_count, CHAT_ASSISTANT_REPLY_MAX_ROUNDS)
+        self.assertEqual(run_llm_mock.await_count, CHAT_ASSISTANT_REPLY_MAX_ROUNDS)
         self.assertEqual(sleep_mock.await_count, CHAT_ASSISTANT_REPLY_MAX_ROUNDS - 1)
         # User message is persisted, assistant message is not persisted on total failure.
         self.assertEqual(add_message_mock.await_count, 1)
