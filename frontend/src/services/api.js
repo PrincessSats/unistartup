@@ -186,6 +186,10 @@ export const adminAPI = {
 };
 
 export const knowledgeAPI = {
+  getFeed: async (params = {}) => {
+    const response = await api.get('/kb_entries/feed', { params });
+    return response.data;
+  },
   getEntries: async (params = {}) => {
     const response = await api.get('/kb_entries', { params });
     return response.data;

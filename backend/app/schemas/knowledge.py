@@ -16,3 +16,10 @@ class KnowledgeEntry(BaseModel):
     difficulty: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+
+class KnowledgeFeedItem(BaseModel):
+    id: int
+    ru_title: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
