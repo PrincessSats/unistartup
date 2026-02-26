@@ -590,7 +590,7 @@ export default function Home() {
     <div className="font-sans-figma text-white">
       <FeedbackModal open={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
       <section
-        className="rounded-[20px] px-6 pt-8 pb-6"
+        className="rounded-[20px] px-4 pb-6 pt-8 sm:px-6"
         style={{
           backgroundImage:
             'linear-gradient(80.61639898439296deg, rgb(86, 59, 166) 1.2823%, rgb(87, 56, 158) 15.301%, rgb(89, 60, 158) 35.395%, rgb(131, 89, 221) 62.966%, rgb(159, 99, 255) 98.48%)',
@@ -599,14 +599,14 @@ export default function Home() {
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="text-[36px] leading-[44px] tracking-[0.72px] font-medium">
+              <h1 className="text-[30px] leading-[36px] tracking-[0.72px] font-medium sm:text-[36px] sm:leading-[44px]">
                 Привет, {profile?.username || DEFAULT_USERNAME}!
               </h1>
-              <p className="text-[20px] leading-[24px] tracking-[0.4px] text-white/60 mt-4">
+              <p className="mt-4 text-[18px] leading-[22px] tracking-[0.4px] text-white/60 sm:text-[20px] sm:leading-[24px]">
                 Подготовили твои результаты на сегодняшний день
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => navigate('/championship')}
                 className="bg-white/10 border border-white/10 rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white/90"
@@ -645,11 +645,11 @@ export default function Home() {
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
             <div className="flex flex-col gap-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[29px] leading-[36px] tracking-[0.58px] font-medium">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
                   Обучение под мои интересы
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setTrainingTab('theory')}
                     className={`rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] border ${
@@ -698,8 +698,8 @@ export default function Home() {
 
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
             <div className="flex flex-col gap-8">
-              <div className="flex items-center justify-between">
-                <h2 className="text-[29px] leading-[36px] tracking-[0.58px] font-medium">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
                   Задания в процессе
                 </h2>
                 <div className="flex items-center gap-3">
@@ -724,7 +724,7 @@ export default function Home() {
           </div>
 
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
-            <h2 className="text-[29px] leading-[36px] tracking-[0.58px] font-medium">
+            <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
               % пройденных областей знаний
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mt-8">
@@ -745,7 +745,7 @@ export default function Home() {
           )}
 
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6 flex flex-col gap-12">
-            <div className="text-[29px] leading-[36px] tracking-[0.58px] text-white px-4">
+            <div className="px-4 text-[24px] leading-[30px] tracking-[0.58px] text-white sm:text-[29px] sm:leading-[36px]">
               Новости
             </div>
 

@@ -22,10 +22,33 @@ const menuItems = [
   { path: '/faq', label: 'FAQ', icon: icons.faq },
 ];
 
-function Sidebar({ isAdmin }) {
+function Sidebar({ isAdmin, mobile = false, onNavigate }) {
+  const handleNavigate = () => {
+    if (mobile && typeof onNavigate === 'function') {
+      onNavigate();
+    }
+  };
+
   return (
-    <aside className="w-[264px] bg-[#0B0A10] min-h-screen flex flex-col font-sans-figma">
-      <div className="flex flex-col gap-20 px-8 py-8">
+    <aside
+      className={`w-[264px] bg-[#0B0A10] flex flex-col font-sans-figma ${
+        mobile ? 'h-full border-r border-white/[0.09] overflow-y-auto' : 'min-h-screen'
+      }`}
+    >
+      <div className="flex flex-col gap-12 px-6 py-6 sm:gap-20 sm:px-8 sm:py-8">
+        {mobile && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleNavigate}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-[10px] border border-white/[0.09] bg-white/[0.03] text-white/70"
+              aria-label="Закрыть меню"
+            >
+              <AppIcon name="close" className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+
         {/* Логотип */}
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-[12px] bg-white flex items-center justify-center">
@@ -43,6 +66,7 @@ function Sidebar({ isAdmin }) {
               <li key={item.path}>
                 <NavLink
                   to={item.path}
+                  onClick={handleNavigate}
                   className={({ isActive }) =>
                     `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
                       isActive
@@ -62,6 +86,7 @@ function Sidebar({ isAdmin }) {
               <li>
                 <NavLink
                   to="/admin"
+                  onClick={handleNavigate}
                   className={({ isActive }) =>
                     `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
                       isActive

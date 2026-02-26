@@ -497,7 +497,7 @@ function Championship() {
       key={`${sticky ? 'sticky-' : ''}${row.user_id}-${row.rank}`}
       ref={attachCurrentUserRef ? leaderboardMyRowRef : null}
       className={[
-        'grid grid-cols-[82px_minmax(260px,1fr)_96px_126px_148px_148px] items-center gap-4 rounded-[12px] px-4 py-3',
+        'grid min-w-[940px] grid-cols-[82px_minmax(260px,1fr)_96px_126px_148px_148px] items-center gap-4 rounded-[12px] px-4 py-3',
         sticky
           ? 'border border-[#9B6BFF]/25 bg-[linear-gradient(90deg,rgba(155,107,255,0.22),rgba(155,107,255,0.08))]'
           : row.is_me
@@ -549,7 +549,7 @@ function Championship() {
       <div className="relative">
         <div className={shouldBlurContent ? 'blur-[6px] pointer-events-none select-none' : ''}>
           <div className="flex flex-col gap-6">
-            <section className="relative overflow-hidden rounded-[16px] border border-white/[0.06] px-8 pt-8 pb-6">
+            <section className="relative overflow-hidden rounded-[16px] border border-white/[0.06] px-4 pb-6 pt-8 sm:px-6 lg:px-8">
               <div className="pointer-events-none absolute inset-0">
                 <div className="absolute left-0 top-0 h-[301px] w-[492px] bg-[radial-gradient(ellipse_at_top_left,_rgba(155,107,255,0.18),_rgba(11,10,16,0)_70%)]" />
                 <div className="absolute right-0 top-0 h-[375px] w-[551px] bg-[radial-gradient(ellipse_at_top_right,_rgba(155,107,255,0.12),_rgba(11,10,16,0)_70%)]" />
@@ -958,31 +958,35 @@ function Championship() {
                   </button>
                 </div>
 
-                <div className="mt-6 grid grid-cols-[82px_minmax(260px,1fr)_96px_126px_148px_148px] items-center gap-4 px-4 text-[12px] leading-[16px] tracking-[0.08em] text-white/55">
-                  <div>Место</div>
-                  <div>Пользователь</div>
-                  <div className="text-center">Титул</div>
-                  <div className="text-center">Баллы</div>
-                  <div className="text-center">Собрано флагов</div>
-                  <div className="text-center">Решение</div>
-                </div>
+                <div className="mt-6 overflow-x-auto">
+                  <div className="min-w-[940px]">
+                    <div className="grid grid-cols-[82px_minmax(260px,1fr)_96px_126px_148px_148px] items-center gap-4 px-4 text-[12px] leading-[16px] tracking-[0.08em] text-white/55">
+                      <div>Место</div>
+                      <div>Пользователь</div>
+                      <div className="text-center">Титул</div>
+                      <div className="text-center">Баллы</div>
+                      <div className="text-center">Собрано флагов</div>
+                      <div className="text-center">Решение</div>
+                    </div>
 
-                <div ref={leaderboardScrollRef} className="mt-3 max-h-[620px] space-y-1.5 overflow-y-auto pr-1">
-                  {leaderboardLoading ? (
-                    <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
-                      Загружаем рейтинг...
+                    <div ref={leaderboardScrollRef} className="mt-3 max-h-[620px] space-y-1.5 overflow-y-auto pr-1">
+                      {leaderboardLoading ? (
+                        <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
+                          Загружаем рейтинг...
+                        </div>
+                      ) : leaderboardRows.length ? (
+                        leaderboardRows.map((row) => renderLeaderboardRow(row, { attachCurrentUserRef: row.is_me }))
+                      ) : (
+                        <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
+                          Пока нет участников с результатами.
+                        </div>
+                      )}
                     </div>
-                  ) : leaderboardRows.length ? (
-                    leaderboardRows.map((row) => renderLeaderboardRow(row, { attachCurrentUserRef: row.is_me }))
-                  ) : (
-                    <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
-                      Пока нет участников с результатами.
-                    </div>
-                  )}
+                  </div>
                 </div>
 
                 {shouldShowStickyCurrentUser && leaderboardCurrentUser ? (
-                  <div className="mt-3">
+                  <div className="mt-3 overflow-x-auto">
                     {renderLeaderboardRow(leaderboardCurrentUser, { sticky: true })}
                   </div>
                 ) : null}
