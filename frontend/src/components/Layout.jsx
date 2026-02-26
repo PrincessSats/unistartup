@@ -80,6 +80,9 @@ function Layout({ children }) {
   const isAdmin = userData?.role === 'admin';
   const username = userData?.username || 'Пользователь';
   const avatarUrl = userData?.avatar_url;  // ← новое
+  const content = React.isValidElement(children)
+    ? React.cloneElement(children, { currentUser: userData })
+    : children;
 
   return (
     <div className="min-h-screen bg-[#0B0A10] overflow-x-hidden">
@@ -99,7 +102,7 @@ function Layout({ children }) {
           />
 
           <main className="flex-1 min-w-0 px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8">
-            {children}
+            {content}
           </main>
         </div>
       </div>

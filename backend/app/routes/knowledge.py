@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.database import get_db
 from app.schemas.comments import KBComment, KBCommentCreate
-from app.schemas.knowledge import KnowledgeEntry
+from app.schemas.knowledge import KnowledgeEntry, KnowledgeFeedItem
 from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/kb_entries", tags=["Knowledge Base"])
@@ -178,6 +178,45 @@ async def list_kb_tags(
     ).mappings().all()
 
     return [row["tag"] for row in rows if row.get("tag")]
+
+
+@router.get("/feed", response_model=List[KnowledgeFeedItem])
+async def list_kb_feed(
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(3, ge=1, le=20),
+):
+    """
+    Облегченный фид для главной страницы:
+    возвращает только id, заголовок и даты.
+    """
+    _user, _profile = current_user_data
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT id, ru_title, created_at, updated_at
+                FROM kb_entries
+                WHERE ru_title IS NOT NULL
+                  AND length(trim(ru_title)) > 0
+                ORDER BY COALESCE(updated_at, created_at) DESC
+                LIMIT :limit
+                """
+            ),
+            {"limit": limit},
+        )
+    ).mappings().all()
+
+    return [
+        KnowledgeFeedItem(
+            id=row["id"],
+            ru_title=row["ru_title"],
+            created_at=row["created_at"],
+            updated_at=row.get("updated_at"),
+        )
+        for row in rows
+    ]
 
 
 @router.get("/{entry_id}", response_model=KnowledgeEntry)

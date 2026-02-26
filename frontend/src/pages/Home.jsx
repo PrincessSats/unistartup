@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { educationAPI, knowledgeAPI, profileAPI } from '../services/api';
+import { educationAPI, knowledgeAPI, ratingsAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
 import { TrainingIllustration } from '../components/AppIllustration';
@@ -76,11 +76,39 @@ const knowledgeAreas = [
   'Network',
 ];
 
-const taskNews = [
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
-  'Новое руководство: продвинутые методы переполнения буфера',
-];
+const HOME_KNOWLEDGE_CACHE_KEY = 'home:knowledge-feed:v1';
+const HOME_KNOWLEDGE_CACHE_TTL_MS = 5 * 60 * 1000;
+
+function readKnowledgeFeedCache() {
+  try {
+    const raw = localStorage.getItem(HOME_KNOWLEDGE_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    const savedAt = Number(parsed?.savedAt) || 0;
+    if (!savedAt || Date.now() - savedAt > HOME_KNOWLEDGE_CACHE_TTL_MS) {
+      return [];
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+function writeKnowledgeFeedCache(items) {
+  try {
+    localStorage.setItem(
+      HOME_KNOWLEDGE_CACHE_KEY,
+      JSON.stringify({ items, savedAt: Date.now() })
+    );
+  } catch {
+    // ignore cache write errors
+  }
+}
+
+function toSafeNumber(value, fallback = 0) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback;
+}
 
 const practiceStatusOrder = {
   not_started: 0,
@@ -431,21 +459,25 @@ function NewsItem({ title, meta, to }) {
   );
 }
 
-function TaskNewsItem({ title }) {
+function TaskNewsItem({ task }) {
+  const title = String(task?.title || '').trim() || 'Без названия';
+  const category = String(task?.category || '').trim() || 'Без категории';
+  const passedUsersCount = toSafeNumber(task?.passed_users_count, 0);
+
   return (
-    <div className="bg-white/[0.05] rounded-[12px] px-4 py-5">
+    <Link to={`/education/${task.id}`} className="bg-white/[0.05] rounded-[12px] px-4 py-5 transition hover:border hover:border-[#9B6BFF]/50">
       <div className="text-[18px] leading-[24px] tracking-[0.72px] text-white truncate">
         {title}
       </div>
       <div className="flex items-center gap-4 mt-3">
         <span className="bg-white/5 border border-white/10 rounded-[10px] px-3 py-1.5 text-[14px] leading-[20px] tracking-[0.64px] text-white/70">
-          Криптография
+          {category}
         </span>
         <span className="text-[14px] leading-[20px] tracking-[0.64px] text-white/50">
-          4 прошли
+          {passedUsersCount} прошли
         </span>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -468,36 +500,37 @@ function getArticleTitle(entry) {
   return title || 'Без названия';
 }
 
-export default function Home() {
+export default function Home({ currentUser = null }) {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState(null);
+  const initialKnowledgeFeed = useMemo(() => readKnowledgeFeedCache(), []);
+  const hasCachedKnowledge = initialKnowledgeFeed.length > 0;
+  const [profile, setProfile] = useState(currentUser);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showFeedbackCard, setShowFeedbackCard] = useState(true);
-  const [knowledgeItems, setKnowledgeItems] = useState([]);
-  const [knowledgeLoading, setKnowledgeLoading] = useState(true);
+  const [homeMode, setHomeMode] = useState('championship');
+  const [knowledgeItems, setKnowledgeItems] = useState(initialKnowledgeFeed);
+  const [knowledgeLoading, setKnowledgeLoading] = useState(initialKnowledgeFeed.length === 0);
   const [knowledgeError, setKnowledgeError] = useState('');
   const [trainingTab, setTrainingTab] = useState('theory');
   const [practiceTrainingItems, setPracticeTrainingItems] = useState([]);
   const [practiceLoading, setPracticeLoading] = useState(true);
   const [practiceError, setPracticeError] = useState('');
+  const [latestTasks, setLatestTasks] = useState([]);
+  const [latestTasksLoading, setLatestTasksLoading] = useState(true);
+  const [latestTasksError, setLatestTasksError] = useState('');
+  const [leaderboardStats, setLeaderboardStats] = useState({
+    contest: null,
+    practice: null,
+  });
+  const [leaderboardStatsLoading, setLeaderboardStatsLoading] = useState(false);
 
   useEffect(() => {
-    let isMounted = true;
+    if (currentUser) {
+      setProfile(currentUser);
+    }
+  }, [currentUser]);
 
-    const fetchProfile = async () => {
-      try {
-        const data = await profileAPI.getProfile();
-        if (isMounted) {
-          setProfile(data);
-        }
-      } catch (error) {
-        // Если токен протух — редиректится в Layout, здесь можно молча игнорировать
-        console.error('Не удалось загрузить профиль для главной страницы', error);
-      }
-    };
-
-    fetchProfile();
-
+  useEffect(() => {
     const handleProfileUpdated = (event) => {
       if (event?.detail) {
         setProfile((prev) => ({ ...(prev || {}), ...event.detail }));
@@ -505,9 +538,7 @@ export default function Home() {
     };
 
     window.addEventListener('profile-updated', handleProfileUpdated);
-
     return () => {
-      isMounted = false;
       window.removeEventListener('profile-updated', handleProfileUpdated);
     };
   }, []);
@@ -515,17 +546,31 @@ export default function Home() {
   useEffect(() => {
     let isMounted = true;
     const fetchKnowledge = async () => {
+      const shouldShowLoader = !hasCachedKnowledge;
+      if (isMounted && shouldShowLoader) {
+        setKnowledgeLoading(true);
+      }
       try {
         setKnowledgeError('');
-        const data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc', only_with_title: true });
+        let data;
+        try {
+          data = await knowledgeAPI.getFeed({ limit: 3 });
+        } catch (feedError) {
+          if (feedError?.response?.status !== 404) {
+            throw feedError;
+          }
+          data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc', only_with_title: true });
+        }
         if (isMounted) {
-          setKnowledgeItems(Array.isArray(data) ? data : []);
+          const items = Array.isArray(data) ? data : [];
+          setKnowledgeItems(items);
+          writeKnowledgeFeedCache(items);
         }
       } catch (error) {
         console.error('Не удалось загрузить статьи базы знаний', error);
         const detail = error?.response?.data?.detail;
-        setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
         if (isMounted) {
+          setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
           setKnowledgeItems([]);
         }
       } finally {
@@ -536,6 +581,36 @@ export default function Home() {
     };
 
     fetchKnowledge();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasCachedKnowledge]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchLatestTasks = async () => {
+      try {
+        setLatestTasksError('');
+        const response = await educationAPI.getPracticeTasks({ limit: 3, offset: 0 });
+        if (!isMounted) return;
+        const items = Array.isArray(response?.items) ? response.items : [];
+        setLatestTasks(items);
+      } catch (error) {
+        console.error('Не удалось загрузить новые задачи для главной страницы', error);
+        const detail = error?.response?.data?.detail;
+        if (!isMounted) return;
+        setLatestTasksError(typeof detail === 'string' ? detail : 'Не удалось загрузить новые задачи');
+        setLatestTasks([]);
+      } finally {
+        if (isMounted) {
+          setLatestTasksLoading(false);
+        }
+      }
+    };
+
+    fetchLatestTasks();
 
     return () => {
       isMounted = false;
@@ -580,10 +655,73 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const extractMyStats = (payload) => {
+      const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+      const me = entries.find((entry) => entry?.is_current_user) || null;
+      if (!me) return null;
+      return {
+        rank: toSafeNumber(me.rank, null),
+        points: toSafeNumber(me.rating, 0),
+        firstBlood: toSafeNumber(me.first_blood, 0),
+      };
+    };
+
+    const fetchLeaderboardStats = async () => {
+      try {
+        setLeaderboardStatsLoading(true);
+        const [contestResult, practiceResult] = await Promise.allSettled([
+          ratingsAPI.getLeaderboard('contest'),
+          ratingsAPI.getLeaderboard('practice'),
+        ]);
+
+        if (!isMounted) return;
+
+        setLeaderboardStats({
+          contest: contestResult.status === 'fulfilled' ? extractMyStats(contestResult.value) : null,
+          practice: practiceResult.status === 'fulfilled' ? extractMyStats(practiceResult.value) : null,
+        });
+      } catch (error) {
+        if (isMounted) {
+          console.error('Не удалось загрузить статистику рейтинга для главной страницы', error);
+        }
+      } finally {
+        if (isMounted) {
+          setLeaderboardStatsLoading(false);
+        }
+      }
+    };
+
+    fetchLeaderboardStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const modeStats = homeMode === 'championship'
+    ? {
+      rank: leaderboardStats.contest?.rank,
+      points: leaderboardStats.contest?.points ?? toSafeNumber(profile?.contest_rating, 0),
+      firstBlood: leaderboardStats.contest?.firstBlood ?? toSafeNumber(profile?.first_blood, 0),
+      targetPath: '/championship',
+      targetLabel: 'Перейти к чемпионату',
+    }
+    : {
+      rank: leaderboardStats.practice?.rank,
+      points: leaderboardStats.practice?.points ?? toSafeNumber(profile?.practice_rating, 0),
+      firstBlood: leaderboardStats.practice?.firstBlood ?? toSafeNumber(profile?.first_blood, 0),
+      targetPath: '/education',
+      targetLabel: 'Перейти к обучению',
+    };
+
+  const rankValue = modeStats.rank ?? (leaderboardStatsLoading ? '...' : '—');
   const stats = [
-    { label: 'Рейтинг', value: profile?.contest_rating ?? 0 },
-    { label: 'Очки', value: profile?.practice_rating ?? 0 },
-    { label: 'First blood', value: profile?.first_blood ?? 0 },
+    { label: 'Рейтинг', value: rankValue },
+    { label: 'Очки', value: modeStats.points },
+    { label: 'First blood', value: modeStats.firstBlood },
   ];
 
   return (
@@ -608,14 +746,22 @@ export default function Home() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <button
-                onClick={() => navigate('/championship')}
-                className="bg-white/10 border border-white/10 rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white/90"
+                onClick={() => setHomeMode('championship')}
+                className={`rounded-[10px] border px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] ${
+                  homeMode === 'championship'
+                    ? 'bg-white/10 border-white/10 text-white/90'
+                    : 'bg-white/5 border-white/10 text-white/60'
+                }`}
               >
                 Чемпионат
               </button>
               <button
-                onClick={() => navigate('/education')}
-                className="bg-white/5 border border-white/10 rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white/60"
+                onClick={() => setHomeMode('education')}
+                className={`rounded-[10px] border px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] ${
+                  homeMode === 'education'
+                    ? 'bg-white/10 border-white/10 text-white/90'
+                    : 'bg-white/5 border-white/10 text-white/60'
+                }`}
               >
                 Обучение
               </button>
@@ -629,10 +775,10 @@ export default function Home() {
               ))}
             </div>
             <button
-              onClick={() => navigate('/championship')}
+              onClick={() => navigate(modeStats.targetPath)}
               className="flex items-center gap-2 text-[18px] leading-[24px] tracking-[0.72px] text-white/90"
             >
-              Перейти к чемпионату
+              {modeStats.targetLabel}
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 5l6 7-6 7" />
               </svg>
@@ -770,8 +916,17 @@ export default function Home() {
             </NewsCard>
 
             <NewsCard title="Новые задания" icon={<AppIcon name="flag" className="w-7 h-7" />}>
-              {taskNews.map((item, index) => (
-                <TaskNewsItem key={`${item}-${index}`} title={item} />
+              {latestTasksError && (
+                <NewsItem title={latestTasksError} meta="" />
+              )}
+              {latestTasksLoading && (
+                <NewsItem title="Загрузка задач..." meta="" />
+              )}
+              {!latestTasksLoading && !latestTasksError && latestTasks.length === 0 && (
+                <NewsItem title="Пока нет новых задач" meta="" />
+              )}
+              {!latestTasksLoading && !latestTasksError && latestTasks.map((task) => (
+                <TaskNewsItem key={task.id} task={task} />
               ))}
             </NewsCard>
           </div>
