@@ -1,12 +1,13 @@
 import logging
 import re
+from time import perf_counter
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge, education
-from app.database import ensure_auth_schema_compatibility
+from app.database import ensure_auth_schema_compatibility, ensure_performance_indexes
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,26 @@ app.include_router(education.router)
 
 logger.info("Routers loaded: auth, pages, profile, contests, ratings, feedback, knowledge, education")
 
+
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    started_at = perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (perf_counter() - started_at) * 1000.0
+    response.headers["X-Process-Time-Ms"] = f"{elapsed_ms:.2f}"
+    if (
+        settings.LOG_SLOW_REQUESTS
+        and elapsed_ms >= settings.SLOW_REQUEST_THRESHOLD_MS
+    ):
+        logger.warning(
+            "Slow request: %s %s status=%s time_ms=%.2f",
+            request.method,
+            request.url.path,
+            response.status_code,
+            elapsed_ms,
+        )
+    return response
+
 @app.get("/")
 async def root():
     return {
@@ -68,4 +89,10 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_tasks():
+    if not settings.RUN_STARTUP_DB_MAINTENANCE:
+        logger.info("Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false")
+        return
+
     await ensure_auth_schema_compatibility()
+    # На старте дополнительно гарантируем индексы для быстрых пользовательских сценариев.
+    await ensure_performance_indexes()
