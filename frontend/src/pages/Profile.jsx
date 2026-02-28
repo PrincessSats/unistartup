@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { authAPI, profileAPI } from '../services/api';
 
 function Profile() {
   const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Берем данные пользователя из Layout, чтобы не дублировать сетевой запрос.
+  const outletContext = useOutletContext();
+  const currentUser = outletContext?.currentUser || null;
+  const [userData, setUserData] = useState(currentUser);
+  const [loading, setLoading] = useState(!currentUser);
   
   // Состояния для редактирования
   const [showAvatarModal, setShowAvatarModal] = useState(false);
@@ -39,6 +42,15 @@ function Profile() {
   };
 
   useEffect(() => {
+    // Если Layout уже передал профиль, обновляем локальный state без дополнительного запроса.
+    if (currentUser) {
+      setUserData(currentUser);
+      setEditUsername(currentUser?.username || '');
+      setEditEmail(currentUser?.email || '');
+      setLoading(false);
+      return;
+    }
+
     const fetchUserData = async () => {
       try {
         const data = await profileAPI.getProfile();
@@ -57,7 +69,7 @@ function Profile() {
     };
 
     fetchUserData();
-  }, [navigate]);
+  }, [navigate, currentUser]);
 
   const handleLogout = () => {
     authAPI.logout();

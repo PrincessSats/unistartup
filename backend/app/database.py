@@ -126,3 +126,39 @@ async def ensure_auth_schema_compatibility() -> None:
         for stmt in statements:
             await conn.execute(text(stmt))
     logger.info("Auth schema compatibility check completed")
+
+
+async def ensure_performance_indexes() -> None:
+    """
+    Создает недостающие индексы для горячих запросов интерфейса.
+    Идемпотентно: безопасно вызывается на каждом старте.
+    """
+    statements = [
+        # Быстрые выборки карточек практики на главной и в каталоге.
+        "CREATE INDEX IF NOT EXISTS idx_tasks_practice_ready_created ON tasks(task_kind, state, created_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_practice_ready_category_created ON tasks(task_kind, state, lower(category), created_at DESC, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_tasks_practice_ready_difficulty_created ON tasks(task_kind, state, difficulty, created_at DESC, id DESC)",
+        # Связанные сущности задач должны читаться по task_id без full scan.
+        "CREATE INDEX IF NOT EXISTS idx_task_flags_task_id ON task_flags(task_id, id)",
+        "CREATE INDEX IF NOT EXISTS idx_task_materials_task_id ON task_materials(task_id, id)",
+        # Индексы для рейтингов/прогресса по сабмишенам.
+        "CREATE INDEX IF NOT EXISTS idx_submissions_correct_contest_user_task ON submissions(contest_id, is_correct, user_id, task_id)",
+        "CREATE INDEX IF NOT EXISTS idx_submissions_contest_correct_submitted ON submissions(contest_id, is_correct, submitted_at ASC, id ASC)",
+        "CREATE INDEX IF NOT EXISTS idx_submissions_contest_user_correct ON submissions(contest_id, user_id, is_correct, submitted_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_submissions_correct_user_task_practice ON submissions(user_id, task_id) WHERE contest_id IS NULL AND is_correct = TRUE",
+        "CREATE INDEX IF NOT EXISTS idx_submissions_practice_user_task_all ON submissions(user_id, task_id) WHERE contest_id IS NULL",
+        "CREATE INDEX IF NOT EXISTS idx_submissions_practice_task_user_flag_correct ON submissions(task_id, user_id, flag_id) WHERE contest_id IS NULL AND is_correct = TRUE",
+        # Быстрая сортировка общего рейтинга.
+        "CREATE INDEX IF NOT EXISTS idx_user_ratings_contest_order ON user_ratings(contest_rating DESC, first_blood DESC, user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_ratings_practice_order ON user_ratings(practice_rating DESC, first_blood DESC, user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_profiles_username_lower ON user_profiles((lower(username)))",
+        # Лента базы знаний сортируется по COALESCE(updated_at, created_at).
+        "CREATE INDEX IF NOT EXISTS idx_kb_entries_updated_created_desc ON kb_entries((COALESCE(updated_at, created_at)) DESC)",
+        # Итоги контестов часто читают участников в порядке входа.
+        "CREATE INDEX IF NOT EXISTS idx_contest_participants_contest_joined ON contest_participants(contest_id, joined_at ASC)",
+    ]
+
+    async with engine.begin() as conn:
+        for stmt in statements:
+            await conn.execute(text(stmt))
+    logger.info("Performance indexes check completed")
