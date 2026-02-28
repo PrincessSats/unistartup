@@ -24,6 +24,102 @@ const api = axios.create({
   baseURL: API_URL,
 });
 
+const inFlightGetRequests = new Map();
+const getResponseCache = new Map();
+
+const CACHE_TTLS_MS = {
+  profile: 60 * 1000,
+  knowledgeFeed: 5 * 60 * 1000,
+  practiceTasks: 90 * 1000,
+  myStats: 30 * 1000,
+};
+
+function serializeParams(params = {}) {
+  const pairs = [];
+  Object.keys(params)
+    .sort()
+    .forEach((key) => {
+      const value = params[key];
+      if (value === undefined || value === null) return;
+      if (Array.isArray(value)) {
+        value.forEach((item) => pairs.push([key, String(item)]));
+        return;
+      }
+      pairs.push([key, String(value)]);
+    });
+
+  return new URLSearchParams(pairs).toString();
+}
+
+function buildGetCacheKey(url, params = {}) {
+  const serialized = serializeParams(params);
+  return serialized ? `${url}?${serialized}` : url;
+}
+
+function readGetCache(key) {
+  const entry = getResponseCache.get(key);
+  if (!entry) {
+    return { hit: false };
+  }
+  if (Date.now() > entry.expiresAt) {
+    getResponseCache.delete(key);
+    return { hit: false };
+  }
+  return { hit: true, data: entry.data };
+}
+
+function writeGetCache(key, data, ttlMs) {
+  if (!Number.isFinite(ttlMs) || ttlMs <= 0) return;
+  getResponseCache.set(key, {
+    data,
+    expiresAt: Date.now() + ttlMs,
+  });
+}
+
+function invalidateGetCacheByPrefix(prefix) {
+  for (const key of getResponseCache.keys()) {
+    if (key.startsWith(prefix)) {
+      getResponseCache.delete(key);
+    }
+  }
+  for (const key of inFlightGetRequests.keys()) {
+    if (key.startsWith(prefix)) {
+      inFlightGetRequests.delete(key);
+    }
+  }
+}
+
+function clearAllRequestCache() {
+  inFlightGetRequests.clear();
+  getResponseCache.clear();
+}
+
+async function cachedGet(url, { params = {}, ttlMs = 0 } = {}) {
+  const cacheKey = buildGetCacheKey(url, params);
+  const cached = readGetCache(cacheKey);
+  if (cached.hit) {
+    return cached.data;
+  }
+
+  const inFlight = inFlightGetRequests.get(cacheKey);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = api
+    .get(url, { params })
+    .then((response) => {
+      writeGetCache(cacheKey, response.data, ttlMs);
+      return response.data;
+    })
+    .finally(() => {
+      inFlightGetRequests.delete(cacheKey);
+    });
+
+  inFlightGetRequests.set(cacheKey, request);
+  return request;
+}
+
 // Добавляем токен к защищенным запросам (не к /auth/*).
 api.interceptors.request.use((config) => {
   const requestPath = String(config.url || '');
@@ -62,6 +158,7 @@ export const authAPI = {
     if (!API_URL) {
       throw new Error('API base URL is not configured');
     }
+    clearAllRequestCache();
     const response = await api.post('/auth/login', {
       email,
       password,
@@ -74,6 +171,7 @@ export const authAPI = {
 
   logout: () => {
     localStorage.removeItem('token');
+    clearAllRequestCache();
   },
 
   isAuthenticated: () => {
@@ -187,8 +285,10 @@ export const adminAPI = {
 
 export const knowledgeAPI = {
   getFeed: async (params = {}) => {
-    const response = await api.get('/kb_entries/feed', { params });
-    return response.data;
+    return cachedGet('/kb_entries/feed', {
+      params,
+      ttlMs: CACHE_TTLS_MS.knowledgeFeed,
+    });
   },
   getEntries: async (params = {}) => {
     const response = await api.get('/kb_entries', { params });
@@ -218,8 +318,10 @@ export const knowledgeAPI = {
 
 export const educationAPI = {
   getPracticeTasks: async (params = {}) => {
-    const response = await api.get('/education/practice/tasks', { params });
-    return response.data;
+    return cachedGet('/education/practice/tasks', {
+      params,
+      ttlMs: CACHE_TTLS_MS.practiceTasks,
+    });
   },
   getPracticeTask: async (taskId) => {
     const response = await api.get(`/education/practice/tasks/${taskId}`);
@@ -261,19 +363,22 @@ export const educationAPI = {
 export const profileAPI = {
   // Получить профиль
   getProfile: async () => {
-    const response = await api.get('/profile');
-    return response.data;
+    return cachedGet('/profile', {
+      ttlMs: CACHE_TTLS_MS.profile,
+    });
   },
 
   // Обновить username
   updateUsername: async (username) => {
     const response = await api.put('/profile', { username });
+    invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
 
   // Обновить email
   updateEmail: async (newEmail) => {
     const response = await api.put('/profile/email', { new_email: newEmail });
+    invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
 
@@ -283,6 +388,7 @@ export const profileAPI = {
       current_password: currentPassword,
       new_password: newPassword,
     });
+    invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
 
@@ -292,6 +398,7 @@ export const profileAPI = {
     formData.append('file', file);
     
     const response = await api.post('/profile/avatar', formData);
+    invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
 };
@@ -340,6 +447,18 @@ export const ratingsAPI = {
       params: { kind },
     });
     return response.data;
+  },
+  getMyStatsBundle: async () => {
+    return cachedGet('/ratings/my-stats/both', {
+      ttlMs: CACHE_TTLS_MS.myStats,
+    });
+  },
+  // Лёгкая статистика только по текущему пользователю (без полной таблицы рейтинга).
+  getMyStats: async (kind = 'contest') => {
+    return cachedGet('/ratings/my-stats', {
+      params: { kind },
+      ttlMs: CACHE_TTLS_MS.myStats,
+    });
   },
 };
 

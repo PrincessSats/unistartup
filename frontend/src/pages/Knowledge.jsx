@@ -124,6 +124,7 @@ function Knowledge() {
     let isMounted = true;
     const fetchTags = async () => {
       try {
+        // Загружаем теги один раз: список тегов не зависит от страницы пагинации.
         const data = await knowledgeAPI.getTags({ only_with_title: true });
         if (isMounted) {
           setCategories(Array.isArray(data) ? data : []);
@@ -135,6 +136,16 @@ function Knowledge() {
         }
       }
     };
+
+    fetchTags();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
 
     const fetchEntries = async () => {
       if (isMounted) {
@@ -168,7 +179,6 @@ function Knowledge() {
       }
     };
 
-    fetchTags();
     fetchEntries();
 
     return () => {

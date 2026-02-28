@@ -1,17 +1,59 @@
 // frontend/src/components/Layout.jsx
 
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import FeedbackModal from './FeedbackModal';
-import { authAPI, profileAPI } from '../services/api';  // ← заменили userAPI на profileAPI
+import { authAPI, profileAPI } from '../services/api';
 
-function Layout({ children }) {
+// Кэш профиля нужен, чтобы отрисовывать интерфейс сразу при повторных переходах.
+const PROFILE_CACHE_KEY = 'layout:profile:v1';
+const PROFILE_CACHE_TTL_MS = 2 * 60 * 1000;
+
+function readProfileCache() {
+  try {
+    const raw = sessionStorage.getItem(PROFILE_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+
+    // Обратная совместимость со старым форматом: в кеше лежал сам профиль без метаданных.
+    if (parsed && !parsed.profile) {
+      return parsed;
+    }
+
+    const profile = parsed.profile && typeof parsed.profile === 'object' ? parsed.profile : null;
+    const savedAt = Number(parsed.savedAt) || 0;
+    if (!profile || !savedAt) return null;
+    if (Date.now() - savedAt > PROFILE_CACHE_TTL_MS) {
+      return null;
+    }
+    return profile;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileCache(profile) {
+  try {
+    if (!profile) {
+      sessionStorage.removeItem(PROFILE_CACHE_KEY);
+      return;
+    }
+    sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify({ profile, savedAt: Date.now() }));
+  } catch {
+    // Ошибки кэша не должны ломать основной поток страницы.
+  }
+}
+
+function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [userData, setUserData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const initialCachedProfile = useMemo(() => readProfileCache(), []);
+  // Берем профиль из кэша, чтобы не показывать "Загрузка..." на каждом переходе.
+  const [userData, setUserData] = useState(initialCachedProfile);
+  const [loading, setLoading] = useState(() => !initialCachedProfile);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -21,13 +63,21 @@ function Layout({ children }) {
       return;
     }
 
+    // Если профиль в session cache еще свежий, не дергаем API сразу после загрузки.
+    if (initialCachedProfile) {
+      setLoading(false);
+      return;
+    }
+
     const fetchUserData = async () => {
       try {
-        // Используем profileAPI — он возвращает avatar_url
         const data = await profileAPI.getProfile();
         setUserData(data);
+        writeProfileCache(data);
       } catch (err) {
         if (err.response?.status === 401) {
+          // При невалидной сессии очищаем кэш, чтобы не показывать устаревший профиль.
+          writeProfileCache(null);
           authAPI.logout();
           navigate('/login');
         }
@@ -37,14 +87,19 @@ function Layout({ children }) {
     };
 
     fetchUserData();
-  }, [navigate]);
+  }, [initialCachedProfile, navigate]);
 
   useEffect(() => {
     const handleProfileUpdated = (event) => {
-      setUserData((prev) => ({
-        ...(prev || {}),
-        ...(event?.detail || {}),
-      }));
+      // Используем функциональный setState, чтобы не пересоздавать подписку при каждом обновлении профиля.
+      setUserData((prev) => {
+        const next = {
+          ...(prev || {}),
+          ...(event?.detail || {}),
+        };
+        writeProfileCache(next);
+        return next;
+      });
     };
 
     window.addEventListener('profile-updated', handleProfileUpdated);
@@ -68,7 +123,8 @@ function Layout({ children }) {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isSidebarOpen]);
 
-  if (loading) {
+  // Полный блокирующий экран показываем только при самом первом заходе без кэша.
+  if (loading && !userData) {
     return (
       <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
         <div className="text-white text-xl">Загрузка...</div>
@@ -79,10 +135,7 @@ function Layout({ children }) {
   // Структура ответа profileAPI: { id, email, username, role, bio, avatar_url }
   const isAdmin = userData?.role === 'admin';
   const username = userData?.username || 'Пользователь';
-  const avatarUrl = userData?.avatar_url;  // ← новое
-  const content = React.isValidElement(children)
-    ? React.cloneElement(children, { currentUser: userData })
-    : children;
+  const avatarUrl = userData?.avatar_url;
 
   return (
     <div className="min-h-screen bg-[#0B0A10] overflow-x-hidden">
@@ -102,7 +155,8 @@ function Layout({ children }) {
           />
 
           <main className="flex-1 min-w-0 px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pb-8">
-            {content}
+            {/* Передаем текущего пользователя вниз через Outlet, чтобы страницы не дублировали запрос профиля. */}
+            <Outlet context={{ currentUser: userData }} />
           </main>
         </div>
       </div>

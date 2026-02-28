@@ -464,25 +464,33 @@ async def _load_user_submission_state(
         return set(), {}, set()
 
     result = await db.execute(
-        select(Submission.task_id, Submission.flag_id, Submission.is_correct)
+        select(
+            Submission.task_id,
+            func.bool_or(Submission.is_correct).label("has_any_correct"),
+            func.array_remove(
+                func.array_agg(func.distinct(Submission.flag_id)).filter(Submission.is_correct.is_(True)),
+                None,
+            ).label("solved_flag_ids"),
+        )
         .where(
             Submission.user_id == user_id,
             Submission.contest_id.is_(None),
             Submission.task_id.in_(task_id_list),
         )
+        .group_by(Submission.task_id)
     )
 
     has_any_submission: set[int] = set()
     solved_flags: Dict[int, set[str]] = {}
     has_any_correct: set[int] = set()
 
-    for task_id, flag_id, is_correct in result.all():
+    for task_id, has_any_correct_value, solved_flag_ids in result.all():
         has_any_submission.add(task_id)
-        if not is_correct:
-            continue
-        has_any_correct.add(task_id)
-        if flag_id:
-            solved_flags.setdefault(task_id, set()).add(flag_id)
+        if has_any_correct_value:
+            has_any_correct.add(task_id)
+        normalized_flags = {str(flag_id) for flag_id in (solved_flag_ids or []) if flag_id}
+        if normalized_flags:
+            solved_flags[task_id] = normalized_flags
 
     return has_any_submission, solved_flags, has_any_correct
 
@@ -496,20 +504,27 @@ async def _load_all_users_correct_flags(
         return {}
 
     result = await db.execute(
-        select(Submission.task_id, Submission.user_id, Submission.flag_id)
+        select(
+            Submission.task_id,
+            Submission.user_id,
+            func.array_remove(
+                func.array_agg(func.distinct(Submission.flag_id)),
+                None,
+            ).label("flag_ids"),
+        )
         .where(
             Submission.contest_id.is_(None),
             Submission.is_correct.is_(True),
             Submission.task_id.in_(task_id_list),
         )
+        .group_by(Submission.task_id, Submission.user_id)
     )
 
     output: Dict[int, Dict[int, set[str]]] = {}
-    for task_id, user_id, flag_id in result.all():
+    for task_id, user_id, flag_ids in result.all():
         per_task = output.setdefault(task_id, {})
-        per_user = per_task.setdefault(user_id, set())
-        if flag_id:
-            per_user.add(flag_id)
+        normalized_flags = {str(flag_id) for flag_id in (flag_ids or []) if flag_id}
+        per_task[user_id] = normalized_flags
     return output
 
 
@@ -586,33 +601,59 @@ async def list_practice_tasks(
     status_filter: Optional[str] = Query(None, alias="status", pattern="^(not_started|in_progress|solved)$"),
     limit: int = Query(24, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    include_total: bool = Query(True),
+    include_categories: bool = Query(True),
 ):
     user, _profile = current_user_data
 
-    categories_rows = (
-        await db.execute(
-            select(Task.category)
-            .where(Task.task_kind == "practice", Task.state == "ready")
-            .distinct()
-            .order_by(Task.category.asc())
-        )
-    ).scalars().all()
-    categories = [row for row in categories_rows if row]
+    categories: list[str] = []
+    if include_categories:
+        categories_rows = (
+            await db.execute(
+                select(Task.category)
+                .where(Task.task_kind == "practice", Task.state == "ready")
+                .distinct()
+                .order_by(Task.category.asc())
+            )
+        ).scalars().all()
+        categories = [row for row in categories_rows if row]
 
-    query = (
-        select(Task)
-        .where(Task.task_kind == "practice", Task.state == "ready")
-        .order_by(Task.created_at.desc())
-    )
+    filters = [Task.task_kind == "practice", Task.state == "ready"]
 
     if difficulty:
         min_diff, max_diff = difficulty_bounds(difficulty)
-        query = query.where(Task.difficulty >= min_diff, Task.difficulty <= max_diff)
+        filters.extend([Task.difficulty >= min_diff, Task.difficulty <= max_diff])
 
     if category and category.strip():
-        query = query.where(func.lower(Task.category) == category.strip().lower())
+        filters.append(func.lower(Task.category) == category.strip().lower())
 
-    tasks = (await db.execute(query)).scalars().all()
+    base_query = select(Task).where(*filters)
+
+    tasks: list[Task]
+    total: int
+    if status_filter:
+        # Для фильтра по статусу нужна полная выборка, потому что статус вычисляется динамически.
+        tasks = (await db.execute(base_query.order_by(Task.created_at.desc()))).scalars().all()
+        total = 0
+    else:
+        # Быстрый путь для главной/каталога: пагинация применяется на уровне SQL.
+        if include_total:
+            total = (
+                await db.execute(
+                    select(func.count()).select_from(Task).where(*filters)
+                )
+            ).scalar_one() or 0
+        else:
+            total = 0
+        tasks = (
+            await db.execute(
+                base_query
+                .order_by(Task.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars().all()
+
     if not tasks:
         return PracticeTaskListResponse(items=[], total=0, categories=categories)
 
@@ -659,8 +700,15 @@ async def list_practice_tasks(
             )
         )
 
-    total = len(cards)
-    page_items = cards[offset : offset + limit]
+    if status_filter:
+        page_items = cards[offset : offset + limit]
+        total = len(cards) if include_total else len(page_items)
+    else:
+        # На быстром пути pagination уже выполнена в БД.
+        page_items = cards
+        if not include_total:
+            total = len(page_items)
+
     return PracticeTaskListResponse(items=page_items, total=total, categories=categories)
 
 
