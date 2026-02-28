@@ -33,17 +33,19 @@ function App() {
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
 
-        <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
-        
-        <Route path="/home" element={<ProtectedRoute><Layout><Home /></Layout></ProtectedRoute>} />
-        <Route path="/championship" element={<ProtectedRoute><Layout><Championship /></Layout></ProtectedRoute>} />
-        <Route path="/education" element={<ProtectedRoute><Layout><Education /></Layout></ProtectedRoute>} />
-        <Route path="/education/:id" element={<ProtectedRoute><Layout><EducationTask /></Layout></ProtectedRoute>} />
-        <Route path="/rating" element={<ProtectedRoute><Layout><Rating /></Layout></ProtectedRoute>} />
-        <Route path="/knowledge" element={<ProtectedRoute><Layout><Knowledge /></Layout></ProtectedRoute>} />
-        <Route path="/knowledge/:id" element={<ProtectedRoute><Layout><KnowledgeArticle /></Layout></ProtectedRoute>} />
-        <Route path="/faq" element={<ProtectedRoute><Layout><div className="text-white text-2xl">FAQ — скоро будет</div></Layout></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><Layout><Admin /></Layout></ProtectedRoute>} />
+        {/* Держим единый Layout для всех защищённых страниц, чтобы не перемонтировать его на каждом переходе. */}
+        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/home" element={<Home />} />
+          <Route path="/championship" element={<Championship />} />
+          <Route path="/education" element={<Education />} />
+          <Route path="/education/:id" element={<EducationTask />} />
+          <Route path="/rating" element={<Rating />} />
+          <Route path="/knowledge" element={<Knowledge />} />
+          <Route path="/knowledge/:id" element={<KnowledgeArticle />} />
+          <Route path="/faq" element={<div className="text-white text-2xl">FAQ — скоро будет</div>} />
+          <Route path="/admin" element={<Admin />} />
+        </Route>
 
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
