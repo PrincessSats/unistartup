@@ -26,11 +26,19 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     SQL_ECHO: bool = False
+    RUN_STARTUP_DB_MAINTENANCE: bool = True
+    LOG_SLOW_REQUESTS: bool = True
+    SLOW_REQUEST_THRESHOLD_MS: int = 1000
 
     # CORS
     CORS_ALLOW_ORIGINS: str = (
+        # Локальные origin'ы для CRA/Vite/preview, чтобы dev-запуск не ломался на CORS.
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
+        "http://localhost:5173,"
+        "http://127.0.0.1:5173,"
+        "http://localhost:4173,"
+        "http://127.0.0.1:4173,"
         "https://hacknet.tech,"
         "https://www.hacknet.tech,"
         "https://storage.yandexcloud.net"

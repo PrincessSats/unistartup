@@ -19,3 +19,22 @@ class LeaderboardResponse(BaseModel):
     kind: str
     generated_at: datetime
     entries: List[LeaderboardEntry]
+
+
+class MyLeaderboardStatsResponse(BaseModel):
+    # Облегченный ответ для главной: только позиция и метрики текущего пользователя.
+    kind: str
+    rank: int
+    rating: int
+    first_blood: int
+
+
+class MyLeaderboardStatsSnapshot(BaseModel):
+    rank: int
+    rating: int
+    first_blood: int
+
+
+class MyLeaderboardStatsBundleResponse(BaseModel):
+    contest: MyLeaderboardStatsSnapshot
+    practice: MyLeaderboardStatsSnapshot

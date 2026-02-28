@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useOutletContext } from 'react-router-dom';
 import { educationAPI, knowledgeAPI, ratingsAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
@@ -78,6 +78,8 @@ const knowledgeAreas = [
 
 const HOME_KNOWLEDGE_CACHE_KEY = 'home:knowledge-feed:v1';
 const HOME_KNOWLEDGE_CACHE_TTL_MS = 5 * 60 * 1000;
+const HOME_LEADERBOARD_CACHE_KEY = 'home:leaderboard-stats:v1';
+const HOME_LEADERBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
 
 function readKnowledgeFeedCache() {
   try {
@@ -100,6 +102,44 @@ function writeKnowledgeFeedCache(items) {
     localStorage.setItem(
       HOME_KNOWLEDGE_CACHE_KEY,
       JSON.stringify({ items, savedAt: Date.now() })
+    );
+  } catch {
+    // ignore cache write errors
+  }
+}
+
+function readLeaderboardStatsCache() {
+  try {
+    const raw = localStorage.getItem(HOME_LEADERBOARD_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const savedAt = Number(parsed?.savedAt) || 0;
+    if (!savedAt || Date.now() - savedAt > HOME_LEADERBOARD_CACHE_TTL_MS) {
+      return null;
+    }
+
+    const contest = parsed?.contest && typeof parsed.contest === 'object' ? parsed.contest : null;
+    const practice = parsed?.practice && typeof parsed.practice === 'object' ? parsed.practice : null;
+    if (!contest && !practice) return null;
+
+    return {
+      contest,
+      practice,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeLeaderboardStatsCache(stats) {
+  try {
+    localStorage.setItem(
+      HOME_LEADERBOARD_CACHE_KEY,
+      JSON.stringify({
+        contest: stats?.contest || null,
+        practice: stats?.practice || null,
+        savedAt: Date.now(),
+      })
     );
   } catch {
     // ignore cache write errors
@@ -500,10 +540,15 @@ function getArticleTitle(entry) {
   return title || 'Без названия';
 }
 
-export default function Home({ currentUser = null }) {
+export default function Home({ currentUser: currentUserProp = null }) {
   const navigate = useNavigate();
+  // Приоритет у данных из Layout, чтобы не ждать дополнительной загрузки пользователя.
+  const outletContext = useOutletContext();
+  const currentUser = outletContext?.currentUser || currentUserProp;
   const initialKnowledgeFeed = useMemo(() => readKnowledgeFeedCache(), []);
+  const initialLeaderboardStats = useMemo(() => readLeaderboardStatsCache(), []);
   const hasCachedKnowledge = initialKnowledgeFeed.length > 0;
+  const hasCachedLeaderboardStats = Boolean(initialLeaderboardStats);
   const [profile, setProfile] = useState(currentUser);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showFeedbackCard, setShowFeedbackCard] = useState(true);
@@ -518,11 +563,13 @@ export default function Home({ currentUser = null }) {
   const [latestTasks, setLatestTasks] = useState([]);
   const [latestTasksLoading, setLatestTasksLoading] = useState(true);
   const [latestTasksError, setLatestTasksError] = useState('');
-  const [leaderboardStats, setLeaderboardStats] = useState({
-    contest: null,
-    practice: null,
-  });
-  const [leaderboardStatsLoading, setLeaderboardStatsLoading] = useState(false);
+  const [leaderboardStats, setLeaderboardStats] = useState(
+    initialLeaderboardStats || {
+      contest: null,
+      practice: null,
+    }
+  );
+  const [leaderboardStatsLoading, setLeaderboardStatsLoading] = useState(!hasCachedLeaderboardStats);
 
   useEffect(() => {
     if (currentUser) {
@@ -545,9 +592,15 @@ export default function Home({ currentUser = null }) {
 
   useEffect(() => {
     let isMounted = true;
+    if (hasCachedKnowledge) {
+      setKnowledgeLoading(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
     const fetchKnowledge = async () => {
-      const shouldShowLoader = !hasCachedKnowledge;
-      if (isMounted && shouldShowLoader) {
+      if (isMounted) {
         setKnowledgeLoading(true);
       }
       try {
@@ -590,40 +643,17 @@ export default function Home({ currentUser = null }) {
   useEffect(() => {
     let isMounted = true;
 
-    const fetchLatestTasks = async () => {
-      try {
-        setLatestTasksError('');
-        const response = await educationAPI.getPracticeTasks({ limit: 3, offset: 0 });
-        if (!isMounted) return;
-        const items = Array.isArray(response?.items) ? response.items : [];
-        setLatestTasks(items);
-      } catch (error) {
-        console.error('Не удалось загрузить новые задачи для главной страницы', error);
-        const detail = error?.response?.data?.detail;
-        if (!isMounted) return;
-        setLatestTasksError(typeof detail === 'string' ? detail : 'Не удалось загрузить новые задачи');
-        setLatestTasks([]);
-      } finally {
-        if (isMounted) {
-          setLatestTasksLoading(false);
-        }
-      }
-    };
-
-    fetchLatestTasks();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
     const fetchPracticeTasks = async () => {
       try {
         setPracticeError('');
-        const response = await educationAPI.getPracticeTasks({ limit: 100, offset: 0 });
+        setLatestTasksError('');
+        // Одна загрузка покрывает и "Практику", и "Новые задания", чтобы не дергать API дважды.
+        const response = await educationAPI.getPracticeTasks({
+          limit: 48,
+          offset: 0,
+          include_total: false,
+          include_categories: false,
+        });
         const items = Array.isArray(response?.items) ? response.items : [];
         const sorted = [...items].sort((a, b) => {
           const left = getPracticePriority(a);
@@ -633,6 +663,7 @@ export default function Home({ currentUser = null }) {
         });
         if (isMounted) {
           setPracticeTrainingItems(sorted);
+          setLatestTasks(items.slice(0, 3));
         }
       } catch (error) {
         console.error('Не удалось загрузить практические задачи для главной страницы', error);
@@ -640,10 +671,13 @@ export default function Home({ currentUser = null }) {
         if (isMounted) {
           setPracticeError(typeof detail === 'string' ? detail : 'Не удалось загрузить практические задачи');
           setPracticeTrainingItems([]);
+          setLatestTasksError(typeof detail === 'string' ? detail : 'Не удалось загрузить новые задачи');
+          setLatestTasks([]);
         }
       } finally {
         if (isMounted) {
           setPracticeLoading(false);
+          setLatestTasksLoading(false);
         }
       }
     };
@@ -658,31 +692,29 @@ export default function Home({ currentUser = null }) {
   useEffect(() => {
     let isMounted = true;
 
-    const extractMyStats = (payload) => {
-      const entries = Array.isArray(payload?.entries) ? payload.entries : [];
-      const me = entries.find((entry) => entry?.is_current_user) || null;
-      if (!me) return null;
-      return {
-        rank: toSafeNumber(me.rank, null),
-        points: toSafeNumber(me.rating, 0),
-        firstBlood: toSafeNumber(me.first_blood, 0),
-      };
-    };
-
     const fetchLeaderboardStats = async () => {
       try {
-        setLeaderboardStatsLoading(true);
-        const [contestResult, practiceResult] = await Promise.allSettled([
-          ratingsAPI.getLeaderboard('contest'),
-          ratingsAPI.getLeaderboard('practice'),
-        ]);
+        if (!hasCachedLeaderboardStats) {
+          setLeaderboardStatsLoading(true);
+        }
+        const stats = await ratingsAPI.getMyStatsBundle();
 
         if (!isMounted) return;
 
-        setLeaderboardStats({
-          contest: contestResult.status === 'fulfilled' ? extractMyStats(contestResult.value) : null,
-          practice: practiceResult.status === 'fulfilled' ? extractMyStats(practiceResult.value) : null,
-        });
+        const normalizedStats = {
+          contest: {
+            rank: toSafeNumber(stats?.contest?.rank, null),
+            points: toSafeNumber(stats?.contest?.rating, 0),
+            firstBlood: toSafeNumber(stats?.contest?.first_blood, 0),
+          },
+          practice: {
+            rank: toSafeNumber(stats?.practice?.rank, null),
+            points: toSafeNumber(stats?.practice?.rating, 0),
+            firstBlood: toSafeNumber(stats?.practice?.first_blood, 0),
+          },
+        };
+        setLeaderboardStats(normalizedStats);
+        writeLeaderboardStatsCache(normalizedStats);
       } catch (error) {
         if (isMounted) {
           console.error('Не удалось загрузить статистику рейтинга для главной страницы', error);
@@ -699,7 +731,7 @@ export default function Home({ currentUser = null }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [hasCachedLeaderboardStats]);
 
   const modeStats = homeMode === 'championship'
     ? {

@@ -102,6 +102,10 @@ jobs:
           IMAGE_URL: ${{ steps.build-image.outputs.image_url }}
           YANDEX_CLOUD_API_KEY: ${{ secrets.YANDEX_CLOUD_API_KEY }}
           YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
+          BACKEND_CORES: ${{ secrets.BACKEND_CORES }}
+          BACKEND_MEMORY: ${{ secrets.BACKEND_MEMORY }}
+          BACKEND_CONCURRENCY: ${{ secrets.BACKEND_CONCURRENCY }}
+          BACKEND_EXECUTION_TIMEOUT: ${{ secrets.BACKEND_EXECUTION_TIMEOUT }}
         run: |
           set -euo pipefail
           if [ -z "$YANDEX_CLOUD_API_KEY" ] || [ -z "$YANDEX_CLOUD_FOLDER" ]; then
@@ -109,14 +113,19 @@ jobs:
             exit 1
           fi
 
-          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_TASK_BUCKET_NAME=${{ secrets.S3_TASK_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }},YANDEX_CLOUD_API_KEY=${YANDEX_CLOUD_API_KEY},YANDEX_CLOUD_FOLDER=${YANDEX_CLOUD_FOLDER}"
+          CORES="${BACKEND_CORES:-2}"
+          MEMORY="${BACKEND_MEMORY:-2GB}"
+          CONCURRENCY="${BACKEND_CONCURRENCY:-20}"
+          EXECUTION_TIMEOUT="${BACKEND_EXECUTION_TIMEOUT:-180s}"
+
+          ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=false,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_TASK_BUCKET_NAME=${{ secrets.S3_TASK_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }},YANDEX_CLOUD_API_KEY=${YANDEX_CLOUD_API_KEY},YANDEX_CLOUD_FOLDER=${YANDEX_CLOUD_FOLDER},RUN_STARTUP_DB_MAINTENANCE=false,LOG_SLOW_REQUESTS=true,SLOW_REQUEST_THRESHOLD_MS=800"
           yc serverless container revision deploy \
             --container-name hacknet-backend \
             --image "$IMAGE_URL" \
-            --cores 1 \
-            --memory 512MB \
-            --concurrency 1 \
-            --execution-timeout 180s \
+            --cores "$CORES" \
+            --memory "$MEMORY" \
+            --concurrency "$CONCURRENCY" \
+            --execution-timeout "$EXECUTION_TIMEOUT" \
             --service-account-id ${{ secrets.YC_SA_ID }} \
             --async-service-account-id ${{ secrets.YC_SA_ID }} \
             --environment "$ENV_VARS"
