@@ -77,8 +77,9 @@ async def get_current_user(
     
     user, profile = user_data
     
-    # Проверяем, активен ли аккаунт
-    if not user.is_active:
+    # Блокируем только явно отключенный аккаунт.
+    # Legacy-значение NULL считаем активным, чтобы не ломать старые записи.
+    if user.is_active is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Аккаунт заблокирован"

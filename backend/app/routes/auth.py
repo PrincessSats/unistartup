@@ -231,8 +231,13 @@ async def login(
             detail="Неверный email или пароль"
         )
     
-    # Проверяем, активен ли аккаунт
-    if not user.is_active:
+    # Блокируем только явно отключенный аккаунт.
+    # Legacy-значение NULL (если осталось в старой БД) самовосстанавливаем в TRUE.
+    if user.is_active is None:
+        user.is_active = True
+        await db.commit()
+        await db.refresh(user)
+    if user.is_active is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Аккаунт заблокирован"
@@ -331,7 +336,17 @@ async def refresh(
         )
 
     user = await db.get(User, token_row.user_id)
-    if not user or not user.is_active:
+    if not user:
+        logger.info("Refresh rejected: user missing or inactive for token id=%s", token_row.id)
+        token_row.revoked_at = now
+        token_row.last_used_at = now
+        await db.commit()
+        _clear_refresh_cookie(response)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Пользователь не найден или заблокирован",
+        )
+    if user.is_active is False:
         logger.info("Refresh rejected: user missing or inactive for token id=%s", token_row.id)
         token_row.revoked_at = now
         token_row.last_used_at = now
