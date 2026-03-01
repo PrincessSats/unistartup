@@ -113,6 +113,18 @@ function isTimeoutError(error) {
   return code === 'ECONNABORTED' || message.includes('timeout');
 }
 
+function extractErrorDetail(error) {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((item) => item?.msg || item?.message || String(item)).join(', ');
+  }
+  if (detail && typeof detail === 'object') {
+    return detail.msg || detail.message || '';
+  }
+  return '';
+}
+
 function buildLoginHash(reason = '') {
   const encodedReason = String(reason || '').trim();
   if (!encodedReason) return '#/login';
@@ -260,6 +272,15 @@ api.interceptors.response.use(
   async (error) => {
     const originalConfig = error?.config || {};
     const responseStatus = Number(error?.response?.status || 0);
+    if (responseStatus === 403) {
+      const detail = extractErrorDetail(error).toLowerCase();
+      const requestPath = resolveRequestPath(originalConfig);
+      if (!isAuthPath(requestPath) && detail.includes('заблокирован')) {
+        authAPI.logout({ remote: false, redirect: true, reason: 'account_blocked' });
+      }
+      return Promise.reject(error);
+    }
+
     if (responseStatus !== 401) {
       return Promise.reject(error);
     }

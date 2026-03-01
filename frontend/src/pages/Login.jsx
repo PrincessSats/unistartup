@@ -15,6 +15,10 @@ function Login() {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const reason = String(params.get('reason') || '').trim();
+    if (reason === 'account_blocked') {
+      setError('Аккаунт заблокирован. Обратитесь к администратору.');
+      return;
+    }
     if (reason === 'session_expired') {
       setError('Сессия истекла. Войдите снова.');
       return;

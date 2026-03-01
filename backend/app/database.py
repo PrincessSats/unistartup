@@ -59,6 +59,9 @@ async def ensure_auth_schema_compatibility() -> None:
         """,
         # Колонки, которые были добавлены позже.
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
+        "UPDATE users SET is_active = TRUE WHERE is_active IS NULL",
+        "ALTER TABLE users ALTER COLUMN is_active SET DEFAULT TRUE",
+        "ALTER TABLE users ALTER COLUMN is_active SET NOT NULL",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
