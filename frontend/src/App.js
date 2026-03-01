@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,29 +12,84 @@ import Home from './pages/Home';
 import Rating from './pages/Rating';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
+import { FullScreenLoader } from './components/LoadingState';
 import { authAPI } from './services/api';
 
-function ProtectedRoute({ children }) {
+function ProtectedRoute({ children, authReady, loginTarget }) {
+  if (!authReady) {
+    return <FullScreenLoader label="Проверяем сессию..." />;
+  }
   const isAuth = authAPI.isAuthenticated();
-  return isAuth ? children : <Navigate to="/login" />;
+  return isAuth ? children : <Navigate to={loginTarget} replace />;
 }
 
-function PublicRoute({ children }) {
+function PublicRoute({ children, authReady }) {
+  if (!authReady) {
+    return <FullScreenLoader label="Проверяем сессию..." />;
+  }
   const isAuth = authAPI.isAuthenticated();
-  return !isAuth ? children : <Navigate to="/profile" />;
+  return !isAuth ? children : <Navigate to="/profile" replace />;
 }
 
 function App() {
+  const [authReady, setAuthReady] = useState(false);
+  const [authReason, setAuthReason] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const currentHash = window.location.hash || '#/';
+      const isPublicPath = currentHash.startsWith('#/login') || currentHash.startsWith('#/register');
+      if (isPublicPath && !authAPI.isAuthenticated()) {
+        setAuthReason('');
+        setAuthReady(true);
+        return;
+      }
+
+      const result = await authAPI.bootstrapAuth();
+      if (cancelled) return;
+
+      setAuthReason(result?.reason || '');
+      setAuthReady(true);
+
+      if (!result?.authenticated && result?.reason) {
+        const nextHash = window.location.hash || '#/';
+        const isPublicPath = nextHash.startsWith('#/login') || nextHash.startsWith('#/register');
+        if (!isPublicPath) {
+          window.location.hash = `#/login?reason=${encodeURIComponent(result.reason)}`;
+        }
+      }
+    };
+
+    bootstrap();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loginTarget = useMemo(
+    () => (authReason ? `/login?reason=${encodeURIComponent(authReason)}` : '/login'),
+    [authReason]
+  );
+
+  if (!authReady) {
+    return <FullScreenLoader label="Проверяем сессию..." />;
+  }
+
   return (
     <HashRouter>
       <Routes>
-        <Route path="/" element={authAPI.isAuthenticated() ? <Navigate to="/profile" /> : <Navigate to="/login" />} />
+        <Route
+          path="/"
+          element={authAPI.isAuthenticated() ? <Navigate to="/profile" replace /> : <Navigate to={loginTarget} replace />}
+        />
 
-        <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/login" element={<PublicRoute authReady={authReady}><Login /></PublicRoute>} />
+        <Route path="/register" element={<PublicRoute authReady={authReady}><Register /></PublicRoute>} />
 
         {/* Держим единый Layout для всех защищённых страниц, чтобы не перемонтировать его на каждом переходе. */}
-        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Layout /></ProtectedRoute>}>
           <Route path="/profile" element={<Profile />} />
           <Route path="/home" element={<Home />} />
           <Route path="/championship" element={<Championship />} />
@@ -47,7 +102,7 @@ function App() {
           <Route path="/admin" element={<Admin />} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/" />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </HashRouter>
   );
