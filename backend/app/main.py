@@ -90,7 +90,10 @@ async def health_check():
 @app.on_event("startup")
 async def startup_tasks():
     if not settings.RUN_STARTUP_DB_MAINTENANCE:
-        logger.info("Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false")
+        logger.info(
+            "Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false "
+            "(run `python -m app.scripts.db_maintenance` during deploy)."
+        )
         return
 
     await ensure_auth_schema_compatibility()
