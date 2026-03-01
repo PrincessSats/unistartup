@@ -57,8 +57,21 @@ function Register() {
       await authAPI.login(formData.email, formData.password);
       setSuccessName(formData.username || 'CyberNinja');
       setStep('success');
-      const profile = await profileAPI.getProfile();
-      const target = profile?.role === 'admin' ? '/admin' : '/home';
+      let target = '/home';
+      try {
+        const profile = await profileAPI.getProfile();
+        if (profile?.role === 'admin') {
+          target = '/admin';
+        }
+      } catch (profileErr) {
+        const status = Number(profileErr?.response?.status || 0);
+        if (status === 401) {
+          authAPI.logout({ remote: false });
+          setError('Регистрация завершена, но сессия не подтверждена. Войдите снова.');
+          setStep('details');
+          return;
+        }
+      }
       setTimeout(() => {
         navigate(target);
       }, 1200);
@@ -67,7 +80,7 @@ function Register() {
         setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
       } else
       if (!err.response) {
-        setError('Сервер недоступен или блокировка CORS. Проверь настройку API/CORS.');
+        setError('Не удалось подключиться к серверу (сеть или CORS). Попробуйте снова.');
       } else {
         setError(err.response?.data?.detail || 'Ошибка регистрации');
       }
