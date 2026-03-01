@@ -1,6 +1,9 @@
 import bcrypt
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+import secrets
+from typing import Optional
 from app.config import settings
 
 def hash_password(password: str) -> str:
@@ -22,7 +25,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         hashed_password.encode('utf-8')
     )
 
-def create_access_token(data: dict) -> str:
+def build_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> tuple[str, datetime]:
     """
     Создает JWT токен.
     
@@ -31,8 +34,12 @@ def create_access_token(data: dict) -> str:
     """
     to_encode = data.copy()
     
-    # Токен будет действителен 30 минут
-    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    # Короткоживущий access token, долгоживущая сессия строится через refresh token.
+    expire = datetime.now(timezone.utc) + (
+        expires_delta
+        if expires_delta is not None
+        else timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
     to_encode.update({"exp": expire})
     
     # Шифруем данные секретным ключом
@@ -41,7 +48,27 @@ def create_access_token(data: dict) -> str:
         settings.SECRET_KEY, 
         algorithm=settings.ALGORITHM
     )
-    return encoded_jwt
+    return encoded_jwt, expire
+
+
+def create_access_token(data: dict) -> str:
+    token, _ = build_access_token(data=data)
+    return token
+
+
+def generate_refresh_token() -> str:
+    """
+    Генерирует криптографически стойкий opaque refresh token.
+    """
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """
+    Для хранения refresh token в БД сохраняем только SHA-256 hash.
+    """
+    value = str(token or "").strip()
+    return sha256(value.encode("utf-8")).hexdigest()
 
 def decode_access_token(token: str) -> dict:
     """

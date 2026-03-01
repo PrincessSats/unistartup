@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
+import { InlineLoader } from '../components/LoadingState';
 import { getKnowledgeCardVisual } from '../utils/knowledgeVisuals';
 
 const sortTabs = [
@@ -255,7 +256,7 @@ function Knowledge() {
           <div className="text-rose-300">{error}</div>
         )}
         {loading && (
-          <div className="text-white/60">Загрузка статей...</div>
+          <InlineLoader label="Загрузка статей..." />
         )}
         {!loading && !error && entries.length === 0 && (
           <div className="text-white/60">Пока нет статей</div>

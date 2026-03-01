@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { authAPI, profileAPI } from '../services/api';
+import { PageLoader } from '../components/LoadingState';
 
 function Profile() {
   const navigate = useNavigate();
@@ -60,8 +61,8 @@ function Profile() {
 
       } catch (err) {
         if (err.response?.status === 401) {
-          authAPI.logout();
-          navigate('/login');
+          authAPI.logout({ remote: false });
+          navigate('/login?reason=session_expired', { replace: true });
         }
       } finally {
         setLoading(false);
@@ -73,7 +74,7 @@ function Profile() {
 
   const handleLogout = () => {
     authAPI.logout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   // Обработка выбора файла аватарки
@@ -179,11 +180,7 @@ function Profile() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 font-sans-figma">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
+    return <PageLoader label="Загружаем профиль..." />;
   }
 
   const user = userData;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
+import { InlineLoader } from '../components/LoadingState';
 import { educationAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 
@@ -204,7 +205,7 @@ export default function Education() {
       </div>
 
       <div className="mt-6">
-        {loading && <p className="text-white/60">Загрузка задач...</p>}
+        {loading && <InlineLoader label="Загрузка задач..." />}
         {!loading && error && <p className="text-rose-300">{error}</p>}
         {!loading && !error && tasks.length === 0 && <p className="text-white/60">Подходящих задач пока нет.</p>}
       </div>

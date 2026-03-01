@@ -5,6 +5,11 @@ import axios from 'axios';
 // local or prod env
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 const API_URL = process.env.REACT_APP_API_BASE_URL || (isLocalhost ? 'http://localhost:8000' : '');
+const ACCESS_TOKEN_STORAGE_KEY = 'token';
+const parsedTimeout = Number(process.env.REACT_APP_API_TIMEOUT_MS || 15000);
+const REQUEST_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout >= 3000 ? parsedTimeout : 15000;
+export const AUTH_BOOTSTRAP_TIMEOUT_MS = 3000;
+const ACCESS_TOKEN_CLOCK_SKEW_SECONDS = 30;
 
 if (!API_URL) {
   // Helps catch broken cloud builds where REACT_APP_API_BASE_URL was not provided.
@@ -14,7 +19,9 @@ if (!API_URL) {
 
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
+    credentials: 'include',
     headers: {
+      Authorization: `Bearer ${token}`,
       'X-Auth-Token': token,
     },
   });
@@ -22,17 +29,104 @@ export const getProfile = (token) =>
 // Создаем axios instance
 const api = axios.create({
   baseURL: API_URL,
+  timeout: REQUEST_TIMEOUT_MS,
+  withCredentials: true,
 });
 
 const inFlightGetRequests = new Map();
 const getResponseCache = new Map();
+let refreshInFlight = null;
 
 const CACHE_TTLS_MS = {
   profile: 60 * 1000,
   knowledgeFeed: 5 * 60 * 1000,
+  knowledgeTags: 10 * 60 * 1000,
+  knowledgePaged: 30 * 1000,
   practiceTasks: 90 * 1000,
   myStats: 30 * 1000,
+  ratingLeaderboard: 20 * 1000,
+  contestActive: 15 * 1000,
+  adminDashboard: 15 * 1000,
 };
+
+function getStoredAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+function setStoredAccessToken(token) {
+  if (!token) return;
+  localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+}
+
+function clearStoredAccessToken() {
+  localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+}
+
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const decoded = window.atob(padded);
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+function getAccessTokenExpiryMs(token) {
+  const payload = decodeJwtPayload(token);
+  const expSeconds = Number(payload?.exp);
+  if (!Number.isFinite(expSeconds)) return null;
+  return expSeconds * 1000;
+}
+
+function isAccessTokenFresh(token, skewSeconds = ACCESS_TOKEN_CLOCK_SKEW_SECONDS) {
+  if (!token) return false;
+  const expMs = getAccessTokenExpiryMs(token);
+  if (!expMs) return false;
+  return Date.now() + skewSeconds * 1000 < expMs;
+}
+
+function resolveRequestPath(configOrUrl) {
+  const raw = typeof configOrUrl === 'string'
+    ? configOrUrl
+    : String(configOrUrl?.url || '');
+  if (!raw) return '/';
+  if (raw.includes('://')) {
+    try {
+      return new URL(raw).pathname || '/';
+    } catch {
+      return raw.startsWith('/') ? raw : `/${raw}`;
+    }
+  }
+  return raw.startsWith('/') ? raw : `/${raw}`;
+}
+
+function isAuthPath(pathname) {
+  return pathname === '/auth' || pathname.startsWith('/auth/');
+}
+
+function isTimeoutError(error) {
+  const code = String(error?.code || '').toUpperCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code === 'ECONNABORTED' || message.includes('timeout');
+}
+
+function buildLoginHash(reason = '') {
+  const encodedReason = String(reason || '').trim();
+  if (!encodedReason) return '#/login';
+  return `#/login?reason=${encodeURIComponent(encodedReason)}`;
+}
+
+function redirectToLogin(reason = '') {
+  const target = buildLoginHash(reason);
+  if (window.location.hash !== target) {
+    window.location.hash = target;
+  }
+}
 
 function serializeParams(params = {}) {
   const pairs = [];
@@ -120,25 +214,86 @@ async function cachedGet(url, { params = {}, ttlMs = 0 } = {}) {
   return request;
 }
 
+async function refreshAccessToken({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) {
+  if (refreshInFlight) {
+    return refreshInFlight;
+  }
+
+  refreshInFlight = api
+    .post(
+      '/auth/refresh',
+      null,
+      {
+        timeout: timeoutMs,
+        __skipAuthRefresh: true,
+      }
+    )
+    .then((response) => {
+      const token = response?.data?.access_token;
+      if (!token) {
+        throw new Error('Refresh response missing access token');
+      }
+      setStoredAccessToken(token);
+      return response.data;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+
+  return refreshInFlight;
+}
+
 // Добавляем токен к защищенным запросам (не к /auth/*).
 api.interceptors.request.use((config) => {
-  const requestPath = String(config.url || '');
-  let pathname = requestPath;
-  if (requestPath.includes('://')) {
-    try {
-      pathname = new URL(requestPath).pathname;
-    } catch {
-      pathname = requestPath;
-    }
-  }
-  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
-  const isAuthRequest = normalizedPath === '/auth' || normalizedPath.startsWith('/auth/');
-  const token = localStorage.getItem('token');
+  const normalizedPath = resolveRequestPath(config);
+  const isAuthRequest = isAuthPath(normalizedPath);
+  const token = getStoredAccessToken();
+  config.headers = config.headers || {};
   if (token && !isAuthRequest) {
+    config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Auth-Token'] = token;
   }
   return config;
 });
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalConfig = error?.config || {};
+    const responseStatus = Number(error?.response?.status || 0);
+    if (responseStatus !== 401) {
+      return Promise.reject(error);
+    }
+
+    const requestPath = resolveRequestPath(originalConfig);
+    if (originalConfig.__skipAuthRefresh || isAuthPath(requestPath)) {
+      return Promise.reject(error);
+    }
+
+    if (originalConfig.__retriedAfterRefresh) {
+      authAPI.logout({ remote: false, redirect: true, reason: 'session_expired' });
+      return Promise.reject(error);
+    }
+
+    try {
+      await refreshAccessToken();
+      const token = getStoredAccessToken();
+      originalConfig.__retriedAfterRefresh = true;
+      originalConfig.headers = originalConfig.headers || {};
+      if (token) {
+        originalConfig.headers.Authorization = `Bearer ${token}`;
+        originalConfig.headers['X-Auth-Token'] = token;
+      }
+      return api(originalConfig);
+    } catch (refreshErr) {
+      const reason = isTimeoutError(refreshErr) ? 'network_timeout' : 'session_expired';
+      // eslint-disable-next-line no-console
+      console.warn('Auth refresh failed after 401', { reason });
+      authAPI.logout({ remote: false, redirect: true, reason });
+      return Promise.reject(refreshErr);
+    }
+  }
+);
 
 // API методы авторизации
 export const authAPI = {
@@ -162,20 +317,60 @@ export const authAPI = {
     const response = await api.post('/auth/login', {
       email,
       password,
+    }, {
+      timeout: Math.max(REQUEST_TIMEOUT_MS, 20000),
+      __skipAuthRefresh: true,
     });
     if (response.data.access_token) {
-      localStorage.setItem('token', response.data.access_token);
+      setStoredAccessToken(response.data.access_token);
     }
     return response.data;
   },
 
-  logout: () => {
-    localStorage.removeItem('token');
+  refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
+    return refreshAccessToken({ timeoutMs });
+  },
+
+  bootstrapAuth: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
+    const startedAt = performance.now();
+    const existingToken = getStoredAccessToken();
+    if (isAccessTokenFresh(existingToken)) {
+      return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
+    }
+
+    try {
+      await refreshAccessToken({ timeoutMs });
+      return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
+    } catch (err) {
+      const reason = isTimeoutError(err) ? 'network_timeout' : 'session_expired';
+      clearStoredAccessToken();
+      clearAllRequestCache();
+      // eslint-disable-next-line no-console
+      console.warn('Auth bootstrap failed', { reason, elapsedMs: performance.now() - startedAt });
+      return { authenticated: false, reason, elapsedMs: performance.now() - startedAt };
+    }
+  },
+
+  logout: ({ remote = true, redirect = false, reason = '' } = {}) => {
+    if (remote && API_URL) {
+      api.post('/auth/logout', null, {
+        timeout: 2000,
+        __skipAuthRefresh: true,
+      }).catch(() => {});
+    }
+    clearStoredAccessToken();
     clearAllRequestCache();
+    if (redirect) {
+      redirectToLogin(reason);
+    }
   },
 
   isAuthenticated: () => {
-    return !!localStorage.getItem('token');
+    return !!getStoredAccessToken();
+  },
+
+  hasFreshAccessToken: () => {
+    return isAccessTokenFresh(getStoredAccessToken());
   },
 };
 
@@ -194,8 +389,9 @@ export const userAPI = {
 
 export const adminAPI = {
   getDashboard: async () => {
-    const response = await api.get('/admin');
-    return response.data;
+    return cachedGet('/admin', {
+      ttlMs: CACHE_TTLS_MS.adminDashboard,
+    });
   },
   listTasks: async (params = {}) => {
     const response = await api.get('/admin/tasks', { params });
@@ -295,12 +491,16 @@ export const knowledgeAPI = {
     return response.data;
   },
   getEntriesPaged: async (params = {}) => {
-    const response = await api.get('/kb_entries/paged', { params });
-    return response.data;
+    return cachedGet('/kb_entries/paged', {
+      params,
+      ttlMs: CACHE_TTLS_MS.knowledgePaged,
+    });
   },
   getTags: async (params = {}) => {
-    const response = await api.get('/kb_entries/tags', { params });
-    return response.data;
+    return cachedGet('/kb_entries/tags', {
+      params,
+      ttlMs: CACHE_TTLS_MS.knowledgeTags,
+    });
   },
   getEntry: async (entryId) => {
     const response = await api.get(`/kb_entries/${entryId}`);
@@ -405,11 +605,13 @@ export const profileAPI = {
 
 export const contestAPI = {
   getActiveContest: async () => {
-    const response = await api.get('/contests/active');
-    return response.data;
+    return cachedGet('/contests/active', {
+      ttlMs: CACHE_TTLS_MS.contestActive,
+    });
   },
   joinContest: async (contestId) => {
     const response = await api.post(`/contests/${contestId}/join`);
+    invalidateGetCacheByPrefix('/contests/active');
     return response.data;
   },
   getCurrentTask: async (contestId) => {
@@ -426,6 +628,7 @@ export const contestAPI = {
   },
   submitFlag: async (contestId, payload) => {
     const response = await api.post(`/contests/${contestId}/submit`, payload);
+    invalidateGetCacheByPrefix('/contests/active');
     return response.data;
   },
   getTaskChatSession: async (contestId, taskId) => {
@@ -443,10 +646,10 @@ export const contestAPI = {
 
 export const ratingsAPI = {
   getLeaderboard: async (kind = 'contest') => {
-    const response = await api.get('/ratings/leaderboard', {
+    return cachedGet('/ratings/leaderboard', {
       params: { kind },
+      ttlMs: CACHE_TTLS_MS.ratingLeaderboard,
     });
-    return response.data;
   },
   getMyStatsBundle: async () => {
     return cachedGet('/ratings/my-stats/both', {

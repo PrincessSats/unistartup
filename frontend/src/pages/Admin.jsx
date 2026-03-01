@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { adminAPI, authAPI } from '../services/api';
+import { PageLoader } from '../components/LoadingState';
 
 const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
 
@@ -2585,12 +2586,12 @@ function Admin() {
       setDashboard(data);
     } catch (err) {
       if (err.response?.status === 401) {
-        authAPI.logout();
-        navigate('/login');
+        authAPI.logout({ remote: false });
+        navigate('/login?reason=session_expired', { replace: true });
         return;
       }
       if (err.response?.status === 403) {
-        navigate('/home');
+        navigate('/home', { replace: true });
         return;
       }
       setError('Не удалось загрузить данные админки');
@@ -2633,11 +2634,7 @@ function Admin() {
     : '0.0';
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[60vh] text-white/70">
-        Загрузка админки...
-      </div>
-    );
+    return <PageLoader label="Загрузка админки..." />;
   }
 
   const handleFetchNvd = async () => {
