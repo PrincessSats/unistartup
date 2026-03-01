@@ -5,7 +5,7 @@ from time import perf_counter
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import settings
+from app.config import Settings, settings
 from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge, education
 from app.database import ensure_auth_schema_compatibility, ensure_performance_indexes
 
@@ -17,15 +17,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-allow_origins = settings.cors_allow_origins
-allow_credentials = settings.CORS_ALLOW_CREDENTIALS
-if allow_credentials and "*" in allow_origins:
-    logger.warning(
-        "Unsafe CORS config detected: wildcard origin with credentials. "
-        "Forcing allow_credentials=False."
-    )
-    allow_credentials = False
-
 allow_origin_regex = settings.CORS_ALLOW_ORIGIN_REGEX
 if allow_origin_regex:
     try:
@@ -33,6 +24,43 @@ if allow_origin_regex:
     except re.error:
         logger.exception("Invalid CORS_ALLOW_ORIGIN_REGEX=%r. Ignoring it.", allow_origin_regex)
         allow_origin_regex = None
+
+allow_origins = [
+    origin
+    for origin in dict.fromkeys(settings.cors_allow_origins)
+    if str(origin).strip()
+]
+allow_credentials = settings.CORS_ALLOW_CREDENTIALS
+if allow_credentials and "*" in allow_origins:
+    allow_origins = [origin for origin in allow_origins if origin != "*"]
+    if not allow_origins:
+        default_origins = Settings._parse_list(
+            Settings.model_fields["CORS_ALLOW_ORIGINS"].default or ""
+        )
+        allow_origins = [
+            origin
+            for origin in dict.fromkeys(default_origins)
+            if str(origin).strip() and origin != "*"
+        ]
+    logger.warning(
+        "CORS wildcard origin is incompatible with credentials. "
+        "Removed '*' and kept credentials enabled. Effective origins: %s",
+        ", ".join(allow_origins) if allow_origins else "<none>",
+    )
+
+if allow_credentials and not allow_origins and not allow_origin_regex:
+    logger.warning(
+        "CORS credentials requested but no origins configured. "
+        "Disabling credentials header to avoid invalid CORS responses."
+    )
+    allow_credentials = False
+
+logger.info(
+    "Effective CORS config: credentials=%s, origins=%s, origin_regex=%s",
+    allow_credentials,
+    allow_origins,
+    allow_origin_regex,
+)
 
 app.add_middleware(
     CORSMiddleware,
