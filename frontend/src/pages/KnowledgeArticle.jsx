@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { knowledgeAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
+import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { getKnowledgeCardVisual, getKnowledgeHeroVisual } from '../utils/knowledgeVisuals';
 
 const heroGradient =
@@ -246,7 +247,7 @@ export default function KnowledgeArticle() {
   }, [entry]);
 
   if (loading) {
-    return <div className="font-sans-figma text-white/60">Загрузка статьи...</div>;
+    return <PageLoader label="Загрузка статьи..." />;
   }
 
   if (error) {
@@ -390,7 +391,7 @@ export default function KnowledgeArticle() {
           )}
         </form>
         {commentsLoading && (
-          <div className="text-white/50 text-[16px]">Загрузка комментариев...</div>
+          <InlineLoader label="Загрузка комментариев..." />
         )}
         {!commentsLoading && comments.length === 0 && !commentError && (
           <div className="text-white/50 text-[16px]">Пока нет комментариев</div>

@@ -49,6 +49,27 @@ ALTER TABLE feedback
 ALTER TABLE feedback
     ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- 3.2 Ротационные refresh-токены авторизации
+CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
+    id              BIGSERIAL PRIMARY KEY,
+    user_id         BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash      TEXT NOT NULL UNIQUE,
+    expires_at      TIMESTAMPTZ NOT NULL,
+    revoked_at      TIMESTAMPTZ,
+    rotated_to_id   BIGINT REFERENCES auth_refresh_tokens(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_used_at    TIMESTAMPTZ,
+    user_agent      TEXT,
+    ip_address      TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_refresh_tokens_hash
+    ON auth_refresh_tokens(token_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user
+    ON auth_refresh_tokens(user_id, revoked_at, expires_at);
+CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at
+    ON auth_refresh_tokens(expires_at);
+
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
     id                  BIGSERIAL PRIMARY KEY,

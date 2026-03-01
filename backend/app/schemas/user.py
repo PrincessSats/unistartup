@@ -24,6 +24,12 @@ class Token(BaseModel):
     """
     access_token: str
     token_type: str = "bearer"
+    expires_in: int
+    session_expires_at: datetime
+
+
+class AuthMessage(BaseModel):
+    message: str
 
 class UserResponse(BaseModel):
     """
