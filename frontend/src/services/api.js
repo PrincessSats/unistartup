@@ -17,11 +17,25 @@ if (!API_URL) {
   console.error('REACT_APP_API_BASE_URL is not configured for this build');
 }
 
+function shouldSendAuthorizationHeader() {
+  if (!API_URL) return true;
+  try {
+    const { hostname } = new URL(API_URL);
+    // Yandex Serverless Containers may treat Authorization as IAM auth header.
+    // Keep app token in X-Auth-Token for this host family to avoid edge 403.
+    return !hostname.endsWith('.containers.yandexcloud.net');
+  } catch {
+    return true;
+  }
+}
+
+const SEND_AUTHORIZATION_HEADER = shouldSendAuthorizationHeader();
+
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
     headers: {
-      Authorization: `Bearer ${token}`,
       'X-Auth-Token': token,
+      ...(SEND_AUTHORIZATION_HEADER ? { Authorization: `Bearer ${token}` } : {}),
     },
   });
 
@@ -261,8 +275,10 @@ api.interceptors.request.use((config) => {
   const token = getStoredAccessToken();
   config.headers = config.headers || {};
   if (token && !isAuthRequest) {
-    config.headers.Authorization = `Bearer ${token}`;
     config.headers['X-Auth-Token'] = token;
+    if (SEND_AUTHORIZATION_HEADER) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
@@ -301,8 +317,10 @@ api.interceptors.response.use(
       originalConfig.__retriedAfterRefresh = true;
       originalConfig.headers = originalConfig.headers || {};
       if (token) {
-        originalConfig.headers.Authorization = `Bearer ${token}`;
         originalConfig.headers['X-Auth-Token'] = token;
+        if (SEND_AUTHORIZATION_HEADER) {
+          originalConfig.headers.Authorization = `Bearer ${token}`;
+        }
       }
       return api(originalConfig);
     } catch (refreshErr) {
