@@ -19,7 +19,6 @@ if (!API_URL) {
 
 export const getProfile = (token) =>
   fetch(`${API_URL}/profile`, {
-    credentials: 'include',
     headers: {
       Authorization: `Bearer ${token}`,
       'X-Auth-Token': token,
@@ -30,7 +29,6 @@ export const getProfile = (token) =>
 const api = axios.create({
   baseURL: API_URL,
   timeout: REQUEST_TIMEOUT_MS,
-  withCredentials: true,
 });
 
 const inFlightGetRequests = new Map();
@@ -224,6 +222,7 @@ async function refreshAccessToken({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}
       '/auth/refresh',
       null,
       {
+        withCredentials: true,
         timeout: timeoutMs,
         __skipAuthRefresh: true,
       }
@@ -318,6 +317,7 @@ export const authAPI = {
       email,
       password,
     }, {
+      withCredentials: true,
       timeout: Math.max(REQUEST_TIMEOUT_MS, 20000),
       __skipAuthRefresh: true,
     });
@@ -354,6 +354,7 @@ export const authAPI = {
   logout: ({ remote = true, redirect = false, reason = '' } = {}) => {
     if (remote && API_URL) {
       api.post('/auth/logout', null, {
+        withCredentials: true,
         timeout: 2000,
         __skipAuthRefresh: true,
       }).catch(() => {});
