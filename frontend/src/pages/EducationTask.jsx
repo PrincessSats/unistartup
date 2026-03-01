@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
+import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { educationAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
@@ -523,7 +524,7 @@ export default function EducationTask() {
   };
 
   if (loading) {
-    return <div className="font-sans-figma text-white/60">Загрузка задачи...</div>;
+    return <PageLoader label="Загружаем задачу..." />;
   }
 
   if (error) {
@@ -737,7 +738,7 @@ export default function EducationTask() {
                     className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2"
                   >
                     {chatLoading ? (
-                      <div className="text-[13px] text-white/50">Загрузка чата...</div>
+                      <InlineLoader label="Загрузка чата..." />
                     ) : chatSession?.messages?.length ? (
                       chatSession.messages.map((item, index) => (
                         <div

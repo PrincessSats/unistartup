@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ratingsAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
+import { PageLoader } from '../components/LoadingState';
 
 const tableColumns =
   'grid min-w-[940px] grid-cols-[82px_minmax(260px,1fr)_66px_126px_148px_148px] items-center';
@@ -183,11 +184,7 @@ function Rating() {
     !isCurrentRowVisible;
 
   if (loading) {
-    return (
-      <div className="flex h-64 items-center justify-center font-sans-figma">
-        <div className="text-lg text-white/70">Загрузка...</div>
-      </div>
-    );
+    return <PageLoader label="Загружаем рейтинг..." />;
   }
 
   if (error) {

@@ -1,6 +1,7 @@
 import unittest
 import os
 import re
+from pydantic import ValidationError
 
 os.environ.setdefault("DB_HOST", "localhost")
 os.environ.setdefault("DB_PORT", "5432")
@@ -26,6 +27,11 @@ class SecuritySettingsTests(unittest.TestCase):
     def test_sql_echo_is_disabled_by_default(self) -> None:
         settings = Settings(**self._base_kwargs())
         self.assertFalse(settings.SQL_ECHO)
+        self.assertEqual(settings.ACCESS_TOKEN_EXPIRE_MINUTES, 15)
+        self.assertEqual(settings.REFRESH_TOKEN_EXPIRE_HOURS, 48)
+        self.assertEqual(settings.refresh_token_expire_seconds, 48 * 60 * 60)
+        self.assertFalse(settings.RUN_STARTUP_DB_MAINTENANCE)
+        self.assertTrue(settings.CORS_ALLOW_CREDENTIALS)
 
     def test_cors_csv_parsing(self) -> None:
         settings = Settings(
@@ -52,6 +58,19 @@ class SecuritySettingsTests(unittest.TestCase):
         default_origins = str(Settings.model_fields["CORS_ALLOW_ORIGINS"].default or "")
         self.assertIn("https://hacknet.tech", default_origins)
         self.assertIn("https://www.hacknet.tech", default_origins)
+
+    def test_cookie_samesite_validation(self) -> None:
+        settings = Settings(
+            **self._base_kwargs(),
+            REFRESH_TOKEN_COOKIE_SAMESITE="Strict",
+        )
+        self.assertEqual(settings.REFRESH_TOKEN_COOKIE_SAMESITE, "strict")
+
+        with self.assertRaises(ValidationError):
+            Settings(
+                **self._base_kwargs(),
+                REFRESH_TOKEN_COOKIE_SAMESITE="invalid",
+            )
 
 
 if __name__ == "__main__":

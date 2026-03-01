@@ -1,15 +1,28 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { authAPI, profileAPI } from '../services/api';
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const reason = String(params.get('reason') || '').trim();
+    if (reason === 'session_expired') {
+      setError('Сессия истекла. Войдите снова.');
+      return;
+    }
+    if (reason === 'network_timeout') {
+      setError('Не удалось быстро подтвердить сессию. Проверьте сеть и войдите снова.');
+    }
+  }, [location.search]);
 
   const handleChange = (e) => {
     setFormData({

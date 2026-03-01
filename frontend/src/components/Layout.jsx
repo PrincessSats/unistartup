@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import FeedbackModal from './FeedbackModal';
+import { FullScreenLoader } from './LoadingState';
 import { authAPI, profileAPI } from '../services/api';
 
 // Кэш профиля нужен, чтобы отрисовывать интерфейс сразу при повторных переходах.
@@ -59,7 +60,7 @@ function Layout() {
 
   useEffect(() => {
     if (!authAPI.isAuthenticated()) {
-      navigate('/login');
+      navigate('/login?reason=session_expired', { replace: true });
       return;
     }
 
@@ -75,11 +76,15 @@ function Layout() {
         setUserData(data);
         writeProfileCache(data);
       } catch (err) {
-        if (err.response?.status === 401) {
-          // При невалидной сессии очищаем кэш, чтобы не показывать устаревший профиль.
+        const status = Number(err?.response?.status || 0);
+        const code = String(err?.code || '').toUpperCase();
+        const isTimeout = code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
+        if (status === 401 || isTimeout) {
+          // При невалидной/зависшей сессии очищаем кэш и быстро уходим в логин.
           writeProfileCache(null);
-          authAPI.logout();
-          navigate('/login');
+          const reason = status === 401 ? 'session_expired' : 'network_timeout';
+          authAPI.logout({ remote: false, redirect: false });
+          navigate(`/login?reason=${encodeURIComponent(reason)}`, { replace: true });
         }
       } finally {
         setLoading(false);
@@ -125,11 +130,7 @@ function Layout() {
 
   // Полный блокирующий экран показываем только при самом первом заходе без кэша.
   if (loading && !userData) {
-    return (
-      <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
+    return <FullScreenLoader label="Загружаем профиль..." />;
   }
 
   // Структура ответа profileAPI: { id, email, username, role, bio, avatar_url }

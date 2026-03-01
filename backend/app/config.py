@@ -24,9 +24,17 @@ class Settings(BaseSettings):
     # JWT токены
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    # Short-lived access token; session continuity comes from rotating refresh tokens.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_HOURS: int = 48
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
+    REFRESH_TOKEN_COOKIE_PATH: str = "/"
+    REFRESH_TOKEN_COOKIE_DOMAIN: str = ""
+    REFRESH_TOKEN_COOKIE_SECURE: bool = False
+    REFRESH_TOKEN_COOKIE_SAMESITE: str = "lax"
     SQL_ECHO: bool = False
-    RUN_STARTUP_DB_MAINTENANCE: bool = True
+    # In serverless/autoscale this should stay disabled to avoid cold-start penalties.
+    RUN_STARTUP_DB_MAINTENANCE: bool = False
     LOG_SLOW_REQUESTS: bool = True
     SLOW_REQUEST_THRESHOLD_MS: int = 1000
 
@@ -46,7 +54,8 @@ class Settings(BaseSettings):
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = (
         r"^https://[a-zA-Z0-9-]+\.(website|storage)\.yandexcloud\.net$"
     )
-    CORS_ALLOW_CREDENTIALS: bool = False
+    # Required for refresh-token HttpOnly cookie flow.
+    CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list[str] = ["Authorization", "Content-Type", "X-Auth-Token"]
     
@@ -142,6 +151,21 @@ class Settings(BaseSettings):
             )
         return normalized
 
+    @field_validator("REFRESH_TOKEN_COOKIE_SAMESITE", mode="before")
+    @classmethod
+    def normalize_cookie_samesite(cls, value: Any) -> str:
+        normalized = "lax" if value is None else str(value).strip().lower()
+        if normalized not in {"lax", "strict", "none"}:
+            raise ValueError("REFRESH_TOKEN_COOKIE_SAMESITE must be one of: lax, strict, none")
+        return normalized
+
+    @field_validator("REFRESH_TOKEN_COOKIE_DOMAIN", mode="before")
+    @classmethod
+    def normalize_cookie_domain(cls, value: Any) -> str:
+        if value is None:
+            return ""
+        return str(value).strip()
+
     @property
     def cors_allow_origins(self) -> list[str]:
         return self._parse_list(self.CORS_ALLOW_ORIGINS)
@@ -164,5 +188,9 @@ class Settings(BaseSettings):
     @property
     def s3_task_secret_key(self) -> str:
         return (self.S3_SECRET_KEY or "").strip()
+
+    @property
+    def refresh_token_expire_seconds(self) -> int:
+        return int(self.REFRESH_TOKEN_EXPIRE_HOURS) * 60 * 60
 
 settings = Settings()

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { contestAPI } from '../services/api';
+import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
 const formatDate = (value) => {
@@ -455,11 +456,7 @@ function Championship() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64 font-sans-figma">
-        <div className="text-white/70 text-lg">Загрузка...</div>
-      </div>
-    );
+    return <PageLoader label="Загружаем чемпионат..." />;
   }
 
   if (error) {
@@ -728,7 +725,7 @@ function Championship() {
                               className="max-h-[380px] overflow-y-auto rounded-[10px] border border-white/[0.06] bg-[#0B0A10]/60 p-3 space-y-2"
                             >
                               {chatLoading ? (
-                                <div className="text-[13px] text-white/50">Загрузка чата...</div>
+                                <InlineLoader label="Загрузка чата..." />
                               ) : chatSession?.messages?.length ? (
                                 chatSession.messages.map((item, index) => (
                                   <div

@@ -21,6 +21,7 @@ class User(Base):
     # Связь с профилем (один к одному)
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     rating = relationship("UserRating", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    refresh_tokens = relationship("AuthRefreshToken", back_populates="user")
 
 class UserProfile(Base):
     """
@@ -54,3 +55,29 @@ class UserRating(Base):
     last_updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     
     user = relationship("User", back_populates="rating")
+
+
+class AuthRefreshToken(Base):
+    """
+    Ротационные refresh-токены (храним только хеш токена).
+    """
+    __tablename__ = "auth_refresh_tokens"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(Text, nullable=False, unique=True, index=True)
+    expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
+    revoked_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    rotated_to_id = Column(
+        BigInteger,
+        ForeignKey("auth_refresh_tokens.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    last_used_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    user_agent = Column(Text, nullable=True)
+    ip_address = Column(Text, nullable=True)
+
+    user = relationship("User", back_populates="refresh_tokens")
+    rotated_to = relationship("AuthRefreshToken", remote_side=[id], uselist=False)
