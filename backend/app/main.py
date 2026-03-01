@@ -31,6 +31,21 @@ allow_origins = [
     if str(origin).strip()
 ]
 allow_credentials = settings.CORS_ALLOW_CREDENTIALS
+required_public_origins = [
+    "https://hacknet.tech",
+    "https://www.hacknet.tech",
+]
+for required_origin in required_public_origins:
+    if required_origin not in allow_origins:
+        allow_origins.append(required_origin)
+
+if not allow_credentials and settings.REFRESH_TOKEN_COOKIE_SAMESITE == "none":
+    logger.warning(
+        "Refresh cookie flow requires credentials for cross-origin requests. "
+        "Forcing CORS allow_credentials=True because REFRESH_TOKEN_COOKIE_SAMESITE=none."
+    )
+    allow_credentials = True
+
 if allow_credentials and "*" in allow_origins:
     allow_origins = [origin for origin in allow_origins if origin != "*"]
     if not allow_origins:
