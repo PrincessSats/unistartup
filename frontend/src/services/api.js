@@ -8,6 +8,10 @@ const API_URL = process.env.REACT_APP_API_BASE_URL || (isLocalhost ? 'http://loc
 const ACCESS_TOKEN_STORAGE_KEY = 'token';
 const parsedTimeout = Number(process.env.REACT_APP_API_TIMEOUT_MS || 15000);
 const REQUEST_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout >= 3000 ? parsedTimeout : 15000;
+const parsedLoginTimeout = Number(process.env.REACT_APP_AUTH_LOGIN_TIMEOUT_MS || 10000);
+const AUTH_LOGIN_TIMEOUT_MS = Number.isFinite(parsedLoginTimeout) && parsedLoginTimeout >= 4000
+  ? parsedLoginTimeout
+  : 10000;
 export const AUTH_BOOTSTRAP_TIMEOUT_MS = 3000;
 const ACCESS_TOKEN_CLOCK_SKEW_SECONDS = 30;
 
@@ -357,7 +361,7 @@ export const authAPI = {
       password,
     }, {
       withCredentials: true,
-      timeout: Math.max(REQUEST_TIMEOUT_MS, 20000),
+      timeout: AUTH_LOGIN_TIMEOUT_MS,
       __skipAuthRefresh: true,
     });
     if (response.data.access_token) {
@@ -368,6 +372,18 @@ export const authAPI = {
 
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
     return refreshAccessToken({ timeoutMs });
+  },
+
+  warmup: async ({ timeoutMs = 2000 } = {}) => {
+    if (!API_URL) return;
+    try {
+      await api.get('/health', {
+        timeout: timeoutMs,
+        __skipAuthRefresh: true,
+      });
+    } catch {
+      // Warmup is best-effort and must not affect UX.
+    }
   },
 
   bootstrapAuth: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {

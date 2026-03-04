@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { authAPI, profileAPI } from '../services/api';
+import { authAPI } from '../services/api';
 
 function Login() {
   const navigate = useNavigate();
@@ -10,21 +10,25 @@ function Login() {
     password: '',
   });
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    authAPI.warmup();
     const params = new URLSearchParams(location.search);
     const reason = String(params.get('reason') || '').trim();
+    setError('');
+    setNotice('');
     if (reason === 'account_blocked') {
       setError('Аккаунт заблокирован. Обратитесь к администратору.');
       return;
     }
     if (reason === 'session_expired') {
-      setError('Сессия истекла. Войдите снова.');
+      setNotice('Сессия завершена. Войдите снова, чтобы продолжить.');
       return;
     }
     if (reason === 'network_timeout') {
-      setError('Не удалось быстро подтвердить сессию. Проверьте сеть и войдите снова.');
+      setNotice('Не удалось быстро подтвердить сессию. Просто войдите снова.');
     }
   }, [location.search]);
 
@@ -38,27 +42,13 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setNotice('');
     setLoading(true);
 
     try {
       await authAPI.login(formData.email, formData.password);
-      let target = '/home';
-      try {
-        const profile = await profileAPI.getProfile();
-        if (profile?.role === 'admin') {
-          target = '/admin';
-        }
-      } catch (profileErr) {
-        const status = Number(profileErr?.response?.status || 0);
-        // Если access-токен не подошел сразу после логина, считаем сессию невалидной.
-        if (status === 401) {
-          authAPI.logout({ remote: false });
-          setError('Сессия не подтверждена. Попробуйте войти снова.');
-          return;
-        }
-        // Для временных сетевых/профильных сбоев не блокируем вход: уводим на home.
-      }
-      navigate(target);
+      // Не блокируем переход ожиданием /profile: это убирает лишние секунды на экране логина.
+      navigate('/home', { replace: true });
     } catch (err) {
       if (err?.message === 'API base URL is not configured') {
         setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
@@ -86,6 +76,11 @@ function Login() {
           onSubmit={handleSubmit}
           className="rounded-2xl border border-white/10 bg-[#15141C]/90 px-6 py-7 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)] space-y-5"
         >
+          {notice && !error && (
+            <div className="bg-sky-500/10 border border-sky-400/35 text-sky-100 px-4 py-3 rounded-xl text-sm">
+              {notice}
+            </div>
+          )}
           {error && (
             <div className="bg-red-500/10 border border-red-500/40 text-red-300 px-4 py-3 rounded-xl text-sm">
               {error}
