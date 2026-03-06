@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import AppIcon from './AppIcon';
+import HacknetLogo from './HacknetLogo';
 
 const icons = {
   home: <AppIcon name="home" className="w-5 h-5" />,
@@ -51,9 +52,7 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
 
         {/* Логотип */}
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-[12px] bg-white flex items-center justify-center">
-            <img src="/logo.png" alt="HackNet" className="w-8 h-8" />
-          </div>
+          <HacknetLogo className="w-12 h-12" />
           <span className="text-white text-[20px] leading-[24px] tracking-[0.02em]">
             Hacknet
           </span>

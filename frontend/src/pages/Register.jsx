@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI, profileAPI } from '../services/api';
+import HacknetLogo from '../components/HacknetLogo';
 
 function Register() {
   const navigate = useNavigate();
@@ -97,7 +98,7 @@ function Register() {
     <div className="min-h-screen bg-[#0B0A10] bg-[radial-gradient(circle_at_top,_rgba(132,82,255,0.14)_0,_rgba(11,10,16,0)_45%)] flex items-center justify-center px-4 font-sans-figma text-white">
       <div className="w-full max-w-[420px]">
         <div className="flex justify-center mb-6">
-          <img src="/logo.png" alt="HackNet" className="w-12 h-12" />
+          <HacknetLogo />
         </div>
 
         {step !== 'success' && (

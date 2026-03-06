@@ -47,7 +47,7 @@ function App() {
         return;
       }
 
-      const result = await authAPI.bootstrapAuth();
+      const result = await authAPI.bootstrapAuth({ timeoutMs: 1500 });
       if (cancelled) return;
 
       setAuthReason(result?.reason || '');

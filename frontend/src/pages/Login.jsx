@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import HacknetLogo from '../components/HacknetLogo';
 
 function Login() {
   const navigate = useNavigate();
@@ -67,7 +68,7 @@ function Login() {
     <div className="min-h-screen bg-[#0B0A10] bg-[radial-gradient(circle_at_top,_rgba(132,82,255,0.14)_0,_rgba(11,10,16,0)_45%)] flex items-center justify-center px-4 font-sans-figma text-white">
       <div className="w-full max-w-[420px]">
         <div className="flex justify-center mb-6">
-          <img src="/logo.png" alt="HackNet" className="w-12 h-12" />
+          <HacknetLogo />
         </div>
 
         <h1 className="text-3xl text-center mb-7 tracking-wide">Вход</h1>
