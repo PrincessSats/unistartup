@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI, userAPI } from '../services/api';
+import HacknetLogo from '../components/HacknetLogo';
 
 function Welcome() {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ function Welcome() {
           {/* Логотип */}
           <div className="flex items-center gap-3">
             <div className="flex justify-center mb-8">
-          <img src="/logo.png" alt="HackNet" className="w-12 h-12" />
+          <HacknetLogo />
         </div>
             <span className="text-xl font-semibold">HackNet</span>
           </div>
