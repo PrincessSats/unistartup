@@ -233,10 +233,9 @@ async def login(
     
     # Блокируем только явно отключенный аккаунт.
     # Legacy-значение NULL (если осталось в старой БД) самовосстанавливаем в TRUE.
+    # Без лишнего commit — изменение уйдёт с основной транзакцией _issue_login_session.
     if user.is_active is None:
         user.is_active = True
-        await db.commit()
-        await db.refresh(user)
     if user.is_active is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

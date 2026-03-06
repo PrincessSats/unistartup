@@ -605,15 +605,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
       }
       try {
         setKnowledgeError('');
-        let data;
-        try {
-          data = await knowledgeAPI.getFeed({ limit: 3 });
-        } catch (feedError) {
-          if (feedError?.response?.status !== 404) {
-            throw feedError;
-          }
-          data = await knowledgeAPI.getEntries({ limit: 3, order: 'desc', only_with_title: true });
-        }
+        const data = await knowledgeAPI.getFeed({ limit: 3 });
         if (isMounted) {
           const items = Array.isArray(data) ? data : [];
           setKnowledgeItems(items);
@@ -649,7 +641,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
         setLatestTasksError('');
         // Одна загрузка покрывает и "Практику", и "Новые задания", чтобы не дергать API дважды.
         const response = await educationAPI.getPracticeTasks({
-          limit: 48,
+          limit: 6,
           offset: 0,
           include_total: false,
           include_categories: false,
