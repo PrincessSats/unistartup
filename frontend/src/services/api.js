@@ -698,6 +698,9 @@ export const contestAPI = {
     const response = await api.post(`/contests/${contestId}/tasks/${taskId}/chat/messages`, payload);
     return response.data;
   },
+  rateTask: async (contestId, taskId, rating) => {
+    await api.post(`/contests/${contestId}/tasks/${taskId}/rate`, { rating });
+  },
 };
 
 export const ratingsAPI = {

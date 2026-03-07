@@ -9,7 +9,7 @@ function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
 
   return (
     <header className="bg-[#0D0D0D]/10 border-b border-white/[0.09] backdrop-blur-[64px] font-sans-figma">
-      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8">
+      <div className="flex items-center justify-between gap-3 px-3 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-8">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <button
             type="button"
@@ -23,7 +23,7 @@ function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
           </button>
 
           <div className="min-w-0 flex-1 max-w-[1062px]">
-            <div className="flex h-12 items-center gap-3 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-3 sm:h-14 sm:px-5">
+            <div className="flex h-12 items-center gap-4 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-3 sm:h-14 sm:px-5">
               <AppIcon name="search" className="h-5 w-5 text-white/70 sm:h-[22px] sm:w-[22px]" />
               <input
                 type="text"
@@ -41,7 +41,7 @@ function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
             aria-label="Оставить отзыв"
             className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-white/[0.05] text-white/80 transition-colors hover:text-white sm:h-14 sm:w-14"
           >
-            <AppIcon name="support" className="h-5 w-5" />
+            <AppIcon name="support" className="h-6 w-6" />
           </button>
 
           <div className="flex items-center gap-2 border-l border-white/[0.09] pl-2 sm:gap-4 sm:pl-4">
@@ -53,7 +53,7 @@ function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
                 {avatarUrl ? (
                   <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
                 ) : (
-                  <AppIcon name="person" className="h-5 w-5 text-white" />
+                  <AppIcon name="person" className="h-[22px] w-[22px] text-white" />
                 )}
               </div>
             </button>

@@ -298,7 +298,7 @@ function PracticeTrainingCard({ task }) {
   return (
     <Link
       to={`/education/${task.id}`}
-      className="group h-full rounded-[12px] border border-white/[0.06] bg-white/[0.03] p-5 transition hover:border-[#9B6BFF]/60"
+      className="group h-full rounded-[12px] border border-white/[0.06] bg-white/[0.03] p-6 transition hover:border-[#9B6BFF]/60"
     >
       <div className="relative aspect-[16/9] overflow-hidden rounded-[10px] border border-white/[0.06] bg-black/20">
         <img
@@ -308,37 +308,37 @@ function PracticeTrainingCard({ task }) {
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
         />
         {isSolved && (
-          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-2.5 py-1 text-[12px] text-[#3FD18A]">
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-3 py-[6px] text-[14px] leading-[20px] text-[#3FD18A]">
             <AppIcon name="check-circle" className="h-3.5 w-3.5" />
             Решено
           </span>
         )}
       </div>
 
-      <div className="mt-5 flex h-[170px] flex-col justify-between">
+      <div className="mt-12 flex flex-col gap-12">
         <div>
-          <h3 className="line-clamp-2 text-[22px] leading-[1.2] tracking-[0.01em] text-white">
+          <h3 className="line-clamp-2 text-[20px] leading-[24px] tracking-[0.02em] text-white">
             {task.title}
           </h3>
-          <p className="mt-3 line-clamp-2 text-[15px] leading-[20px] tracking-[0.04em] text-white/60">
+          <p className="mt-4 line-clamp-2 text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
             {task.summary || 'Описание задачи пока не добавлено'}
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="rounded-[10px] border border-white/[0.14] bg-white/[0.05] px-3 py-1.5 text-[12px] text-white/75">
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="rounded-[8px] border border-white/[0.14] bg-white/[0.05] px-3 py-[6px] text-[14px] leading-[20px] text-white/75">
               {task.category}
             </span>
-            <span className={`rounded-[10px] border px-3 py-1.5 text-[12px] ${difficultyClass}`}>
+            <span className={`rounded-[8px] border px-3 py-[6px] text-[14px] leading-[20px] ${difficultyClass}`}>
               {task.difficulty_label}
             </span>
-            <span className="rounded-[10px] border border-white/[0.12] bg-white/[0.04] px-3 py-1.5 text-[12px] text-white/70">
+            <span className="rounded-[8px] border border-white/[0.12] bg-white/[0.04] px-3 py-[6px] text-[14px] leading-[20px] text-white/70">
               {statusLabel}
             </span>
           </div>
         </div>
-        <div className="mt-4 flex items-center justify-between text-[15px] leading-[20px] tracking-[0.04em] text-white/65">
+        <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
           <span>{task.passed_users_count} прошли</span>
-          <span className="inline-flex items-center gap-2 font-mono-figma text-white">
-            <AppIcon name="star" className="h-4 w-4 text-white/80" />
+          <span className="inline-flex items-center gap-2 font-mono-figma text-[18px] leading-[24px] text-white">
+            <AppIcon name="star" className="h-[22px] w-[22px] text-white/80" />
             {task.points}
           </span>
         </div>

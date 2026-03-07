@@ -43,30 +43,30 @@ function EducationCard({ task }) {
           className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
         />
         {isSolved && (
-          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-2.5 py-1 text-[12px] text-[#3FD18A]">
+          <span className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-3 py-[6px] text-[14px] leading-[20px] text-[#3FD18A]">
             <AppIcon name="check-circle" className="h-3.5 w-3.5" />
             Решено
           </span>
         )}
       </div>
 
-      <div className="mt-6 flex min-h-[190px] flex-col justify-between">
+      <div className="mt-12 flex flex-col gap-12">
         <div>
-          <h3 className="text-[28px] leading-[1.15] tracking-[0.01em] text-white">
+          <h3 className="text-[20px] leading-[24px] tracking-[0.02em] text-white">
             {task.title}
           </h3>
           <p className="mt-4 line-clamp-2 text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
             {task.summary || 'Описание задачи пока не добавлено'}
           </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="rounded-[10px] border border-white/[0.14] bg-white/[0.05] px-3 py-1.5 text-[12px] text-white/75">
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="rounded-[8px] border border-white/[0.14] bg-white/[0.05] px-3 py-[6px] text-[14px] leading-[20px] text-white/75">
               {task.category}
             </span>
-            <span className={`rounded-[10px] border px-3 py-1.5 text-[12px] ${difficultyClass}`}>
+            <span className={`rounded-[8px] border px-3 py-[6px] text-[14px] leading-[20px] ${difficultyClass}`}>
               {task.difficulty_label}
             </span>
             {isSolved && (
-              <span className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-3 py-1.5 text-[12px] text-[#3FD18A]">
+              <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#3FD18A]/45 bg-[#3FD18A]/20 px-3 py-[6px] text-[14px] leading-[20px] text-[#3FD18A]">
                 <AppIcon name="check-circle" className="h-3.5 w-3.5" />
                 Завершено
               </span>
@@ -74,10 +74,10 @@ function EducationCard({ task }) {
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
+        <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
           <span>{task.passed_users_count} прошли</span>
-          <span className="inline-flex items-center gap-2 font-mono-figma text-white">
-            <AppIcon name="star" className="h-4 w-4 text-white/80" />
+          <span className="inline-flex items-center gap-2 font-mono-figma text-[18px] leading-[24px] text-white">
+            <AppIcon name="star" className="h-[22px] w-[22px] text-white/80" />
             {task.points}
           </span>
         </div>
@@ -137,7 +137,7 @@ export default function Education() {
     <div className="font-sans-figma text-white">
       <div className="flex flex-col gap-5">
         <div className="flex items-center justify-between gap-6">
-          <h1 className="text-[39px] leading-[44px] tracking-[0.02em]">Обучение</h1>
+          <h1 className="text-[36px] leading-[44px] tracking-[0.02em] font-medium">Обучение</h1>
           <div className="flex items-center gap-2 rounded-[10px] border border-white/[0.06] bg-white/[0.02] p-1">
             <button
               type="button"
@@ -211,7 +211,7 @@ export default function Education() {
       </div>
 
       {!loading && !error && tasks.length > 0 && (
-        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4">
           {tasks.map((task) => (
             <EducationCard key={task.id} task={task} />
           ))}
