@@ -201,7 +201,7 @@ function Knowledge() {
     <div className="font-sans-figma text-white">
       <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-[28px] leading-[34px]">База знаний</h1>
+          <h1 className="text-[36px] leading-[44px] tracking-[0.02em] font-medium">База знаний</h1>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4">

@@ -455,7 +455,19 @@ CREATE TABLE submissions (
 );
 
 CREATE INDEX idx_submissions_user_contest ON submissions(user_id, contest_id);
--- 13. Курсы
+
+-- 13. Пользовательские оценки задач чемпионата
+CREATE TABLE contest_task_ratings (
+    id          BIGSERIAL PRIMARY KEY,
+    contest_id  BIGINT NOT NULL REFERENCES contests(id) ON DELETE CASCADE,
+    task_id     BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating      SMALLINT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    rated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (contest_id, task_id, user_id)
+);
+
+-- 14. Курсы
 CREATE TABLE courses (
     id              BIGSERIAL PRIMARY KEY,
     code            TEXT NOT NULL UNIQUE,  -- код: 'cyber-basic', 'python-101'

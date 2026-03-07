@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Integer, Text, Boolean, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, SmallInteger, Text, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB
 from sqlalchemy.orm import relationship
@@ -180,6 +180,18 @@ class LlmGeneration(Base):
     task_id = Column(BigInteger, ForeignKey("tasks.id"))
     created_by = Column(BigInteger, ForeignKey("users.id"))
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class ContestTaskRating(Base):
+    __tablename__ = "contest_task_ratings"
+    __table_args__ = (UniqueConstraint("contest_id", "task_id", "user_id", name="uq_contest_task_rating"),)
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    contest_id = Column(BigInteger, ForeignKey("contests.id", ondelete="CASCADE"), nullable=False)
+    task_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    rating = Column(SmallInteger, nullable=False)
+    rated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
 
 class PromptTemplate(Base):
