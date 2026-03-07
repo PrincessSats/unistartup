@@ -67,9 +67,9 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
                   to={item.path}
                   onClick={handleNavigate}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
+                    `flex items-center gap-3 h-11 px-4 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
                       isActive
-                        ? 'bg-white/[0.05] text-white'
+                        ? 'bg-[#9B6BFF]/[0.15] text-[#9B6BFF]'
                         : 'text-white/60 hover:text-[#9B6BFF] hover:bg-[#9B6BFF]/[0.12]'
                     }`
                   }
@@ -87,9 +87,9 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
                   to="/admin"
                   onClick={handleNavigate}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 h-11 px-3 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
+                    `flex items-center gap-3 h-11 px-4 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
                       isActive
-                        ? 'bg-white/[0.05] text-white'
+                        ? 'bg-[#9B6BFF]/[0.15] text-[#9B6BFF]'
                         : 'text-white/60 hover:text-[#9B6BFF] hover:bg-[#9B6BFF]/[0.12]'
                     }`
                   }

@@ -39,7 +39,7 @@ function Register() {
     setError('');
 
     if (step === 'email') {
-      if (!formData.email || !consents.terms || !consents.marketing || loading) {
+      if (!formData.email || !consents.terms || loading) {
         return;
       }
       setStep('details');
@@ -90,7 +90,7 @@ function Register() {
     }
   };
 
-  const isEmailStepReady = formData.email && consents.terms && consents.marketing;
+  const isEmailStepReady = formData.email && consents.terms;
   const isDetailsStepReady = formData.username && formData.password.length >= 8;
   const isPrimaryDisabled = loading || (step === 'email' ? !isEmailStepReady : !isDetailsStepReady);
 
@@ -163,7 +163,7 @@ function Register() {
                     onChange={handleConsentChange}
                     className="mt-0.5 h-4 w-4 accent-[#8452FF]"
                   />
-                  <span>Я принимаю условия пользования платформой</span>
+                  <span>Я принимаю условия пользования платформой и даю согласие на обработку персональных данных</span>
                 </label>
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input

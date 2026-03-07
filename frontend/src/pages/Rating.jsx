@@ -55,14 +55,14 @@ function TopPlayerCard({ entry, rank }) {
     >
       <UserAvatar
         entry={entry}
-        sizeClass="h-[88px] w-[88px]"
-        roundedClass={`rounded-[18px] ${rank === 1 ? 'border-[#E6C36E]' : ''}`}
+        sizeClass="h-[116px] w-[116px]"
+        roundedClass={`rounded-[24px] ${rank === 1 ? 'border-[#E6C36E]' : ''}`}
       />
-      <div className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
+      <div className="font-mono-figma text-[23px] leading-[28px] tracking-[0.46px] text-white">
         {username}
       </div>
-      <div className="rounded-[10px] border border-white/[0.08] bg-white/[0.03] px-5 py-2">
-        <span className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
+      <div className="rounded-[16px] border border-white/[0.08] bg-white/[0.03] px-8 py-[10px]">
+        <span className="font-mono-figma text-[23px] leading-[28px] tracking-[0.46px] text-white">
           {formatNumber(rating)}
         </span>
       </div>
@@ -77,7 +77,7 @@ function LeaderboardRow({ entry, className, attachRef }) {
     <div ref={attachRef} className={`${tableColumns} ${className}`}>
       <span className="text-center text-white">{entry?.rank ?? '—'}</span>
       <div className="flex min-w-0 items-center gap-4">
-        <UserAvatar entry={entry} sizeClass="h-8 w-8" roundedClass="rounded-[8px]" />
+        <UserAvatar entry={entry} sizeClass="h-14 w-14" roundedClass="rounded-[10px]" />
         <span className="truncate font-mono-figma text-[18px] leading-[1.2] tracking-[0.02em] text-white">
           {entry?.username || '—'}
         </span>
@@ -249,9 +249,9 @@ function Rating() {
           </div>
         </section>
 
-        <section className="relative mx-auto w-full max-w-[1074px] overflow-hidden rounded-[20px] border border-white/[0.09] bg-white/[0.03]">
+        <section className="relative mx-auto w-full max-w-[1114px] overflow-hidden rounded-[20px] border border-white/[0.09] bg-white/[0.03]">
           <div className="overflow-x-auto">
-            <div className="min-w-[940px] px-4 pb-4 pt-5 sm:px-6">
+            <div className="min-w-[940px] px-8 pb-8 pt-12">
               <div
                 className={`${tableColumns} border-b border-white/[0.09] pb-4 text-[14px] leading-[20px] tracking-[0.04em] text-white/60`}
               >
