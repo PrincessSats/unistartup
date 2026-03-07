@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { contestAPI } from '../services/api';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
@@ -59,6 +60,7 @@ const extractFlagTokenContent = (value) => {
 };
 
 function Championship() {
+  const navigate = useNavigate();
   const [contest, setContest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -88,6 +90,8 @@ function Championship() {
   const leaderboardScrollRef = useRef(null);
   const leaderboardMyRowRef = useRef(null);
   const [isMyRowVisible, setIsMyRowVisible] = useState(false);
+  const [taskRating, setTaskRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
 
   useEffect(() => {
     const fetchContest = async () => {
@@ -327,6 +331,7 @@ function Championship() {
       if (result.is_correct) {
         const current = await contestAPI.getCurrentTask(contest.id);
         setTaskState(current);
+        if (current?.task?.id !== previousTaskId) setTaskRating(0);
         if (isChatTask && current?.task?.id === previousTaskId) {
           try {
             const chatPayload = await contestAPI.getTaskChatSession(contest.id, previousTaskId);
@@ -365,6 +370,16 @@ function Championship() {
       setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
     } finally {
       setSubmittingFlagId(null);
+    }
+  };
+
+  const handleRateTask = async (value) => {
+    if (!contest?.id || !currentTask?.id) return;
+    setTaskRating(value);
+    try {
+      await contestAPI.rateTask(contest.id, currentTask.id, value);
+    } catch {
+      // Rating is non-critical, silently ignore errors
     }
   };
 
@@ -504,7 +519,7 @@ function Championship() {
     >
       <div className="font-mono-figma text-[23px] leading-[28px] tracking-[0.02em]">{row.rank}</div>
       <div className="flex items-center gap-3 overflow-hidden">
-        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-[10px] bg-[#9B6BFF]">
+        <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[10px] bg-[#9B6BFF]">
           {row.avatar_url ? (
             <img
               src={row.avatar_url}
@@ -514,7 +529,7 @@ function Championship() {
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center">
-              <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-[22px] w-[22px] text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 12a4 4 0 100-8 4 4 0 000 8z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 21a7 7 0 0114 0" />
               </svg>
@@ -847,41 +862,57 @@ function Championship() {
                             У текущей задачи пока нет настроенных флагов.
                           </div>
                         )}
-                        <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
-                          {submitMessage || (taskState?.finished ? 'Контест завершён' : 'Не могу решить')}
-                        </span>
+                        {submitMessage && (
+                          <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                            {submitMessage}
+                          </span>
+                        )}
+                        {!taskState?.finished && (
+                          <button
+                            type="button"
+                            onClick={() => navigate('/education')}
+                            className="self-start text-[14px] leading-[20px] tracking-[0.04em] text-white/40 underline underline-offset-2 transition-colors hover:text-white/70"
+                          >
+                            Не могу решить
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
 
                 <aside className="flex w-full flex-col gap-8 xl:w-[420px]">
-                  <button className="inline-flex h-[54px] w-full items-center justify-center gap-2 rounded-[12px] bg-white/[0.03] text-[18px] leading-[22px] tracking-[0.04em] transition-colors duration-300 ease-in-out hover:bg-white/[0.06]">
-                    <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 4h12v3a6 6 0 01-12 0V4z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4H2v2a4 4 0 004 4" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 4h2v2a4 4 0 01-4 4" />
-                    </svg>
-                    Отправить решение
-                  </button>
-
                   <div className="rounded-[12px] bg-white/[0.03] p-4">
                     <div className="flex items-center justify-between gap-4">
                       <div>
                         <div className="text-[18px] leading-[24px] tracking-[0.04em]">Оцени задание</div>
-                        <div className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">Оцени задание</div>
+                        <div className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                          {taskRating > 0 ? `Ваша оценка: ${taskRating}` : 'Оцени задание'}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-white/60">
-                        {[...Array(5)].map((_, index) => (
-                          <svg key={index} className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M11.48 3.499a.562.562 0 011.04 0l2.125 6.496a.563.563 0 00.535.385h6.65a.562.562 0 01.328 1.017l-5.381 3.91a.563.563 0 00-.203.62l2.125 6.496a.562.562 0 01-.862.63l-5.381-3.91a.563.563 0 00-.66 0l-5.381 3.91a.562.562 0 01-.862-.63l2.125-6.496a.563.563 0 00-.203-.62l-5.381-3.91a.562.562 0 01.328-1.017h6.65a.563.563 0 00.535-.385L11.48 3.5z"
-                            />
-                          </svg>
-                        ))}
+                      <div className="flex items-center gap-1" onMouseLeave={() => setHoverRating(0)}>
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const filled = star <= (hoverRating || taskRating);
+                          return (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => handleRateTask(star)}
+                              onMouseEnter={() => setHoverRating(star)}
+                              className="transition-colors duration-150"
+                              aria-label={`Оценить на ${star}`}
+                            >
+                              <svg className={`h-6 w-6 ${filled ? 'text-[#8452FF]' : 'text-white/30'}`} fill={filled ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.5}
+                                  d="M11.48 3.499a.562.562 0 011.04 0l2.125 6.496a.563.563 0 00.535.385h6.65a.562.562 0 01.328 1.017l-5.381 3.91a.563.563 0 00-.203.62l2.125 6.496a.562.562 0 01-.862.63l-5.381-3.91a.563.563 0 00-.66 0l-5.381 3.91a.562.562 0 01-.862-.63l2.125-6.496a.563.563 0 00-.203-.62l-5.381-3.91a.562.562 0 01.328-1.017h6.65a.563.563 0 00.535-.385L11.48 3.5z"
+                                />
+                              </svg>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

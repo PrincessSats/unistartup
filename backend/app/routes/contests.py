@@ -3,12 +3,13 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.auth.dependencies import get_current_user
-from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag
+from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag, ContestTaskRating
 from app.models.user import UserProfile
 from app.security.rate_limit import RateLimit, enforce_rate_limit
 from app.services.chat_task import (
@@ -1139,3 +1140,42 @@ async def submit_flag(
         next_task=next_task if is_correct else None,
         finished=finished,
     )
+
+
+class TaskRatingRequest(BaseModel):
+    rating: int = Field(..., ge=1, le=5)
+
+
+@router.post("/{contest_id}/tasks/{task_id}/rate", status_code=status.HTTP_204_NO_CONTENT)
+async def rate_contest_task(
+    contest_id: int,
+    task_id: int,
+    payload: TaskRatingRequest,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+    rating_value = payload.rating
+
+    existing = (
+        await db.execute(
+            select(ContestTaskRating).where(
+                ContestTaskRating.contest_id == contest_id,
+                ContestTaskRating.task_id == task_id,
+                ContestTaskRating.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+
+    if existing:
+        existing.rating = rating_value
+        existing.rated_at = datetime.now(timezone.utc)
+    else:
+        db.add(ContestTaskRating(
+            contest_id=contest_id,
+            task_id=task_id,
+            user_id=user.id,
+            rating=rating_value,
+        ))
+
+    await db.commit()
