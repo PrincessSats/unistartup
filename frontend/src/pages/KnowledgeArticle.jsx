@@ -5,16 +5,6 @@ import AppIcon from '../components/AppIcon';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { getKnowledgeCardVisual, getKnowledgeHeroVisual } from '../utils/knowledgeVisuals';
 
-const heroGradient =
-  'linear-gradient(86.51923569753619deg, rgb(86, 59, 166) 1.2823%, rgb(87, 56, 158) 15.301%, rgb(89, 60, 158) 35.395%, rgb(131, 89, 221) 62.966%, rgb(159, 99, 255) 98.48%)';
-
-const tagGradients = {
-  Web: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
-  OSINT: 'linear-gradient(234.59deg, #5B3CA8 20.12%, #2B2B3A 100%)',
-  Криптография: 'linear-gradient(234.59deg, #6B4AC9 20.12%, #2C367F 100%)',
-  Форензика: 'linear-gradient(234.59deg, #4E7C19 20.12%, #1B1B24 100%)',
-  default: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
-};
 
 function formatDate(value) {
   if (!value) return '—';
@@ -44,7 +34,6 @@ function RelatedCard({ entry }) {
   const tags = Array.isArray(entry?.tags) ? entry.tags : [];
   const primaryTag = tags[0];
   const secondaryTag = tags[1];
-  const gradient = tagGradients[primaryTag] || tagGradients.default;
   const visual = getKnowledgeCardVisual(tags, entry?.id || 0);
 
   return (
@@ -52,16 +41,12 @@ function RelatedCard({ entry }) {
       to={`/knowledge/${entry.id}`}
       className="group rounded-[16px] border border-white/[0.06] bg-[#0F0F14] transition hover:border-[#9B6BFF]/60"
     >
-      <div
-        className="relative h-[268px] overflow-hidden rounded-[16px]"
-        style={{ backgroundImage: gradient }}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),rgba(255,255,255,0)_58%)]" />
+      <div className="relative h-[268px] overflow-hidden rounded-[16px] bg-[#0F0F14]">
         <img
           src={visual.src}
           alt=""
           loading="lazy"
-          className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${visual.imageClassName}`}
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
       </div>
       <div className="flex flex-col gap-6 px-8 py-6">
@@ -287,9 +272,7 @@ export default function KnowledgeArticle() {
       <section className="relative overflow-hidden rounded-[20px] border border-white/[0.08] bg-white/[0.02]">
         <div
           className="relative min-h-[426px] px-6 py-6 sm:px-8 sm:py-8"
-          style={{ backgroundImage: heroGradient }}
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_72%_20%,rgba(255,255,255,0.26),rgba(255,255,255,0)_58%)]" />
           <img
             src={heroVisual.src}
             alt=""

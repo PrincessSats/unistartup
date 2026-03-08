@@ -15,7 +15,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from app.config import settings
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
-from app.models.contest import Submission, Task, TaskFlag
+from app.models.contest import PracticeTaskStart, Submission, Task, TaskFlag
 from app.models.user import UserRating
 from app.security.rate_limit import RateLimit, enforce_rate_limit
 from app.services.chat_task import (
@@ -491,6 +491,16 @@ async def _load_user_submission_state(
         normalized_flags = {str(flag_id) for flag_id in (solved_flag_ids or []) if flag_id}
         if normalized_flags:
             solved_flags[task_id] = normalized_flags
+
+    # Include tasks explicitly started by the user (even without any submission)
+    starts_result = await db.execute(
+        select(PracticeTaskStart.task_id).where(
+            PracticeTaskStart.user_id == user_id,
+            PracticeTaskStart.task_id.in_(task_id_list),
+        )
+    )
+    for (started_task_id,) in starts_result.all():
+        has_any_submission.add(started_task_id)
 
     return has_any_submission, solved_flags, has_any_correct
 
@@ -1253,6 +1263,37 @@ async def download_practice_task_material_content(
         "Cache-Control": "no-store",
     }
     return Response(content=content, media_type=content_type, headers=headers)
+
+
+@router.post("/practice/tasks/{task_id}/start", status_code=204)
+async def start_practice_task(
+    task_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+
+    task = (
+        await db.execute(
+            select(Task).where(Task.id == task_id, Task.task_kind == "practice", Task.state == "ready")
+        )
+    ).scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
+
+    existing = (
+        await db.execute(
+            select(PracticeTaskStart).where(
+                PracticeTaskStart.user_id == user.id,
+                PracticeTaskStart.task_id == task_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is None:
+        db.add(PracticeTaskStart(user_id=user.id, task_id=task_id))
+        await db.commit()
+
+    return Response(status_code=204)
 
 
 @router.post("/practice/tasks/{task_id}/submit", response_model=PracticeTaskSubmitResponse)

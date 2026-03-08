@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, profileAPI } from '../services/api';
 import HacknetLogo from '../components/HacknetLogo';
 
 function Login() {
@@ -54,7 +54,14 @@ function Login() {
       }
       try {
         await authAPI.login(formData.email, formData.password);
-        navigate('/home', { replace: true });
+        let redirectTo = '/home';
+        try {
+          const profile = await profileAPI.getProfile();
+          if (profile?.role === 'admin') redirectTo = '/admin';
+        } catch {
+          // Ignore — default redirect to /home.
+        }
+        navigate(redirectTo, { replace: true });
         return;
       } catch (err) {
         lastErr = err;

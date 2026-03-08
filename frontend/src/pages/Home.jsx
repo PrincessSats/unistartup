@@ -424,7 +424,7 @@ function TrainingNotificationCard() {
         </div>
         <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
       </div>
-      <button className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit">
+      <button onClick={() => window.location.href = 'https://www.hacknet.tech/#/education/10'} className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit">
         Пройти
       </button>
     </div>
@@ -770,6 +770,11 @@ export default function Home({ currentUser: currentUserProp = null }) {
     };
   }, [hasCachedLeaderboardStats]);
 
+  const inProgressTasks = useMemo(
+    () => practiceTrainingItems.filter((t) => t.my_status === 'in_progress'),
+    [practiceTrainingItems]
+  );
+
   const modeStats = homeMode === 'championship'
     ? {
       rank: leaderboardStats.contest?.rank,
@@ -917,28 +922,83 @@ export default function Home({ currentUser: currentUserProp = null }) {
 
           <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
             <div className="flex flex-col gap-8">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
-                  Задания в процессе
-                </h2>
-                <div className="flex items-center gap-3">
-                  <button className="w-12 h-12 rounded-[10px] bg-white/5 border border-white/10 flex items-center justify-center opacity-40">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 5l-8 7 8 7" />
-                    </svg>
-                  </button>
-                  <button className="w-12 h-12 rounded-[10px] bg-white/5 border border-white/10 flex items-center justify-center">
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 5l8 7-8 7" />
-                    </svg>
-                  </button>
+              <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
+                Задания в процессе
+              </h2>
+              {practiceLoading && (
+                <div className="flex flex-col gap-2">
+                  {Array.from({ length: 2 }).map((_, i) => (
+                    <div key={i} className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-6 py-6">
+                      <SkeletonBlock className="h-6 w-[60%] rounded-[8px]" />
+                      <div className="mt-4 flex gap-2">
+                        <SkeletonBlock className="h-7 w-20 rounded-[8px]" />
+                        <SkeletonBlock className="h-7 w-16 rounded-[8px]" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                {tasks.map((task) => (
-                  <TaskRow key={task.title} {...task} />
-                ))}
-              </div>
+              )}
+              {!practiceLoading && inProgressTasks.length === 0 && (
+                <div className="flex flex-col items-center gap-6 py-10 text-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-[20px] bg-[#9B6BFF]/10 border border-[#9B6BFF]/20">
+                    <AppIcon name="flag" className="h-7 w-7 text-[#9B6BFF]/70" />
+                  </div>
+                  <div>
+                    <div className="text-[18px] leading-[24px] tracking-[0.4px] text-white/80">
+                      Нет начатых заданий
+                    </div>
+                    <div className="mt-2 text-[15px] leading-[20px] text-white/40">
+                      Перейди в раздел Обучение и начни решать задачи
+                    </div>
+                  </div>
+                  <Link
+                    to="/education"
+                    className="rounded-[10px] bg-[#9B6BFF]/20 border border-[#9B6BFF]/30 px-5 py-3 text-[16px] leading-[20px] text-[#C4A3FF] transition hover:bg-[#9B6BFF]/30"
+                  >
+                    Перейти к обучению
+                  </Link>
+                </div>
+              )}
+              {!practiceLoading && inProgressTasks.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  {inProgressTasks.map((task) => (
+                    <Link
+                      key={task.id}
+                      to={`/education/${task.id}`}
+                      className="group backdrop-blur-[16px] border border-white/[0.14] rounded-[12px] px-[25px] py-[24px] bg-white/[0.02] transition hover:border-[#9B6BFF]/40"
+                    >
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h4 className="text-[18px] leading-[24px] tracking-[0.72px] text-white truncate">
+                              {task.title}
+                            </h4>
+                            <span className="rounded-[8px] border border-[#8E51FF]/30 bg-[#8E51FF]/10 px-3 py-[6px] text-[14px] leading-[20px] text-[#A684FF]">
+                              {task.category}
+                            </span>
+                            <span className={`rounded-[8px] border px-3 py-[6px] text-[14px] leading-[20px] ${practiceDifficultyBadgeClasses[task.difficulty_label] || practiceDifficultyBadgeClasses.Средне}`}>
+                              {task.difficulty_label}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-5">
+                          <div className="flex items-center gap-2">
+                            <AppIcon name="star" className="w-5 h-5 text-white/80" />
+                            <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
+                              {task.points}
+                            </span>
+                          </div>
+                          <div className="w-12 h-12 rounded-[10px] bg-white/5 border border-white/10 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 5l8 7-8 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
