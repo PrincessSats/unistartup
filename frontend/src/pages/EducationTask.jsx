@@ -254,6 +254,7 @@ export default function EducationTask() {
   const [chatInput, setChatInput] = useState('');
   const [chatSending, setChatSending] = useState(false);
   const [chatAborting, setChatAborting] = useState(false);
+  const [startLoading, setStartLoading] = useState(false);
   const chatMessagesRef = useRef(null);
 
   useEffect(() => {
@@ -361,6 +362,19 @@ export default function EducationTask() {
       setSubmitMessage('Ссылка на задание скопирована');
     } catch {
       setSubmitMessage('Не удалось скопировать ссылку');
+    }
+  };
+
+  const handleStartTask = async () => {
+    if (startLoading || !task?.id) return;
+    try {
+      setStartLoading(true);
+      await educationAPI.startPracticeTask(task.id);
+      setTask((prev) => ({ ...prev, my_status: 'in_progress' }));
+    } catch (err) {
+      console.error('Не удалось начать задание', err);
+    } finally {
+      setStartLoading(false);
     }
   };
 
@@ -563,15 +577,8 @@ export default function EducationTask() {
               <img
                 src={heroVisual}
                 alt=""
-                className="pointer-events-none absolute right-[-16px] top-[-8px] h-[138px] w-[242px] object-contain opacity-95 md:hidden"
+                className="pointer-events-none absolute right-0 top-0 h-full w-auto object-contain opacity-95"
               />
-              <div className="pointer-events-none absolute left-[52.2%] top-[20px] hidden h-[173px] w-[304px] md:block">
-                <img
-                  src={heroVisual}
-                  alt=""
-                  className="h-full w-full object-contain opacity-95"
-                />
-              </div>
 
               <button
                 type="button"
@@ -818,22 +825,34 @@ export default function EducationTask() {
               )}
 
               {authAPI.isAuthenticated() ? (
-                <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-2">
-                  <input
-                    type="text"
-                    value={flagValue}
-                    onChange={(event) => setFlagValue(event.target.value)}
-                    placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
-                    className="h-14 min-w-[200px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70 sm:min-w-[260px]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={submitLoading || !flagValue.trim()}
-                    className="h-14 rounded-[10px] bg-white/10 px-6 text-[18px] text-white transition hover:bg-[#9B6BFF]/25 disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {submitLoading ? 'Отправка...' : 'Сдать флаг'}
-                  </button>
-                </form>
+                task?.my_status === 'not_started' ? (
+                  <div className="mt-6 flex items-center justify-center py-8">
+                    <button
+                      onClick={handleStartTask}
+                      disabled={startLoading}
+                      className="rounded-[14px] bg-[#9B6BFF] px-10 py-5 text-[20px] leading-[24px] tracking-[0.4px] text-white transition hover:bg-[#8452FF] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {startLoading ? 'Начинаем...' : 'Начать задание'}
+                    </button>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      value={flagValue}
+                      onChange={(event) => setFlagValue(event.target.value)}
+                      placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
+                      className="h-14 min-w-[200px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70 sm:min-w-[260px]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={submitLoading || !flagValue.trim()}
+                      className="h-14 rounded-[10px] bg-white/10 px-6 text-[18px] text-white transition hover:bg-[#9B6BFF]/25 disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {submitLoading ? 'Отправка...' : 'Сдать флаг'}
+                    </button>
+                  </form>
+                )
               ) : (
                 <div className="mt-6 flex items-center gap-4 rounded-[12px] border border-[#9B6BFF]/30 bg-[#9B6BFF]/10 px-5 py-4">
                   <span className="flex-1 text-[16px] leading-[20px] text-white/80">
