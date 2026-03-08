@@ -665,6 +665,12 @@ export const profileAPI = {
     invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
+
+  updateOnboardingStatus: async (status) => {
+    const response = await api.put('/profile/onboarding', { status });
+    invalidateGetCacheByPrefix('/profile');
+    return response.data;
+  },
 };
 
 export const contestAPI = {

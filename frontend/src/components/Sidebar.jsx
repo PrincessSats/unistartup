@@ -11,6 +11,7 @@ const icons = {
   knowledge: <AppIcon name="knowledge" className="w-5 h-5" />,
   faq: <AppIcon name="faq" className="w-5 h-5" />,
   admin: <AppIcon name="admin" className="w-5 h-5" />,
+  onboarding: <AppIcon name="education" className="w-5 h-5" />,
 };
 
 // Пункты меню
@@ -23,11 +24,25 @@ const menuItems = [
   { path: '/faq', label: 'FAQ', icon: icons.faq },
 ];
 
-function Sidebar({ isAdmin, mobile = false, onNavigate }) {
+function Sidebar({
+  isAdmin,
+  isAuthenticated = false,
+  onboardingStatus = null,
+  onOnboardingClick,
+  mobile = false,
+  onNavigate,
+}) {
   const handleNavigate = () => {
     if (mobile && typeof onNavigate === 'function') {
       onNavigate();
     }
+  };
+  const showOnboardingShortcut = isAuthenticated && !isAdmin && (onboardingStatus == null || onboardingStatus === 'dismissed');
+  const handleOnboardingClick = () => {
+    if (typeof onOnboardingClick === 'function') {
+      onOnboardingClick();
+    }
+    handleNavigate();
   };
 
   return (
@@ -59,13 +74,14 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
         </NavLink>
 
         {/* Навигация */}
-        <nav className="flex-1">
+        <nav className="flex flex-1 flex-col">
           <ul className="flex flex-col gap-4">
             {menuItems.map((item) => (
               <li key={item.path}>
                 <NavLink
                   to={item.path}
                   onClick={handleNavigate}
+                  data-onboarding-target={item.path === '/faq' ? 'sidebar-faq' : undefined}
                   className={({ isActive }) =>
                     `flex items-center gap-3 h-11 px-4 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] transition-colors duration-300 ease-in-out ${
                       isActive
@@ -100,6 +116,19 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
               </li>
             )}
           </ul>
+
+          {showOnboardingShortcut && (
+            <div className="mt-auto pt-4">
+              <button
+                type="button"
+                onClick={handleOnboardingClick}
+                className="flex w-full items-center gap-3 h-11 px-4 rounded-lg text-[16px] leading-[20px] tracking-[0.04em] text-white/60 transition-colors duration-300 ease-in-out hover:text-white hover:bg-white/[0.05]"
+              >
+                {icons.onboarding}
+                <span>Онбординг</span>
+              </button>
+            </div>
+          )}
         </nav>
       </div>
     </aside>

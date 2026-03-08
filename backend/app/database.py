@@ -75,9 +75,11 @@ async def ensure_auth_schema_compatibility() -> None:
             avatar_url TEXT,
             locale TEXT DEFAULT 'ru-RU',
             timezone TEXT DEFAULT 'Europe/Moscow',
-            last_login TIMESTAMPTZ
+            last_login TIMESTAMPTZ,
+            onboarding_status TEXT
         )
         """,
+        "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS onboarding_status TEXT",
         "CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)",
         # Стартовые рейтинги используются на главной странице/профиле.
         """
