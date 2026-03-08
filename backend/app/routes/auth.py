@@ -164,7 +164,8 @@ async def register(
     new_profile = UserProfile(
         user_id=new_user.id,
         username=user_data.username,
-        role="participant"  # По умолчанию обычный участник
+        role="participant",  # По умолчанию обычный участник
+        onboarding_status="pending",
     )
     db.add(new_profile)
 

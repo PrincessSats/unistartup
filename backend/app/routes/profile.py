@@ -4,6 +4,7 @@ API для работы с профилем пользователя.
 Эндпоинты:
 - GET /profile - получить свой профиль
 - PUT /profile - обновить username
+- PUT /profile/onboarding - обновить статус онбординга
 - PUT /profile/email - сменить email  
 - PUT /profile/password - сменить пароль
 - POST /profile/avatar - загрузить аватарку
@@ -13,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Literal, Optional
 import inspect
 import logging
 
@@ -44,6 +45,7 @@ class ProfileResponse(BaseModel):
     role: str
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
+    onboarding_status: Optional[str] = None
     contest_rating: int = 0
     practice_rating: int = 0
     first_blood: int = 0
@@ -68,6 +70,11 @@ class UpdatePasswordRequest(BaseModel):
     new_password: str
 
 
+class UpdateOnboardingStatusRequest(BaseModel):
+    """Запрос на обновление статуса онбординга."""
+    status: Literal["dismissed", "completed"]
+
+
 class MessageResponse(BaseModel):
     """Простой ответ с сообщением"""
     message: str
@@ -81,6 +88,28 @@ async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int, int]:
     if not rating:
         return 0, 0, 0
     return rating.contest_rating, rating.practice_rating, rating.first_blood
+
+
+def _build_profile_response(
+    *,
+    user: User,
+    profile: UserProfile,
+    contest_rating: int,
+    practice_rating: int,
+    first_blood: int,
+) -> ProfileResponse:
+    return ProfileResponse(
+        id=user.id,
+        email=user.email,
+        username=profile.username,
+        role=profile.role,
+        bio=profile.bio,
+        avatar_url=profile.avatar_url,
+        onboarding_status=profile.onboarding_status,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating,
+        first_blood=first_blood,
+    )
 
 
 # ========== Эндпоинты ==========
@@ -98,16 +127,12 @@ async def get_profile(
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
-    return ProfileResponse(
-        id=user.id,
-        email=user.email,
-        username=profile.username,
-        role=profile.role,
-        bio=profile.bio,
-        avatar_url=profile.avatar_url,
+    return _build_profile_response(
+        user=user,
+        profile=profile,
         contest_rating=contest_rating,
         practice_rating=practice_rating,
-        first_blood=first_blood
+        first_blood=first_blood,
     )
 
 
@@ -150,16 +175,45 @@ async def update_profile(
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
-    return ProfileResponse(
-        id=user.id,
-        email=user.email,
-        username=profile.username,
-        role=profile.role,
-        bio=profile.bio,
-        avatar_url=profile.avatar_url,
+    return _build_profile_response(
+        user=user,
+        profile=profile,
         contest_rating=contest_rating,
         practice_rating=practice_rating,
-        first_blood=first_blood
+        first_blood=first_blood,
+    )
+
+
+@router.put("/onboarding", response_model=ProfileResponse)
+async def update_onboarding_status(
+    data: UpdateOnboardingStatusRequest,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Обновить статус онбординга текущего пользователя.
+    Допустимые статусы: dismissed, completed.
+    """
+    user, _profile = current_user_data
+    user_id = user.id
+
+    # Перезагружаем в текущем db-сешене.
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
+
+    profile.onboarding_status = data.status
+    await db.commit()
+    await db.refresh(profile)
+
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+
+    return _build_profile_response(
+        user=user,
+        profile=profile,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating,
+        first_blood=first_blood,
     )
 
 
@@ -312,14 +366,10 @@ async def upload_user_avatar(
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
 
-    return ProfileResponse(
-        id=user.id,
-        email=user.email,
-        username=profile.username,
-        role=profile.role,
-        bio=profile.bio,
-        avatar_url=profile.avatar_url,
+    return _build_profile_response(
+        user=user,
+        profile=profile,
         contest_rating=contest_rating,
         practice_rating=practice_rating,
-        first_blood=first_blood
+        first_blood=first_blood,
     )

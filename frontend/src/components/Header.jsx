@@ -5,7 +5,16 @@ import { useNavigate } from 'react-router-dom';
 import AppIcon from './AppIcon';
 import { SkeletonBlock } from './LoadingState';
 
-function Header({ username, avatarUrl, isAuthenticated, loading, onSupportClick, onMenuToggle }) {
+function Header({
+  username,
+  avatarUrl,
+  isAuthenticated,
+  loading,
+  onSupportClick,
+  onOnboardingClick,
+  isAdmin = false,
+  onMenuToggle,
+}) {
   const navigate = useNavigate();
 
   return (
@@ -43,6 +52,16 @@ function Header({ username, avatarUrl, isAuthenticated, loading, onSupportClick,
             </div>
           ) : isAuthenticated ? (
             <>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={onOnboardingClick}
+                  className="inline-flex h-11 items-center gap-2 rounded-lg border border-white/[0.09] bg-white/[0.03] px-3 text-[14px] leading-[20px] tracking-[0.04em] text-white/60 transition-colors hover:bg-white/[0.05] hover:text-white sm:h-14 sm:px-5 sm:text-[16px]"
+                >
+                  <AppIcon name="education" className="h-5 w-5" />
+                  Онбординг
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onSupportClick}
