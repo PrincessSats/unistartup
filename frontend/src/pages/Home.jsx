@@ -39,32 +39,6 @@ const trainingCards = [
   },
 ];
 
-const tasks = [
-  {
-    title: 'Реверс-инжиниринг нестандартного протокола обмена ключами',
-    category: 'Реверс-инжиниринг',
-    type: 'Теория',
-    level: 'Легко',
-    progress: 67,
-    points: 450,
-  },
-  {
-    title: 'Архитектура адаптивной защиты распределенных систем',
-    category: 'Форензика',
-    type: 'Практика',
-    level: 'Среднее',
-    progress: 67,
-    points: 450,
-  },
-  {
-    title: 'Атака через небезопасную десериализацию',
-    category: 'Веб',
-    type: 'Практика',
-    level: 'Сложно',
-    progress: 67,
-    points: 450,
-  },
-];
 
 const knowledgeAreas = [
   'Веб',
@@ -352,51 +326,6 @@ function PracticeTrainingCard({ task }) {
   );
 }
 
-function TaskRow({ title, category, type, level, progress, points }) {
-  const levelTone = level === 'Легко' ? 'easy' : level === 'Среднее' ? 'medium' : 'hard';
-
-  return (
-    <div className="backdrop-blur-[16px] border border-white/[0.14] rounded-[12px] px-[25px] py-[24px] bg-white/[0.02]">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-3">
-            <h4 className="text-[18px] leading-[24px] tracking-[0.72px] text-white truncate">
-              {title}
-            </h4>
-            <Tag tone="neutral">{category}</Tag>
-            <span className="text-[14px] leading-[20px] tracking-[0.64px] text-white/50">
-              {type}
-            </span>
-            <Tag tone={levelTone}>{level}</Tag>
-          </div>
-          <div className="mt-4 flex items-center gap-4">
-            <div className="flex-1">
-              <div className="h-1 rounded-[8px] bg-white/10 overflow-hidden">
-                <div className="h-full bg-[#9B6BFF]" style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-            <span className="text-[14px] leading-[20px] tracking-[0.64px] text-white/50">
-              {progress}%
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-5">
-          <div className="flex items-center gap-2">
-            <AppIcon name="star" className="w-5 h-5 text-white/80" />
-            <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
-              {points}
-            </span>
-          </div>
-          <button className="w-12 h-12 rounded-[10px] bg-white/5 border border-white/10 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white/80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 5l8 7-8 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function KnowledgeCard({ title }) {
   return (
