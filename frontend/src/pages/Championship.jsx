@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { contestAPI } from '../services/api';
+import { contestAPI, authAPI } from '../services/api';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
@@ -110,7 +110,7 @@ function Championship() {
               setContestInactive(true);
               setJoined(false);
               setTaskState(null);
-            } else if (err?.response?.status === 403) {
+            } else if (err?.response?.status === 403 || (err?.response?.status === 401 && !authAPI.isAuthenticated())) {
               setJoined(false);
             } else {
               setError('Не удалось загрузить текущую задачу.');
@@ -118,7 +118,11 @@ function Championship() {
           }
         }
       } catch (err) {
-        setError('Не удалось загрузить чемпионат. Попробуйте позже.');
+        if (err?.response?.status === 401 && !authAPI.isAuthenticated()) {
+          setContest(null);
+        } else {
+          setError('Не удалось загрузить чемпионат. Попробуйте позже.');
+        }
       } finally {
         setLoading(false);
       }
@@ -701,17 +705,33 @@ function Championship() {
 
                     {!joined ? (
                       <div className="flex flex-col gap-2">
-                        <button
-                          onClick={handleJoin}
-                          className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#9B6BFF] px-8 text-[20px] leading-[24px] tracking-[0.02em] text-white transition-colors duration-300 ease-in-out hover:bg-[#8452FF] md:self-start"
-                        >
-                          Вступить
-                        </button>
-                        {submitMessage ? (
-                          <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
-                            {submitMessage}
-                          </span>
-                        ) : null}
+                        {!authAPI.isAuthenticated() ? (
+                          <div className="inline-flex items-center gap-3 rounded-[12px] border border-[#9B6BFF]/30 bg-[#9B6BFF]/10 px-5 py-4 md:self-start">
+                            <span className="text-[16px] leading-[20px] text-white/80">
+                              Войдите, чтобы участвовать в чемпионате
+                            </span>
+                            <a
+                              href="#/login"
+                              className="inline-flex h-9 items-center rounded-[8px] bg-[#9B6BFF] px-4 text-[14px] text-white transition-colors hover:bg-[#8452FF]"
+                            >
+                              Войти
+                            </a>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              onClick={handleJoin}
+                              className="inline-flex h-14 items-center justify-center rounded-[12px] bg-[#9B6BFF] px-8 text-[20px] leading-[24px] tracking-[0.02em] text-white transition-colors duration-300 ease-in-out hover:bg-[#8452FF] md:self-start"
+                            >
+                              Вступить
+                            </button>
+                            {submitMessage ? (
+                              <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/60">
+                                {submitMessage}
+                              </span>
+                            ) : null}
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col gap-2">
