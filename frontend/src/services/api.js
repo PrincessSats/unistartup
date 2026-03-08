@@ -599,6 +599,9 @@ export const educationAPI = {
     );
     return response;
   },
+  startPracticeTask: async (taskId) => {
+    await api.post(`/education/practice/tasks/${taskId}/start`);
+  },
   submitPracticeFlag: async (taskId, payload) => {
     const response = await api.post(`/education/practice/tasks/${taskId}/submit`, payload);
     return response.data;

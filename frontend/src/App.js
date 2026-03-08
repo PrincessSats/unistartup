@@ -28,7 +28,7 @@ function PublicRoute({ children, authReady }) {
     return <FullScreenLoader label="Проверяем сессию..." />;
   }
   const isAuth = authAPI.isAuthenticated();
-  return !isAuth ? children : <Navigate to="/profile" replace />;
+  return !isAuth ? children : <Navigate to="/home" replace />;
 }
 
 function MetrikaPageTracker() {

@@ -51,12 +51,12 @@ function Sidebar({ isAdmin, mobile = false, onNavigate }) {
         )}
 
         {/* Логотип */}
-        <div className="flex items-center gap-4">
+        <NavLink to="/home" className="flex items-center gap-4">
           <HacknetLogo className="w-12 h-12" />
           <span className="text-white text-[20px] leading-[24px] tracking-[0.02em]">
             Hacknet
           </span>
-        </div>
+        </NavLink>
 
         {/* Навигация */}
         <nav className="flex-1">

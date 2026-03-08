@@ -10,13 +10,6 @@ const sortTabs = [
   { label: 'Сначала старые', value: 'asc' },
 ];
 
-const tagGradients = {
-  Web: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
-  OSINT: 'linear-gradient(234.59deg, #5B3CA8 20.12%, #2B2B3A 100%)',
-  Криптография: 'linear-gradient(234.59deg, #6B4AC9 20.12%, #2C367F 100%)',
-  Форензика: 'linear-gradient(234.59deg, #4E7C19 20.12%, #1B1B24 100%)',
-  default: 'linear-gradient(234.59deg, #7177CB 20.12%, #4049C7 100%)',
-};
 
 function formatDate(value) {
   if (!value) return '—';
@@ -48,7 +41,6 @@ function KnowledgeCard({ entry }) {
   const tags = Array.isArray(entry?.tags) ? entry.tags : [];
   const primaryTag = tags[0];
   const secondaryTag = tags[1];
-  const gradient = tagGradients[primaryTag] || tagGradients.default;
   const visual = getKnowledgeCardVisual(tags, entry?.id || 0);
   const readTime = estimateReadTime(entry?.ru_explainer || entry?.ru_summary);
   const summary = shortSummary(entry?.ru_summary || entry?.ru_explainer || '');
@@ -58,16 +50,12 @@ function KnowledgeCard({ entry }) {
       to={`/knowledge/${entry.id}`}
       className="block rounded-[16px] border border-white/[0.06] bg-[#0F0F14] transition hover:border-[#9B6BFF]/60"
     >
-      <div
-        className="relative h-[268px] overflow-hidden rounded-[16px]"
-        style={{ backgroundImage: gradient }}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.18),rgba(255,255,255,0)_58%)]" />
+      <div className="relative h-[268px] overflow-hidden rounded-[16px] bg-[#0F0F14]">
         <img
           src={visual.src}
           alt=""
           loading="lazy"
-          className={`pointer-events-none absolute inset-0 h-full w-full object-cover ${visual.imageClassName}`}
+          className="pointer-events-none absolute inset-0 h-full w-full object-contain"
         />
       </div>
 
