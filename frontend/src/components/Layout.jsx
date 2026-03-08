@@ -5,7 +5,6 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import FeedbackModal from './FeedbackModal';
-import { FullScreenLoader } from './LoadingState';
 import { authAPI, profileAPI } from '../services/api';
 
 // Кэш профиля нужен, чтобы отрисовывать интерфейс сразу при повторных переходах.
