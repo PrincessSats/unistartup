@@ -64,9 +64,8 @@ function App() {
     let cancelled = false;
 
     const bootstrap = async () => {
-      const currentHash = window.location.hash || '#/';
-      const isPublicPath = currentHash.startsWith('#/login') || currentHash.startsWith('#/register');
-      if (isPublicPath && !authAPI.isAuthenticated()) {
+      if (!authAPI.isAuthenticated()) {
+        // Not authenticated — no need to verify session, just let them browse.
         setAuthReason('');
         setAuthReady(true);
         return;
@@ -77,14 +76,6 @@ function App() {
 
       setAuthReason(result?.reason || '');
       setAuthReady(true);
-
-      if (!result?.authenticated && result?.reason) {
-        const nextHash = window.location.hash || '#/';
-        const isPublicPath = nextHash.startsWith('#/login') || nextHash.startsWith('#/register');
-        if (!isPublicPath) {
-          window.location.hash = `#/login?reason=${encodeURIComponent(result.reason)}`;
-        }
-      }
     };
 
     bootstrap();
@@ -106,17 +97,15 @@ function App() {
     <HashRouter>
       <MetrikaPageTracker />
       <Routes>
-        <Route
-          path="/"
-          element={authAPI.isAuthenticated() ? <Navigate to="/profile" replace /> : <Navigate to={loginTarget} replace />}
-        />
+        <Route path="/" element={<Navigate to="/home" replace />} />
 
         <Route path="/login" element={<PublicRoute authReady={authReady}><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute authReady={authReady}><Register /></PublicRoute>} />
 
-        {/* Держим единый Layout для всех защищённых страниц, чтобы не перемонтировать его на каждом переходе. */}
-        <Route element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Layout /></ProtectedRoute>}>
-          <Route path="/profile" element={<Profile />} />
+        {/* Layout доступен всем; отдельные маршруты защищены через ProtectedRoute. */}
+        <Route element={<Layout />}>
+          <Route path="/profile" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Profile /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Admin /></ProtectedRoute>} />
           <Route path="/home" element={<Home />} />
           <Route path="/championship" element={<Championship />} />
           <Route path="/education" element={<Education />} />
@@ -125,7 +114,6 @@ function App() {
           <Route path="/knowledge" element={<Knowledge />} />
           <Route path="/knowledge/:id" element={<KnowledgeArticle />} />
           <Route path="/faq" element={<div className="text-white text-2xl">FAQ — скоро будет</div>} />
-          <Route path="/admin" element={<Admin />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

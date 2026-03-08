@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useOutletContext } from 'react-router-dom';
-import { educationAPI, knowledgeAPI, ratingsAPI } from '../services/api';
+import { educationAPI, knowledgeAPI, ratingsAPI, authAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
 import { TrainingIllustration } from '../components/AppIllustration';
@@ -552,11 +552,11 @@ export default function Home({ currentUser: currentUserProp = null }) {
   const [profile, setProfile] = useState(currentUser);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showFeedbackCard, setShowFeedbackCard] = useState(true);
-  const [homeMode, setHomeMode] = useState('championship');
+  const [homeMode, setHomeMode] = useState(!currentUser ? 'education' : 'championship');
   const [knowledgeItems, setKnowledgeItems] = useState(initialKnowledgeFeed);
   const [knowledgeLoading, setKnowledgeLoading] = useState(initialKnowledgeFeed.length === 0);
   const [knowledgeError, setKnowledgeError] = useState('');
-  const [trainingTab, setTrainingTab] = useState('theory');
+  const [trainingTab, setTrainingTab] = useState('practice');
   const [practiceTrainingItems, setPracticeTrainingItems] = useState([]);
   const [practiceLoading, setPracticeLoading] = useState(true);
   const [practiceError, setPracticeError] = useState('');
@@ -613,10 +613,14 @@ export default function Home({ currentUser: currentUserProp = null }) {
         }
       } catch (error) {
         console.error('Не удалось загрузить статьи базы знаний', error);
-        const detail = error?.response?.data?.detail;
         if (isMounted) {
-          setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
-          setKnowledgeItems([]);
+          if (error?.response?.status === 401 && !authAPI.isAuthenticated()) {
+            setKnowledgeItems([]);
+          } else {
+            const detail = error?.response?.data?.detail;
+            setKnowledgeError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+            setKnowledgeItems([]);
+          }
         }
       } finally {
         if (isMounted) {
@@ -659,12 +663,17 @@ export default function Home({ currentUser: currentUserProp = null }) {
         }
       } catch (error) {
         console.error('Не удалось загрузить практические задачи для главной страницы', error);
-        const detail = error?.response?.data?.detail;
         if (isMounted) {
-          setPracticeError(typeof detail === 'string' ? detail : 'Не удалось загрузить практические задачи');
-          setPracticeTrainingItems([]);
-          setLatestTasksError(typeof detail === 'string' ? detail : 'Не удалось загрузить новые задачи');
-          setLatestTasks([]);
+          if (error?.response?.status === 401 && !authAPI.isAuthenticated()) {
+            setPracticeTrainingItems([]);
+            setLatestTasks([]);
+          } else {
+            const detail = error?.response?.data?.detail;
+            setPracticeError(typeof detail === 'string' ? detail : 'Не удалось загрузить практические задачи');
+            setPracticeTrainingItems([]);
+            setLatestTasksError(typeof detail === 'string' ? detail : 'Не удалось загрузить новые задачи');
+            setLatestTasks([]);
+          }
         }
       } finally {
         if (isMounted) {
