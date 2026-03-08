@@ -336,7 +336,7 @@ api.interceptors.response.use(
       const reason = isTimeoutError(refreshErr) ? 'network_timeout' : 'session_expired';
       // eslint-disable-next-line no-console
       console.warn('Auth refresh failed after 401', { reason });
-      authAPI.logout({ remote: false, redirect: true, reason });
+      authAPI.logout({ remote: false, redirect: false, reason });
       return Promise.reject(refreshErr);
     }
   }

@@ -83,10 +83,10 @@ function Layout() {
         const code = String(err?.code || '').toUpperCase();
         const isTimeout = code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
         if (status === 401 || isTimeout) {
+          // Сессия истекла — очищаем токен и остаёмся на странице как гость.
           writeProfileCache(null);
-          const reason = status === 401 ? 'session_expired' : 'network_timeout';
           authAPI.logout({ remote: false, redirect: false });
-          navigate(`/login?reason=${encodeURIComponent(reason)}`, { replace: true });
+          setUserData(null);
         }
       } finally {
         setLoading(false);
@@ -130,11 +130,6 @@ function Layout() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isSidebarOpen]);
 
-  // Полный блокирующий экран показываем только при самом первом заходе без кэша.
-  if (loading && !userData) {
-    return <FullScreenLoader label="Загружаем профиль..." />;
-  }
-
   // Структура ответа profileAPI: { id, email, username, role, bio, avatar_url }
   const isAdmin = userData?.role === 'admin';
   const username = userData?.username || 'Пользователь';
@@ -154,6 +149,7 @@ function Layout() {
             username={username}
             avatarUrl={avatarUrl}
             isAuthenticated={!!userData}
+            loading={loading}
             onSupportClick={() => setIsFeedbackOpen(true)}
             onMenuToggle={() => setIsSidebarOpen((prev) => !prev)}
           />

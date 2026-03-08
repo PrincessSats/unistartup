@@ -46,22 +46,31 @@ function Login() {
     setNotice('');
     setLoading(true);
 
-    try {
-      await authAPI.login(formData.email, formData.password);
-      // Не блокируем переход ожиданием /profile: это убирает лишние секунды на экране логина.
-      navigate('/home', { replace: true });
-    } catch (err) {
-      if (err?.message === 'API base URL is not configured') {
-        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
-      } else
-      if (!err.response) {
-        setError('Не удалось подключиться к серверу (сеть или CORS). Попробуйте снова.');
-      } else {
-        setError(err.response?.data?.detail || 'Ошибка входа');
+    let lastErr;
+    for (let attempt = 0; attempt <= 1; attempt++) {
+      if (attempt > 0) {
+        // Short pause before retry — gives the container time to warm up.
+        await new Promise((resolve) => setTimeout(resolve, 1500));
       }
-    } finally {
-      setLoading(false);
+      try {
+        await authAPI.login(formData.email, formData.password);
+        navigate('/home', { replace: true });
+        return;
+      } catch (err) {
+        lastErr = err;
+        // Only retry on network-level errors (no response = connection aborted / cold start).
+        if (err.response || err?.message === 'API base URL is not configured') break;
+      }
     }
+
+    if (lastErr?.message === 'API base URL is not configured') {
+      setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+    } else if (!lastErr?.response) {
+      setError('Не удалось подключиться к серверу. Попробуйте снова.');
+    } else {
+      setError(lastErr.response?.data?.detail || 'Ошибка входа');
+    }
+    setLoading(false);
   };
 
   return (

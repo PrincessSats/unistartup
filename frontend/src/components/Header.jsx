@@ -3,8 +3,9 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppIcon from './AppIcon';
+import { SkeletonBlock } from './LoadingState';
 
-function Header({ username, avatarUrl, isAuthenticated, onSupportClick, onMenuToggle }) {
+function Header({ username, avatarUrl, isAuthenticated, loading, onSupportClick, onMenuToggle }) {
   const navigate = useNavigate();
 
   return (
@@ -35,7 +36,12 @@ function Header({ username, avatarUrl, isAuthenticated, onSupportClick, onMenuTo
         </div>
 
         <div className="ml-1 flex shrink-0 items-center gap-2 sm:ml-4 sm:gap-4 lg:gap-6">
-          {isAuthenticated ? (
+          {loading ? (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <SkeletonBlock className="h-11 w-24 rounded-[10px] sm:h-14 sm:w-28" />
+              <SkeletonBlock className="h-11 w-11 rounded-[10px] sm:h-[54px] sm:w-[54px]" />
+            </div>
+          ) : isAuthenticated ? (
             <>
               <button
                 type="button"
