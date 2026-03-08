@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { contestAPI, authAPI } from '../services/api';
-import { InlineLoader, PageLoader } from '../components/LoadingState';
+import { InlineLoader, PageLoader, SkeletonBlock } from '../components/LoadingState';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
 const formatDate = (value) => {
@@ -475,7 +475,7 @@ function Championship() {
   };
 
   if (loading) {
-    return <PageLoader label="Загружаем чемпионат..." />;
+    return <PageLoader label="Загружаем чемпионат..." variant="championship" />;
   }
 
   if (error) {
@@ -1027,8 +1027,13 @@ function Championship() {
 
                     <div ref={leaderboardScrollRef} className="mt-3 max-h-[620px] space-y-1.5 overflow-y-auto pr-1">
                       {leaderboardLoading ? (
-                        <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
-                          Загружаем рейтинг...
+                        <div className="space-y-1.5">
+                          {Array.from({ length: 6 }).map((_, index) => (
+                            <SkeletonBlock
+                              key={`championship-leaderboard-skeleton-${index}`}
+                              className="h-[76px] w-full rounded-[12px]"
+                            />
+                          ))}
                         </div>
                       ) : leaderboardRows.length ? (
                         leaderboardRows.map((row) => renderLeaderboardRow(row, { attachCurrentUserRef: row.is_me }))
@@ -1093,8 +1098,13 @@ function Championship() {
                 </div>
 
                 {detailsLoading ? (
-                  <div className="rounded-[12px] bg-white/[0.03] px-4 py-5 text-[16px] text-white/60">
-                    Загружаем детализацию...
+                  <div className="space-y-3 rounded-[12px] border border-white/[0.08] bg-white/[0.03] px-4 py-5">
+                    {Array.from({ length: 5 }).map((_, index) => (
+                      <SkeletonBlock
+                        key={`championship-details-skeleton-${index}`}
+                        className="h-10 w-full rounded-[10px]"
+                      />
+                    ))}
                   </div>
                 ) : detailsItems.length ? (
                   detailsItems.map((item) => (
