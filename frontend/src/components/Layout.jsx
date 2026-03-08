@@ -129,10 +129,15 @@ function Layout() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isSidebarOpen]);
 
-  // Структура ответа profileAPI: { id, email, username, role, bio, avatar_url }
+  // Структура ответа profileAPI: { id, email, username, role, bio, avatar_url, onboarding_status }
   const isAdmin = userData?.role === 'admin';
+  const onboardingStatus = userData?.onboarding_status ?? null;
   const username = userData?.username || 'Пользователь';
   const avatarUrl = userData?.avatar_url;
+  const handleStartOnboarding = () => {
+    navigate(`/home?onboarding=${Date.now()}`);
+    setIsSidebarOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0A10] overflow-x-hidden">
@@ -140,7 +145,12 @@ function Layout() {
 
       <div className="flex min-h-screen">
         <div className="hidden xl:block">
-          <Sidebar isAdmin={isAdmin} />
+          <Sidebar
+            isAdmin={isAdmin}
+            isAuthenticated={!!userData}
+            onboardingStatus={onboardingStatus}
+            onOnboardingClick={handleStartOnboarding}
+          />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col border border-white/[0.09]">
@@ -150,6 +160,8 @@ function Layout() {
             isAuthenticated={!!userData}
             loading={loading}
             onSupportClick={() => setIsFeedbackOpen(true)}
+            isAdmin={isAdmin}
+            onOnboardingClick={handleStartOnboarding}
             onMenuToggle={() => setIsSidebarOpen((prev) => !prev)}
           />
 
@@ -177,7 +189,14 @@ function Layout() {
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}
         >
-          <Sidebar isAdmin={isAdmin} mobile onNavigate={() => setIsSidebarOpen(false)} />
+          <Sidebar
+            isAdmin={isAdmin}
+            isAuthenticated={!!userData}
+            onboardingStatus={onboardingStatus}
+            onOnboardingClick={handleStartOnboarding}
+            mobile
+            onNavigate={() => setIsSidebarOpen(false)}
+          />
         </div>
       </div>
     </div>
