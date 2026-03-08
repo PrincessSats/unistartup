@@ -51,16 +51,18 @@ function writeProfileCache(profile) {
 function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const initialCachedProfile = useMemo(() => readProfileCache(), []);
+  const isAuthenticated = authAPI.isAuthenticated();
+  const initialCachedProfile = useMemo(() => (isAuthenticated ? readProfileCache() : null), []);
   // Берем профиль из кэша, чтобы не показывать "Загрузка..." на каждом переходе.
   const [userData, setUserData] = useState(initialCachedProfile);
-  const [loading, setLoading] = useState(() => !initialCachedProfile);
+  const [loading, setLoading] = useState(() => isAuthenticated && !initialCachedProfile);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!authAPI.isAuthenticated()) {
-      navigate('/login?reason=session_expired', { replace: true });
+      // Гость — не загружаем профиль.
+      setLoading(false);
       return;
     }
 
@@ -80,7 +82,6 @@ function Layout() {
         const code = String(err?.code || '').toUpperCase();
         const isTimeout = code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
         if (status === 401 || isTimeout) {
-          // При невалидной/зависшей сессии очищаем кэш и быстро уходим в логин.
           writeProfileCache(null);
           const reason = status === 401 ? 'session_expired' : 'network_timeout';
           authAPI.logout({ remote: false, redirect: false });
@@ -151,6 +152,7 @@ function Layout() {
           <Header
             username={username}
             avatarUrl={avatarUrl}
+            isAuthenticated={!!userData}
             onSupportClick={() => setIsFeedbackOpen(true)}
             onMenuToggle={() => setIsSidebarOpen((prev) => !prev)}
           />

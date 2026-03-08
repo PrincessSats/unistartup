@@ -4,7 +4,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppIcon from './AppIcon';
 
-function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
+function Header({ username, avatarUrl, isAuthenticated, onSupportClick, onMenuToggle }) {
   const navigate = useNavigate();
 
   return (
@@ -35,29 +35,48 @@ function Header({ username, avatarUrl, onSupportClick, onMenuToggle }) {
         </div>
 
         <div className="ml-1 flex shrink-0 items-center gap-2 sm:ml-4 sm:gap-4 lg:gap-6">
-          <button
-            type="button"
-            onClick={onSupportClick}
-            aria-label="Оставить отзыв"
-            className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-white/[0.05] text-white/80 transition-colors hover:text-white sm:h-14 sm:w-14"
-          >
-            <AppIcon name="support" className="h-6 w-6" />
-          </button>
+          {isAuthenticated ? (
+            <>
+              <button
+                type="button"
+                onClick={onSupportClick}
+                aria-label="Оставить отзыв"
+                className="flex h-11 w-11 items-center justify-center rounded-[10px] bg-white/[0.05] text-white/80 transition-colors hover:text-white sm:h-14 sm:w-14"
+              >
+                <AppIcon name="support" className="h-6 w-6" />
+              </button>
 
-          <div className="flex items-center gap-2 border-l border-white/[0.09] pl-2 sm:gap-4 sm:pl-4">
-            <button onClick={() => navigate('/profile')} className="flex min-w-0 items-center gap-2 sm:gap-4">
-              <span className="hidden max-w-[220px] truncate font-mono-figma text-[18px] leading-[24px] tracking-[0.02em] text-white/60 md:block">
-                {username}
-              </span>
-              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] bg-[#9B6BFF] sm:h-[54px] sm:w-[54px]">
-                {avatarUrl ? (
-                  <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
-                ) : (
-                  <AppIcon name="person" className="h-[22px] w-[22px] text-white" />
-                )}
+              <div className="flex items-center gap-2 border-l border-white/[0.09] pl-2 sm:gap-4 sm:pl-4">
+                <button onClick={() => navigate('/profile')} className="flex min-w-0 items-center gap-2 sm:gap-4">
+                  <span className="hidden max-w-[220px] truncate font-mono-figma text-[18px] leading-[24px] tracking-[0.02em] text-white/60 md:block">
+                    {username}
+                  </span>
+                  <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-[10px] bg-[#9B6BFF] sm:h-[54px] sm:w-[54px]">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="h-full w-full object-cover" />
+                    ) : (
+                      <AppIcon name="person" className="h-[22px] w-[22px] text-white" />
+                    )}
+                  </div>
+                </button>
               </div>
-            </button>
-          </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => navigate('/login')}
+                className="rounded-[10px] border border-white/[0.09] bg-white/[0.05] px-4 py-2 font-sans-figma text-[14px] leading-[20px] tracking-[0.04em] text-white/80 transition-colors hover:bg-white/[0.1] hover:text-white sm:px-5 sm:py-2.5 sm:text-[16px]"
+              >
+                Войти
+              </button>
+              <button
+                onClick={() => navigate('/register')}
+                className="rounded-[10px] bg-[#9B6BFF] px-4 py-2 font-sans-figma text-[14px] leading-[20px] tracking-[0.04em] text-white transition-colors hover:bg-[#8B5CF6] sm:px-5 sm:py-2.5 sm:text-[16px]"
+              >
+                Регистрация
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>

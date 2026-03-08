@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { knowledgeAPI } from '../services/api';
+import { knowledgeAPI, authAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
 import { InlineLoader } from '../components/LoadingState';
 import { getKnowledgeCardVisual } from '../utils/knowledgeVisuals';
@@ -167,11 +167,17 @@ function Knowledge() {
         }
       } catch (error) {
         console.error('Не удалось загрузить статьи базы знаний', error);
-        const detail = error?.response?.data?.detail;
-        setError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
         if (isMounted) {
-          setEntries([]);
-          setTotal(0);
+          // Гость (нет токена) — не показываем ошибку, просто пустой список.
+          if (error?.response?.status === 401 && !authAPI.isAuthenticated()) {
+            setEntries([]);
+            setTotal(0);
+          } else {
+            const detail = error?.response?.data?.detail;
+            setError(typeof detail === 'string' ? detail : 'Не удалось загрузить статьи');
+            setEntries([]);
+            setTotal(0);
+          }
         }
       } finally {
         if (isMounted) {
