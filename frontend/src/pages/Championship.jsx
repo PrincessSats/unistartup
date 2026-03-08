@@ -892,17 +892,25 @@ function Championship() {
                       </div>
                       <div className="flex items-center gap-1" onMouseLeave={() => setHoverRating(0)}>
                         {[1, 2, 3, 4, 5].map((star) => {
-                          const filled = star <= (hoverRating || taskRating);
+                          const isHovered = hoverRating > 0 && star <= hoverRating;
+                          const isSelected = taskRating > 0 && star <= taskRating && hoverRating === 0;
+                          const isFilled = isHovered || isSelected;
                           return (
                             <button
                               key={star}
                               type="button"
                               onClick={() => handleRateTask(star)}
                               onMouseEnter={() => setHoverRating(star)}
-                              className="transition-colors duration-150"
                               aria-label={`Оценить на ${star}`}
+                              className="flex h-8 w-8 items-center justify-center rounded-[6px] transition-colors duration-150"
+                              style={isSelected ? { background: 'linear-gradient(88deg, #563BA6 1.28%, #57389E 15.3%, #593C9E 35.4%, #8359DD 62.97%, #9F63FF 98.48%)' } : {}}
                             >
-                              <svg className={`h-6 w-6 ${filled ? 'text-[#8452FF]' : 'text-white/30'}`} fill={filled ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                              <svg
+                                className={`h-5 w-5 transition-colors duration-150 ${isFilled ? 'text-white' : 'text-white/60'}`}
+                                fill={isFilled ? 'currentColor' : 'none'}
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
                                 <path
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
