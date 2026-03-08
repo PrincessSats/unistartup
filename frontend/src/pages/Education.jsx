@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
 import { InlineLoader } from '../components/LoadingState';
-import { educationAPI } from '../services/api';
+import { educationAPI, authAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 
 const difficultyOptions = [
@@ -117,9 +117,13 @@ export default function Education() {
       } catch (err) {
         console.error('Не удалось загрузить практические задачи', err);
         if (!isMounted) return;
-        const detail = err?.response?.data?.detail;
-        setError(typeof detail === 'string' ? detail : 'Не удалось загрузить задачи');
-        setTasks([]);
+        if (err?.response?.status === 401 && !authAPI.isAuthenticated()) {
+          setTasks([]);
+        } else {
+          const detail = err?.response?.data?.detail;
+          setError(typeof detail === 'string' ? detail : 'Не удалось загрузить задачи');
+          setTasks([]);
+        }
       } finally {
         if (isMounted) {
           setLoading(false);

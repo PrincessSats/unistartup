@@ -87,6 +87,59 @@ async def get_current_user(
     
     return user, profile
 
+async def get_current_user_optional(
+    authorization: Optional[str] = Header(None),
+    x_auth_token: Optional[str] = Header(None),
+    db: AsyncSession = Depends(get_db)
+) -> Optional[tuple]:
+    """
+    Как get_current_user, но не бросает 401 если токена нет.
+    Возвращает (User, UserProfile) или None для гостей.
+    """
+    token: Optional[str] = None
+    if authorization:
+        scheme, _, credentials = authorization.partition(" ")
+        if scheme.lower() == "bearer" and credentials.strip():
+            token = credentials.strip()
+    if token is None and x_auth_token:
+        token = x_auth_token.strip()
+
+    if not token:
+        return None
+
+    payload = decode_access_token(token)
+    if payload is None:
+        return None
+
+    email: str = payload.get("sub")
+    if email is None:
+        return None
+
+    for attempt in range(2):
+        try:
+            result = await db.execute(
+                select(User, UserProfile)
+                .join(UserProfile, User.id == UserProfile.user_id)
+                .where(User.email == email)
+            )
+            user_data = result.first()
+            break
+        except SAInterfaceError as exc:
+            await db.rollback()
+            if attempt == 0 and "connection is closed" in str(exc).lower():
+                continue
+            return None
+
+    if user_data is None:
+        return None
+
+    user, profile = user_data
+    if user.is_active is False:
+        return None
+
+    return user, profile
+
+
 async def get_current_admin(
     current_user_data: tuple = Depends(get_current_user)
 ) -> tuple[User, UserProfile]:

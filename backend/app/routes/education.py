@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from botocore.exceptions import BotoCoreError, ClientError
 from app.config import settings
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.models.contest import Submission, Task, TaskFlag
 from app.models.user import UserRating
@@ -594,7 +594,7 @@ def _find_material_by_id(materials: list[dict], material_id: int) -> Optional[di
 
 @router.get("/practice/tasks", response_model=PracticeTaskListResponse)
 async def list_practice_tasks(
-    current_user_data: tuple = Depends(get_current_user),
+    current_user_data: Optional[tuple] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
     difficulty: Optional[str] = Query(None, pattern="^(easy|medium|hard)$"),
     category: Optional[str] = Query(None),
@@ -604,7 +604,7 @@ async def list_practice_tasks(
     include_total: bool = Query(True),
     include_categories: bool = Query(True),
 ):
-    user, _profile = current_user_data
+    user = current_user_data[0] if current_user_data else None
 
     categories: list[str] = []
     if include_categories:
@@ -659,9 +659,12 @@ async def list_practice_tasks(
 
     task_ids = [task.id for task in tasks]
     flags_by_task = await _load_task_flags_map(db, task_ids)
-    user_has_submission, user_solved_flags, user_has_correct = await _load_user_submission_state(
-        db, user.id, task_ids
-    )
+    if user is not None:
+        user_has_submission, user_solved_flags, user_has_correct = await _load_user_submission_state(
+            db, user.id, task_ids
+        )
+    else:
+        user_has_submission, user_solved_flags, user_has_correct = set(), {}, set()
     correct_flags_by_task_user = await _load_all_users_correct_flags(db, task_ids)
 
     cards: list[PracticeTaskCard] = []
@@ -715,10 +718,10 @@ async def list_practice_tasks(
 @router.get("/practice/tasks/{task_id}", response_model=PracticeTaskDetailResponse)
 async def get_practice_task(
     task_id: int,
-    current_user_data: tuple = Depends(get_current_user),
+    current_user_data: Optional[tuple] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ):
-    user, _profile = current_user_data
+    user = current_user_data[0] if current_user_data else None
 
     task = (
         await db.execute(
@@ -733,9 +736,12 @@ async def get_practice_task(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Задача не найдена")
 
     flags_by_task = await _load_task_flags_map(db, [task.id])
-    user_has_submission, user_solved_flags, user_has_correct = await _load_user_submission_state(
-        db, user.id, [task.id]
-    )
+    if user is not None:
+        user_has_submission, user_solved_flags, user_has_correct = await _load_user_submission_state(
+            db, user.id, [task.id]
+        )
+    else:
+        user_has_submission, user_solved_flags, user_has_correct = set(), {}, set()
     correct_flags_by_task_user = await _load_all_users_correct_flags(db, [task.id])
 
     required_flag_ids = {flag.flag_id for flag in flags_by_task.get(task.id, []) if flag.flag_id}

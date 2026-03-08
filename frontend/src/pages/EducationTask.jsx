@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
-import { educationAPI } from '../services/api';
+import { educationAPI, authAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 
@@ -817,22 +817,36 @@ export default function EducationTask() {
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-2">
-                <input
-                  type="text"
-                  value={flagValue}
-                  onChange={(event) => setFlagValue(event.target.value)}
-                  placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
-                  className="h-14 min-w-[200px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70 sm:min-w-[260px]"
-                />
-                <button
-                  type="submit"
-                  disabled={submitLoading || !flagValue.trim()}
-                  className="h-14 rounded-[10px] bg-white/10 px-6 text-[18px] text-white transition hover:bg-[#9B6BFF]/25 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {submitLoading ? 'Отправка...' : 'Сдать флаг'}
-                </button>
-              </form>
+              {authAPI.isAuthenticated() ? (
+                <form onSubmit={handleSubmit} className="mt-6 flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    value={flagValue}
+                    onChange={(event) => setFlagValue(event.target.value)}
+                    placeholder={isChatTask ? 'Введи только код между { }' : 'Введи флаг сюда'}
+                    className="h-14 min-w-[200px] flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] text-white placeholder:text-white/35 outline-none transition focus:border-[#9B6BFF]/70 sm:min-w-[260px]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={submitLoading || !flagValue.trim()}
+                    className="h-14 rounded-[10px] bg-white/10 px-6 text-[18px] text-white transition hover:bg-[#9B6BFF]/25 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {submitLoading ? 'Отправка...' : 'Сдать флаг'}
+                  </button>
+                </form>
+              ) : (
+                <div className="mt-6 flex items-center gap-4 rounded-[12px] border border-[#9B6BFF]/30 bg-[#9B6BFF]/10 px-5 py-4">
+                  <span className="flex-1 text-[16px] leading-[20px] text-white/80">
+                    Войдите в аккаунт, чтобы сдать флаг
+                  </span>
+                  <a
+                    href="#/login"
+                    className="inline-flex h-10 items-center rounded-[8px] bg-[#9B6BFF] px-5 text-[15px] text-white transition-colors hover:bg-[#8452FF]"
+                  >
+                    Войти
+                  </a>
+                </div>
+              )}
 
               {submitMessage && (
                 <p className="mt-3 text-[14px] text-white/80">{submitMessage}</p>

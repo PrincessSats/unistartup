@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ratingsAPI } from '../services/api';
+import { ratingsAPI, authAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
 import { PageLoader } from '../components/LoadingState';
 
@@ -158,7 +158,11 @@ function Rating() {
         const data = await ratingsAPI.getLeaderboard(kind);
         setEntries(Array.isArray(data?.entries) ? data.entries : []);
       } catch (_err) {
-        setError('Не удалось загрузить рейтинг. Попробуйте позже.');
+        if (_err?.response?.status === 401 && !authAPI.isAuthenticated()) {
+          setEntries([]);
+        } else {
+          setError('Не удалось загрузить рейтинг. Попробуйте позже.');
+        }
       } finally {
         setLoading(false);
       }
