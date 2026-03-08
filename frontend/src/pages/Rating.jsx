@@ -231,7 +231,7 @@ function Rating() {
     Boolean(currentEntry) && Number(currentEntry?.rank) > 10 && !isCurrentRowVisible;
 
   if (loading) {
-    return <PageLoader label="Загружаем рейтинг..." />;
+    return <PageLoader label="Загружаем рейтинг..." variant="rating" />;
   }
 
   if (error) {

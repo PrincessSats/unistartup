@@ -247,7 +247,7 @@ export default function KnowledgeArticle() {
   }, [entry]);
 
   if (loading) {
-    return <PageLoader label="Загрузка статьи..." />;
+    return <PageLoader label="Загрузка статьи..." variant="knowledge-article" />;
   }
 
   if (error) {
