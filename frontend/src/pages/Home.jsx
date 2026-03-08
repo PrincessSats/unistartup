@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useOutletContext } from 'react-router-dom';
-import { educationAPI, knowledgeAPI, ratingsAPI, authAPI } from '../services/api';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useOutletContext } from 'react-router-dom';
+import { educationAPI, knowledgeAPI, ratingsAPI, authAPI, profileAPI } from '../services/api';
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
 import { TrainingIllustration } from '../components/AppIllustration';
 import { SkeletonBlock } from '../components/LoadingState';
+import HomeOnboardingOverlay from '../components/HomeOnboardingOverlay';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 
 const DEFAULT_USERNAME = 'Пользователь';
@@ -81,6 +82,7 @@ const HOME_KNOWLEDGE_CACHE_KEY = 'home:knowledge-feed:v1';
 const HOME_KNOWLEDGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const HOME_LEADERBOARD_CACHE_KEY = 'home:leaderboard-stats:v1';
 const HOME_LEADERBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
+const ONBOARDING_STEPS_COUNT = 4;
 
 function readKnowledgeFeedCache() {
   try {
@@ -578,6 +580,7 @@ function getArticleTitle(entry) {
 
 export default function Home({ currentUser: currentUserProp = null }) {
   const navigate = useNavigate();
+  const location = useLocation();
   // Приоритет у данных из Layout, чтобы не ждать дополнительной загрузки пользователя.
   const outletContext = useOutletContext();
   const currentUser = outletContext?.currentUser || currentUserProp;
@@ -599,6 +602,8 @@ export default function Home({ currentUser: currentUserProp = null }) {
   const [latestTasks, setLatestTasks] = useState([]);
   const [latestTasksLoading, setLatestTasksLoading] = useState(true);
   const [latestTasksError, setLatestTasksError] = useState('');
+  const [activeOnboardingStep, setActiveOnboardingStep] = useState(null);
+  const [onboardingSaving, setOnboardingSaving] = useState(false);
   const [leaderboardStats, setLeaderboardStats] = useState(
     initialLeaderboardStats || {
       contest: null,
@@ -606,6 +611,9 @@ export default function Home({ currentUser: currentUserProp = null }) {
     }
   );
   const [leaderboardStatsLoading, setLeaderboardStatsLoading] = useState(!hasCachedLeaderboardStats);
+  const autoOnboardingStartedRef = useRef(false);
+  const isAdmin = profile?.role === 'admin';
+  const onboardingStatus = profile?.onboarding_status ?? null;
 
   useEffect(() => {
     if (currentUser) {
@@ -625,6 +633,65 @@ export default function Home({ currentUser: currentUserProp = null }) {
       window.removeEventListener('profile-updated', handleProfileUpdated);
     };
   }, []);
+
+  useEffect(() => {
+    if (!profile) return;
+    const params = new URLSearchParams(location.search);
+    if (!params.has('onboarding')) return;
+
+    setActiveOnboardingStep(0);
+    autoOnboardingStartedRef.current = true;
+    navigate(location.pathname, { replace: true });
+  }, [location.pathname, location.search, navigate, profile]);
+
+  useEffect(() => {
+    if (autoOnboardingStartedRef.current) return;
+    if (!profile || isAdmin) return;
+    if (onboardingStatus !== 'pending') return;
+
+    setActiveOnboardingStep(0);
+    autoOnboardingStartedRef.current = true;
+  }, [isAdmin, onboardingStatus, profile]);
+
+  const dispatchProfileUpdated = (detail) => {
+    window.dispatchEvent(new CustomEvent('profile-updated', { detail }));
+  };
+
+  const persistOnboardingStatus = async (statusValue) => {
+    if (isAdmin) return;
+    setOnboardingSaving(true);
+    try {
+      const updatedProfile = await profileAPI.updateOnboardingStatus(statusValue);
+      setProfile((prev) => ({ ...(prev || {}), ...updatedProfile }));
+      dispatchProfileUpdated(updatedProfile);
+    } catch (error) {
+      console.error('Не удалось обновить статус онбординга', error);
+      setProfile((prev) => (prev ? { ...prev, onboarding_status: statusValue } : prev));
+      dispatchProfileUpdated({ onboarding_status: statusValue });
+    } finally {
+      setOnboardingSaving(false);
+    }
+  };
+
+  const handleOnboardingClose = async () => {
+    if (onboardingSaving) return;
+    setActiveOnboardingStep(null);
+    await persistOnboardingStatus('dismissed');
+  };
+
+  const handleOnboardingNext = () => {
+    if (onboardingSaving) return;
+    setActiveOnboardingStep((prev) => {
+      if (prev == null) return 0;
+      return Math.min(prev + 1, ONBOARDING_STEPS_COUNT - 1);
+    });
+  };
+
+  const handleOnboardingFinish = async () => {
+    if (onboardingSaving) return;
+    setActiveOnboardingStep(null);
+    await persistOnboardingStatus('completed');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -797,11 +864,22 @@ export default function Home({ currentUser: currentUserProp = null }) {
     { label: 'Очки', value: modeStats.points },
     { label: 'First blood', value: modeStats.firstBlood },
   ];
+  const practiceGridClassName =
+    'grid w-full auto-rows-fr gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,352px))]';
 
   return (
     <div className="font-sans-figma text-white">
       <FeedbackModal open={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
+      {activeOnboardingStep != null && (
+        <HomeOnboardingOverlay
+          stepIndex={activeOnboardingStep}
+          onClose={handleOnboardingClose}
+          onNext={handleOnboardingNext}
+          onFinish={handleOnboardingFinish}
+        />
+      )}
       <section
+        data-onboarding-target="home-hero"
         className="rounded-[20px] px-4 pb-6 pt-8 sm:px-6"
         style={{
           backgroundImage:
@@ -863,7 +941,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
 
       <section className="mt-8 flex flex-col gap-4 xl:flex-row">
         <div className="flex-1 flex flex-col gap-4 min-w-0">
-          <div className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
+          <div data-onboarding-target="home-training" className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
             <div className="flex flex-col gap-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
@@ -897,7 +975,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
                   <TrainingCard key={`${card.title}-${index}`} {...card} />
                 ))}
                 {trainingTab === 'practice' && practiceLoading && (
-                  <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3 auto-rows-fr">
+                  <div className={practiceGridClassName}>
                     {Array.from({ length: 3 }).map((_, index) => (
                       <PracticeTrainingCardSkeleton key={`practice-training-skeleton-${index}`} />
                     ))}
@@ -910,7 +988,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
                   <div className="text-white/60 text-[16px]">Подходящих практических задач пока нет.</div>
                 )}
                 {trainingTab === 'practice' && !practiceLoading && !practiceError && (
-                  <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3 auto-rows-fr">
+                  <div className={practiceGridClassName}>
                     {practiceTrainingItems.map((task) => (
                       <PracticeTrainingCard key={task.id} task={task} />
                     ))}
@@ -1015,7 +1093,9 @@ export default function Home({ currentUser: currentUserProp = null }) {
         </div>
 
         <aside className="w-full xl:w-[440px] flex flex-col gap-4">
-          <TrainingNotificationCard />
+          <div data-onboarding-target="home-first-task">
+            <TrainingNotificationCard />
+          </div>
           {showFeedbackCard && (
             <FeedbackCard
               onOpen={() => setIsFeedbackOpen(true)}

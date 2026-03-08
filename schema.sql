@@ -20,7 +20,8 @@ CREATE TABLE user_profiles (
     avatar_url  TEXT,
     locale      TEXT DEFAULT 'ru-RU',
     timezone    TEXT DEFAULT 'Europe/Moscow',
-    last_login  TIMESTAMPTZ
+    last_login  TIMESTAMPTZ,
+    onboarding_status TEXT                          -- NULL | pending | dismissed | completed
 );
 
 -- 3. Рейтинги (чемпионатный и практический)
