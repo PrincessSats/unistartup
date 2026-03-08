@@ -4,6 +4,7 @@ import { educationAPI, knowledgeAPI, ratingsAPI, authAPI } from '../services/api
 import FeedbackModal from '../components/FeedbackModal';
 import AppIcon from '../components/AppIcon';
 import { TrainingIllustration } from '../components/AppIllustration';
+import { SkeletonBlock } from '../components/LoadingState';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 
 const DEFAULT_USERNAME = 'Пользователь';
@@ -223,15 +224,19 @@ function ProgressBar({ value = 67, size = 'small' }) {
   );
 }
 
-function ScoreCard({ label, value }) {
+function ScoreCard({ label, value, loading = false }) {
   return (
     <div className="bg-white/[0.09] border border-white/[0.14] rounded-[16px] px-[25px] py-[25px] h-[86px] flex items-center justify-between min-w-[220px] flex-1">
       <span className="text-[18px] leading-[24px] tracking-[0.72px] text-white/60">
         {label}
       </span>
-      <span className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
-        {value}
-      </span>
+      {loading ? (
+        <SkeletonBlock className="h-9 w-20 rounded-[8px] border-white/[0.16] bg-white/[0.07]" />
+      ) : (
+        <span className="font-mono-figma text-[29px] leading-[36px] tracking-[0.58px] text-white">
+          {value}
+        </span>
+      )}
     </div>
   );
 }
@@ -521,6 +526,37 @@ function TaskNewsItem({ task }) {
   );
 }
 
+function PracticeTrainingCardSkeleton() {
+  return (
+    <div className="h-full rounded-[12px] border border-white/[0.06] bg-white/[0.03] p-6">
+      <SkeletonBlock className="aspect-[16/9] w-full rounded-[10px]" />
+      <div className="mt-12 space-y-4">
+        <SkeletonBlock className="h-6 w-[72%] rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-full rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-[90%] rounded-[8px]" />
+      </div>
+      <div className="mt-6 flex gap-2">
+        <SkeletonBlock className="h-8 w-20 rounded-[8px]" />
+        <SkeletonBlock className="h-8 w-24 rounded-[8px]" />
+        <SkeletonBlock className="h-8 w-24 rounded-[8px]" />
+      </div>
+      <div className="mt-12 flex items-center justify-between">
+        <SkeletonBlock className="h-5 w-28 rounded-[8px]" />
+        <SkeletonBlock className="h-6 w-16 rounded-[8px]" />
+      </div>
+    </div>
+  );
+}
+
+function NewsItemSkeleton() {
+  return (
+    <div className="rounded-[12px] bg-white/[0.05] px-4 py-5">
+      <SkeletonBlock className="h-6 w-[82%] rounded-[8px]" />
+      <SkeletonBlock className="mt-3 h-4 w-24 rounded-[8px]" />
+    </div>
+  );
+}
+
 function formatRelativeTime(value) {
   if (!value) return 'Без даты';
   const date = new Date(value);
@@ -804,7 +840,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-2 lg:flex-row lg:gap-2">
               {stats.map((item) => (
-                <ScoreCard key={item.label} label={item.label} value={item.value} />
+                <ScoreCard key={item.label} label={item.label} value={item.value} loading={leaderboardStatsLoading} />
               ))}
             </div>
             <button
@@ -856,7 +892,11 @@ export default function Home({ currentUser: currentUserProp = null }) {
                   <TrainingCard key={`${card.title}-${index}`} {...card} />
                 ))}
                 {trainingTab === 'practice' && practiceLoading && (
-                  <div className="text-white/60 text-[16px]">Загрузка практических задач...</div>
+                  <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3 auto-rows-fr">
+                    {Array.from({ length: 3 }).map((_, index) => (
+                      <PracticeTrainingCardSkeleton key={`practice-training-skeleton-${index}`} />
+                    ))}
+                  </div>
                 )}
                 {trainingTab === 'practice' && !practiceLoading && practiceError && (
                   <div className="text-rose-300 text-[16px]">{practiceError}</div>
@@ -933,7 +973,11 @@ export default function Home({ currentUser: currentUserProp = null }) {
                 <NewsItem title={knowledgeError} meta="" />
               )}
               {knowledgeLoading && (
-                <NewsItem title="Загрузка статей..." meta="" />
+                <>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <NewsItemSkeleton key={`knowledge-news-skeleton-${index}`} />
+                  ))}
+                </>
               )}
               {!knowledgeLoading && !knowledgeError && knowledgeItems.length === 0 && (
                 <NewsItem title="Пока нет статей" meta="" />
@@ -953,7 +997,11 @@ export default function Home({ currentUser: currentUserProp = null }) {
                 <NewsItem title={latestTasksError} meta="" />
               )}
               {latestTasksLoading && (
-                <NewsItem title="Загрузка задач..." meta="" />
+                <>
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <NewsItemSkeleton key={`latest-tasks-skeleton-${index}`} />
+                  ))}
+                </>
               )}
               {!latestTasksLoading && !latestTasksError && latestTasks.length === 0 && (
                 <NewsItem title="Пока нет новых задач" meta="" />

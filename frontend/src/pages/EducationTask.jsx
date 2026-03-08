@@ -524,7 +524,7 @@ export default function EducationTask() {
   };
 
   if (loading) {
-    return <PageLoader label="Загружаем задачу..." />;
+    return <PageLoader label="Загружаем задачу..." variant="education-task" />;
   }
 
   if (error) {
