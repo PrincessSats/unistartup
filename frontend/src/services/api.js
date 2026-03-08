@@ -310,6 +310,11 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Гость (нет токена) — не пытаемся рефрешить и не редиректим на логин.
+    if (!getStoredAccessToken()) {
+      return Promise.reject(error);
+    }
+
     if (originalConfig.__retriedAfterRefresh) {
       authAPI.logout({ remote: false, redirect: true, reason: 'session_expired' });
       return Promise.reject(error);

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import Text, bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.schemas.comments import KBComment, KBCommentCreate
 from app.schemas.knowledge import KnowledgeEntry, KnowledgeFeedItem
@@ -15,7 +15,6 @@ router = APIRouter(prefix="/kb_entries", tags=["Knowledge Base"])
 
 @router.get("", response_model=List[KnowledgeEntry])
 async def list_kb_entries(
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(12, ge=1, le=50),
     offset: int = Query(0, ge=0),
@@ -28,8 +27,6 @@ async def list_kb_entries(
     order: asc | desc (по created_at)
     tag: фильтр по тегу (если указан)
     """
-    _user, _profile = current_user_data
-
     order_sql = "ASC" if order == "asc" else "DESC"
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
 
@@ -77,7 +74,6 @@ async def list_kb_entries(
 
 @router.get("/paged")
 async def list_kb_entries_paged(
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(15, ge=1, le=50),
     offset: int = Query(0, ge=0),
@@ -88,8 +84,6 @@ async def list_kb_entries_paged(
     """
     Пагинация для базы знаний (с total).
     """
-    _user, _profile = current_user_data
-
     order_sql = "ASC" if order == "asc" else "DESC"
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
 
@@ -153,15 +147,12 @@ async def list_kb_entries_paged(
 
 @router.get("/tags")
 async def list_kb_tags(
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     only_with_title: bool = Query(True),
 ):
     """
     Список всех тегов.
     """
-    _user, _profile = current_user_data
-
     rows = (
         await db.execute(
             text(
@@ -182,7 +173,6 @@ async def list_kb_tags(
 
 @router.get("/feed", response_model=List[KnowledgeFeedItem])
 async def list_kb_feed(
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(3, ge=1, le=20),
 ):
@@ -190,8 +180,6 @@ async def list_kb_feed(
     Облегченный фид для главной страницы:
     возвращает только id, заголовок и даты.
     """
-    _user, _profile = current_user_data
-
     rows = (
         await db.execute(
             text(
@@ -222,14 +210,11 @@ async def list_kb_feed(
 @router.get("/{entry_id}", response_model=KnowledgeEntry)
 async def get_kb_entry(
     entry_id: int,
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Получить одну запись базы знаний по id.
     """
-    _user, _profile = current_user_data
-
     stmt = text(
         """
         SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
@@ -268,7 +253,6 @@ async def get_kb_entry(
 @router.get("/{entry_id}/comments", response_model=List[KBComment])
 async def list_kb_comments(
     entry_id: int,
-    current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -276,8 +260,6 @@ async def list_kb_comments(
     """
     Список комментариев к статье.
     """
-    _user, _profile = current_user_data
-
     entry_row = (
         await db.execute(
             text(

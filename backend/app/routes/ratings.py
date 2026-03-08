@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func, distinct, desc, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.models.contest import Submission
 from app.models.user import UserProfile, UserRating
@@ -150,7 +150,7 @@ async def _load_my_stats_bundle_from_db(db: AsyncSession, user_id: int) -> Dict[
 @router.get("/leaderboard", response_model=LeaderboardResponse)
 async def get_leaderboard(
     kind: str = Query("contest", pattern="^(contest|practice)$"),
-    current_user_data: tuple = Depends(get_current_user),
+    current_user_data: Optional[tuple] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -160,7 +160,7 @@ async def get_leaderboard(
       - contest: чемпионатный рейтинг
       - practice: практический рейтинг
     """
-    user, _profile = current_user_data
+    user = current_user_data[0] if current_user_data else None
 
     if kind not in {"contest", "practice"}:
         raise HTTPException(status_code=400, detail="kind должен быть contest или practice")
@@ -209,7 +209,7 @@ async def get_leaderboard(
                 solved=row.solved or 0,
                 first_blood=row.first_blood or 0,
                 rank=idx,
-                is_current_user=row.user_id == user.id,
+                is_current_user=user is not None and row.user_id == user.id,
             )
         )
 
