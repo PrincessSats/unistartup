@@ -63,6 +63,9 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
+    // Fire warmup immediately so the container starts before the user interacts.
+    authAPI.warmup();
+
     const bootstrap = async () => {
       if (!authAPI.isAuthenticated()) {
         // Not authenticated — no need to verify session, just let them browse.
