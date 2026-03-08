@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { adminAPI, authAPI } from '../services/api';
-import { PageLoader } from '../components/LoadingState';
+import { PageLoader, SkeletonBlock } from '../components/LoadingState';
 
 const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
 
@@ -599,7 +599,11 @@ function KnowledgeBaseModal({ open, onClose, onCreated, onUpdated }) {
             <div className="border border-white/[0.08] rounded-[16px] p-4 max-h-[560px] overflow-y-auto">
               <div className="text-[14px] text-white/60 mb-3">Список статей</div>
               {articlesLoading && (
-                <div className="text-[14px] text-white/40">Загрузка...</div>
+                <div className="space-y-2">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <SkeletonBlock key={`admin-articles-skeleton-${index}`} className="h-16 w-full rounded-[12px]" />
+                  ))}
+                </div>
               )}
               {articlesError && (
                 <div className="text-[14px] text-rose-300">{articlesError}</div>
@@ -1376,7 +1380,11 @@ function CreateTaskModal({ open, onClose, onCreated }) {
                 />
                 <div className="max-h-[480px] overflow-y-auto pr-2 flex flex-col gap-2">
                   {taskItemsLoading && (
-                    <div className="text-[13px] text-white/50">Загрузка задач...</div>
+                    <div className="space-y-2">
+                      {Array.from({ length: 6 }).map((_, index) => (
+                        <SkeletonBlock key={`admin-tasks-skeleton-${index}`} className="h-16 w-full rounded-[12px]" />
+                      ))}
+                    </div>
                   )}
                   {!taskItemsLoading && filteredTaskItems.map((item) => (
                     <button
@@ -2481,7 +2489,11 @@ function PromptManagerModal({ open, onClose }) {
           <div className="border border-white/[0.08] rounded-[16px] p-4 max-h-[560px] overflow-y-auto">
             <div className="text-[14px] text-white/60 mb-3">Промпты</div>
             {status === 'loading' && (
-              <div className="text-[14px] text-white/40">Загрузка...</div>
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <SkeletonBlock key={`admin-prompts-skeleton-${index}`} className="h-20 w-full rounded-[12px]" />
+                ))}
+              </div>
             )}
             {status !== 'loading' && prompts.length === 0 && (
               <div className="text-[14px] text-white/40">Промпты не найдены</div>
@@ -2634,7 +2646,7 @@ function Admin() {
     : '0.0';
 
   if (loading) {
-    return <PageLoader label="Загрузка админки..." />;
+    return <PageLoader label="Загрузка админки..." variant="admin" />;
   }
 
   const handleFetchNvd = async () => {
