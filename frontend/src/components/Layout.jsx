@@ -52,6 +52,7 @@ function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAuthenticated = authAPI.isAuthenticated();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const initialCachedProfile = useMemo(() => (isAuthenticated ? readProfileCache() : null), []);
   // Берем профиль из кэша, чтобы не показывать "Загрузка..." на каждом переходе.
   const [userData, setUserData] = useState(initialCachedProfile);
