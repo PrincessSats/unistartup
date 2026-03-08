@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
@@ -29,6 +29,31 @@ function PublicRoute({ children, authReady }) {
   }
   const isAuth = authAPI.isAuthenticated();
   return !isAuth ? children : <Navigate to="/profile" replace />;
+}
+
+function MetrikaPageTracker() {
+  const location = useLocation();
+  const isFirstRender = useRef(true);
+  const previousUrl = useRef(typeof window !== 'undefined' ? window.location.href : '');
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.ym !== 'function') return;
+
+    const currentUrl = window.location.href;
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      previousUrl.current = currentUrl;
+      return;
+    }
+
+    window.ym(107200842, 'hit', currentUrl, {
+      referrer: previousUrl.current || document.referrer,
+      title: document.title,
+    });
+    previousUrl.current = currentUrl;
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
 }
 
 function App() {
@@ -79,6 +104,7 @@ function App() {
 
   return (
     <HashRouter>
+      <MetrikaPageTracker />
       <Routes>
         <Route
           path="/"
