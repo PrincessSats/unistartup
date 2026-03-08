@@ -168,6 +168,17 @@ class Submission(Base):
     submitted_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
 
+class PracticeTaskStart(Base):
+    __tablename__ = "practice_task_starts"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    task_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    started_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    __table_args__ = (UniqueConstraint("user_id", "task_id", name="uq_practice_task_starts_user_task"),)
+
+
 class LlmGeneration(Base):
     __tablename__ = "llm_generations"
 
