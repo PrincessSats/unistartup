@@ -8,7 +8,7 @@ from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag, ContestTaskRating
 from app.models.user import UserProfile
 from app.security.rate_limit import RateLimit, enforce_rate_limit
@@ -281,11 +281,12 @@ def _build_chat_session_payload(
 
 @router.get("/active", response_model=ContestSummary)
 async def get_active_contest(
-    current_user_data: tuple = Depends(get_current_user),
+    current_user_data: Optional[tuple] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
-    user, profile = current_user_data
-    is_admin = profile.role == "admin"
+    user = current_user_data[0] if current_user_data else None
+    profile = current_user_data[1] if current_user_data else None
+    is_admin = profile is not None and profile.role == "admin"
 
     active_query = (
         select(Contest)
@@ -325,22 +326,23 @@ async def get_active_contest(
 
     task_ids = [task.id for task, _contest_task in tasks_data]
     flags_by_task = await _load_task_flags(db, task_ids)
-    solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
-        db,
-        contest.id,
-        user.id,
-        task_ids,
-    )
     tasks_solved = 0
-    for task, _contest_task in tasks_data:
-        required_flag_ids = [flag.flag_id for flag in flags_by_task.get(task.id, [])]
-        if _is_task_completed(
-            task.id,
-            required_flag_ids,
-            solved_flags_by_task.get(task.id, set()),
-            legacy_solved_task_ids,
-        ):
-            tasks_solved += 1
+    if user is not None:
+        solved_flags_by_task, legacy_solved_task_ids = await _load_user_correct_progress(
+            db,
+            contest.id,
+            user.id,
+            task_ids,
+        )
+        for task, _contest_task in tasks_data:
+            required_flag_ids = [flag.flag_id for flag in flags_by_task.get(task.id, [])]
+            if _is_task_completed(
+                task.id,
+                required_flag_ids,
+                solved_flags_by_task.get(task.id, set()),
+                legacy_solved_task_ids,
+            ):
+                tasks_solved += 1
 
     participants_result = await db.execute(
         select(func.count(ContestParticipant.user_id)).where(
