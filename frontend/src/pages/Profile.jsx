@@ -180,7 +180,7 @@ function Profile() {
   };
 
   if (loading) {
-    return <PageLoader label="Загружаем профиль..." />;
+    return <PageLoader label="Загружаем профиль..." variant="profile" />;
   }
 
   const user = userData;

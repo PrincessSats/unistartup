@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI, userAPI } from '../services/api';
 import HacknetLogo from '../components/HacknetLogo';
+import { FullScreenLoader } from '../components/LoadingState';
 
 function Welcome() {
   const navigate = useNavigate();
@@ -42,11 +43,7 @@ function Welcome() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-[#0B0A10] flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
+    return <FullScreenLoader label="Загрузка..." />;
   }
 
   if (error) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
-import { InlineLoader } from '../components/LoadingState';
+import { SkeletonBlock } from '../components/LoadingState';
 import { educationAPI, authAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 
@@ -83,6 +83,28 @@ function EducationCard({ task }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+function EducationCardSkeleton() {
+  return (
+    <div className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] p-6">
+      <SkeletonBlock className="h-[173px] w-full rounded-[10px]" />
+      <div className="mt-12 space-y-4">
+        <SkeletonBlock className="h-6 w-[72%] rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-full rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-[88%] rounded-[8px]" />
+      </div>
+      <div className="mt-8 flex gap-2">
+        <SkeletonBlock className="h-8 w-20 rounded-[8px]" />
+        <SkeletonBlock className="h-8 w-24 rounded-[8px]" />
+        <SkeletonBlock className="h-8 w-24 rounded-[8px]" />
+      </div>
+      <div className="mt-12 flex items-center justify-between">
+        <SkeletonBlock className="h-5 w-28 rounded-[8px]" />
+        <SkeletonBlock className="h-6 w-16 rounded-[8px]" />
+      </div>
+    </div>
   );
 }
 
@@ -209,7 +231,13 @@ export default function Education() {
       </div>
 
       <div className="mt-6">
-        {loading && <InlineLoader label="Загрузка задач..." />}
+        {loading && (
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 2xl:grid-cols-3 3xl:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <EducationCardSkeleton key={`education-card-skeleton-${index}`} />
+            ))}
+          </div>
+        )}
         {!loading && error && <p className="text-rose-300">{error}</p>}
         {!loading && !error && tasks.length === 0 && <p className="text-white/60">Подходящих задач пока нет.</p>}
       </div>

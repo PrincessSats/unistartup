@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { knowledgeAPI, authAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
-import { InlineLoader } from '../components/LoadingState';
+import { SkeletonBlock } from '../components/LoadingState';
 import { getKnowledgeCardVisual } from '../utils/knowledgeVisuals';
 
 const sortTabs = [
@@ -103,6 +103,23 @@ function KnowledgeCard({ entry }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+function KnowledgeCardSkeleton() {
+  return (
+    <div className="rounded-[16px] border border-white/[0.06] bg-[#0F0F14]">
+      <SkeletonBlock className="h-[268px] w-full rounded-[16px]" />
+      <div className="space-y-4 px-8 py-6">
+        <div className="flex items-center justify-between gap-4">
+          <SkeletonBlock className="h-4 w-24 rounded-[8px]" />
+          <SkeletonBlock className="h-4 w-20 rounded-[8px]" />
+        </div>
+        <SkeletonBlock className="h-6 w-[86%] rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-full rounded-[8px]" />
+        <SkeletonBlock className="h-5 w-[92%] rounded-[8px]" />
+      </div>
+    </div>
   );
 }
 
@@ -262,7 +279,11 @@ function Knowledge() {
           <div className="text-rose-300">{error}</div>
         )}
         {loading && (
-          <InlineLoader label="Загрузка статей..." />
+          <>
+            {Array.from({ length: 6 }).map((_, index) => (
+              <KnowledgeCardSkeleton key={`knowledge-card-skeleton-${index}`} />
+            ))}
+          </>
         )}
         {!loading && !error && entries.length === 0 && (
           <div className="text-white/60">Пока нет статей</div>
