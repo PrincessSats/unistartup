@@ -14,6 +14,18 @@ import Admin from './pages/Admin';
 import Layout from './components/Layout';
 import { FullScreenLoader } from './components/LoadingState';
 import { authAPI } from './services/api';
+import MobileBlock from './components/MobileBlock';
+
+function useMobileDetect() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)');
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+  return isMobile;
+}
 
 function ProtectedRoute({ children, authReady, loginTarget }) {
   if (!authReady) {
@@ -57,6 +69,7 @@ function MetrikaPageTracker() {
 }
 
 function App() {
+  const isMobile = useMobileDetect();
   const [authReady, setAuthReady] = useState(false);
   const [authReason, setAuthReason] = useState('');
 
@@ -91,6 +104,10 @@ function App() {
     () => (authReason ? `/login?reason=${encodeURIComponent(authReason)}` : '/login'),
     [authReason]
   );
+
+  if (isMobile) {
+    return <MobileBlock />;
+  }
 
   if (!authReady) {
     return <FullScreenLoader label="Проверяем сессию..." />;
