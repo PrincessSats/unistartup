@@ -219,14 +219,14 @@ function ScoreCard({ label, value, loading = false }) {
 
 function TrainingCard({ variant, title, description, tags, duration, progress, points, to }) {
   const difficultyTone = tags[1] === 'Легко' ? 'easy' : tags[1] === 'Среднее' || tags[1] === 'Средне' ? 'medium' : 'hard';
-  const containerClasses = `bg-white/[0.05] rounded-[12px] p-6 flex flex-col gap-6 w-full md:w-[352px] ${to ? 'transition hover:border hover:border-[#9B6BFF]/50' : ''}`;
+  const containerClasses = `bg-white/[0.05] rounded-[12px] p-6 flex flex-col gap-12 w-full ${to ? 'transition hover:border hover:border-[#9B6BFF]/50' : ''}`;
 
   const content = (
     <>
       <div className="h-[173px] w-[304px] max-w-full relative overflow-hidden mx-auto">
         <TrainingIllustration variant={variant || 'web'} className="absolute inset-0 w-full h-full" />
       </div>
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           <h3 className="text-[20px] leading-[24px] tracking-[0.4px] text-white">
             {title}
@@ -242,14 +242,14 @@ function TrainingCard({ variant, title, description, tags, duration, progress, p
             {duration}
           </span>
         </div>
-      </div>
-      <div className="flex items-end justify-between">
-        <ProgressBar value={progress} size="small" />
-        <div className="flex items-center gap-2">
-          <AppIcon name="star" className="w-5 h-5 text-white/80" />
-          <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
-            {points}
-          </span>
+        <div className="flex items-end justify-between">
+          <ProgressBar value={progress} size="small" />
+          <div className="flex items-center gap-2">
+            <AppIcon name="star" className="w-5 h-5 text-white/80" />
+            <span className="font-mono-figma text-[18px] leading-[24px] tracking-[0.36px] text-white">
+              {points}
+            </span>
+          </div>
         </div>
       </div>
     </>
@@ -793,8 +793,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
     { label: 'Очки', value: modeStats.points },
     { label: 'First blood', value: modeStats.firstBlood },
   ];
-  const practiceGridClassName =
-    'grid w-full auto-rows-fr gap-4 [grid-template-columns:repeat(auto-fit,minmax(240px,352px))]';
+  const practiceGridClassName = 'grid grid-cols-3 gap-4 w-full';
 
   return (
     <div className="font-sans-figma text-white">
@@ -815,7 +814,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
             'linear-gradient(80.61639898439296deg, rgb(86, 59, 166) 1.2823%, rgb(87, 56, 158) 15.301%, rgb(89, 60, 158) 35.395%, rgb(131, 89, 221) 62.966%, rgb(159, 99, 255) 98.48%)',
         }}
       >
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <h1 className="text-[30px] leading-[36px] tracking-[0.72px] font-medium sm:text-[36px] sm:leading-[44px]">
@@ -899,10 +898,14 @@ export default function Home({ currentUser: currentUserProp = null }) {
                   </button>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-4">
-                {trainingTab === 'theory' && trainingCards.map((card, index) => (
-                  <TrainingCard key={`${card.title}-${index}`} {...card} />
-                ))}
+              <div>
+                {trainingTab === 'theory' && (
+                  <div className="grid grid-cols-3 gap-4 w-full">
+                    {trainingCards.map((card, index) => (
+                      <TrainingCard key={`${card.title}-${index}`} {...card} />
+                    ))}
+                  </div>
+                )}
                 {trainingTab === 'practice' && practiceLoading && (
                   <div className={practiceGridClassName}>
                     {Array.from({ length: 3 }).map((_, index) => (
@@ -918,7 +921,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
                 )}
                 {trainingTab === 'practice' && !practiceLoading && !practiceError && (
                   <div className={practiceGridClassName}>
-                    {practiceTrainingItems.map((task) => (
+                    {practiceTrainingItems.slice(0, 3).map((task) => (
                       <PracticeTrainingCard key={task.id} task={task} />
                     ))}
                   </div>
