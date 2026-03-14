@@ -105,6 +105,30 @@ function getIconPath(name) {
           <path d="m8.5 12.2 2.2 2.2 4.8-4.8" />
         </>
       );
+    case 'book':
+      return (
+        <>
+          <path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h12.5v16H7a2.5 2.5 0 0 0-2.5 2.5V5.5Z" />
+          <path d="M7 3A2.5 2.5 0 0 0 4.5 5.5V21" />
+          <path d="M8.5 7h7" />
+          <path d="M8.5 11h7" />
+        </>
+      );
+    case 'keyboard':
+      return (
+        <>
+          <rect x="3" y="6" width="18" height="12" rx="2.5" />
+          <path d="M6.5 10h.01" />
+          <path d="M9.5 10h.01" />
+          <path d="M12.5 10h.01" />
+          <path d="M15.5 10h.01" />
+          <path d="M18 10h.01" />
+          <path d="M6.5 13h.01" />
+          <path d="M9.5 13h.01" />
+          <path d="M12.5 13h.01" />
+          <path d="M15.5 13h2.5" />
+        </>
+      );
     default:
       return (
         <>
