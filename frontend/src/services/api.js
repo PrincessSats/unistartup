@@ -671,6 +671,29 @@ export const profileAPI = {
     invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
+
+  redeemPromoCode: async (code) => {
+    const response = await api.post('/profile/promo/redeem', { code });
+    invalidateGetCacheByPrefix('/profile');
+    return response.data;
+  },
+};
+
+export const landingAPI = {
+  getHuntSession: async (sessionToken) => {
+    const response = await api.post('/landing/hunt/session', {
+      session_token: sessionToken || null,
+    });
+    return response.data;
+  },
+
+  markBugFound: async (sessionToken, bugKey) => {
+    const response = await api.post('/landing/hunt/found', {
+      session_token: sessionToken || null,
+      bug_key: bugKey,
+    });
+    return response.data;
+  },
 };
 
 export const contestAPI = {

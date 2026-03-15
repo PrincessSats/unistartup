@@ -10,6 +10,8 @@ API для работы с профилем пользователя.
 - POST /profile/avatar - загрузить аватарку
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -20,9 +22,12 @@ import logging
 
 from app.database import get_db
 from app.models.user import User, UserProfile, UserRating
+from app.models.landing import PromoCode
 from app.auth.security import hash_password, verify_password
 from app.auth.dependencies import get_current_user
+from app.schemas.landing import PromoCodeRedeemRequest
 from app.services.storage import upload_avatar, delete_avatar
+from app.services.landing_hunt import PROMO_SOURCE_LANDING_HUNT
 
 router = APIRouter(prefix="/profile", tags=["Профиль"])
 logger = logging.getLogger(__name__)
@@ -49,6 +54,8 @@ class ProfileResponse(BaseModel):
     contest_rating: int = 0
     practice_rating: int = 0
     first_blood: int = 0
+    has_redeemed_landing_promo: bool = False
+    landing_promo_redeemed_at: Optional[datetime] = None
     
     class Config:
         from_attributes = True
@@ -90,6 +97,20 @@ async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int, int]:
     return rating.contest_rating, rating.practice_rating, rating.first_blood
 
 
+async def _get_landing_promo_state(db: AsyncSession, user_id: int) -> tuple[bool, Optional[datetime]]:
+    result = await db.execute(
+        select(PromoCode.redeemed_at)
+        .where(
+            PromoCode.redeemed_by_user_id == user_id,
+            PromoCode.source == PROMO_SOURCE_LANDING_HUNT,
+        )
+        .order_by(PromoCode.redeemed_at.desc())
+        .limit(1)
+    )
+    redeemed_at = result.scalar_one_or_none()
+    return redeemed_at is not None, redeemed_at
+
+
 def _build_profile_response(
     *,
     user: User,
@@ -97,6 +118,8 @@ def _build_profile_response(
     contest_rating: int,
     practice_rating: int,
     first_blood: int,
+    has_redeemed_landing_promo: bool = False,
+    landing_promo_redeemed_at: Optional[datetime] = None,
 ) -> ProfileResponse:
     return ProfileResponse(
         id=user.id,
@@ -109,6 +132,8 @@ def _build_profile_response(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
     )
 
 
@@ -126,6 +151,7 @@ async def get_profile(
     user, profile = current_user_data
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -133,6 +159,8 @@ async def get_profile(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
     )
 
 
@@ -174,6 +202,7 @@ async def update_profile(
     await db.refresh(profile)
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -181,6 +210,8 @@ async def update_profile(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
     )
 
 
@@ -207,6 +238,7 @@ async def update_onboarding_status(
     await db.refresh(profile)
 
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -214,6 +246,8 @@ async def update_onboarding_status(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
     )
 
 
@@ -365,6 +399,7 @@ async def upload_user_avatar(
         )
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -372,4 +407,87 @@ async def upload_user_avatar(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
+    )
+
+
+@router.post("/promo/redeem", response_model=ProfileResponse)
+async def redeem_promo_code(
+    data: PromoCodeRedeemRequest,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    user_id = user.id
+
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
+
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
+    if has_redeemed_landing_promo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Промокод лендинга уже был активирован в этом аккаунте",
+        )
+
+    normalized_code = str(data.code or "").strip().upper()
+    if not normalized_code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Введите промокод",
+        )
+
+    result = await db.execute(
+        select(PromoCode).where(PromoCode.code == normalized_code).limit(1)
+    )
+    promo_code = result.scalar_one_or_none()
+    if promo_code is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Промокод не найден",
+        )
+
+    now = datetime.now(timezone.utc)
+    if promo_code.redeemed_at is not None or promo_code.redeemed_by_user_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Промокод уже использован",
+        )
+
+    expires_at = promo_code.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Срок действия промокода истёк",
+        )
+
+    result_rating = await db.execute(select(UserRating).where(UserRating.user_id == user_id))
+    rating = result_rating.scalar_one_or_none()
+    if rating is None:
+        rating = UserRating(user_id=user_id)
+        db.add(rating)
+        await db.flush()
+
+    promo_code.redeemed_by_user_id = user_id
+    promo_code.redeemed_at = now
+    rating.practice_rating = int(rating.practice_rating or 0) + int(promo_code.reward_points or 0)
+
+    await db.commit()
+    await db.refresh(rating)
+
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    has_redeemed_landing_promo, landing_promo_redeemed_at = await _get_landing_promo_state(db, user.id)
+
+    return _build_profile_response(
+        user=user,
+        profile=profile,
+        contest_rating=contest_rating,
+        practice_rating=practice_rating,
+        first_blood=first_blood,
+        has_redeemed_landing_promo=has_redeemed_landing_promo,
+        landing_promo_redeemed_at=landing_promo_redeemed_at,
     )

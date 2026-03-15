@@ -9,12 +9,15 @@ import KnowledgeArticle from './pages/KnowledgeArticle';
 import Education from './pages/Education';
 import EducationTask from './pages/EducationTask';
 import Home from './pages/Home';
+import Landing from './pages/Landing';
+import LandingLegal from './pages/LandingLegal';
 import Rating from './pages/Rating';
 import Admin from './pages/Admin';
 import Layout from './components/Layout';
 import { FullScreenLoader } from './components/LoadingState';
 import { authAPI } from './services/api';
 import MobileBlock from './components/MobileBlock';
+import { isLandingPublicHash } from './lib/landingConfig';
 
 function useMobileDetect() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
@@ -25,6 +28,18 @@ function useMobileDetect() {
     return () => mq.removeEventListener('change', handler);
   }, []);
   return isMobile;
+}
+
+function useCurrentHash() {
+  const [hash, setHash] = useState(() => window.location.hash || '');
+
+  useEffect(() => {
+    const handleHashChange = () => setHash(window.location.hash || '');
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  return hash;
 }
 
 function ProtectedRoute({ children, authReady, loginTarget }) {
@@ -70,8 +85,10 @@ function MetrikaPageTracker() {
 
 function App() {
   const isMobile = useMobileDetect();
+  const currentHash = useCurrentHash();
   const [authReady, setAuthReady] = useState(false);
   const [authReason, setAuthReason] = useState('');
+  const isPublicLandingRoute = isLandingPublicHash(currentHash);
 
   useEffect(() => {
     let cancelled = false;
@@ -105,7 +122,7 @@ function App() {
     [authReason]
   );
 
-  if (isMobile) {
+  if (isMobile && !isPublicLandingRoute) {
     return <MobileBlock />;
   }
 
@@ -118,6 +135,13 @@ function App() {
       <MetrikaPageTracker />
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
+        <Route path="/landing" element={<Landing />} />
+        <Route path="/landing/legal/privacy" element={<LandingLegal documentKey="privacy" />} />
+        <Route
+          path="/landing/legal/marketing-consent"
+          element={<LandingLegal documentKey="marketing-consent" />}
+        />
+        <Route path="/landing/legal/terms" element={<LandingLegal documentKey="terms" />} />
 
         <Route path="/login" element={<PublicRoute authReady={authReady}><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute authReady={authReady}><Register /></PublicRoute>} />
