@@ -25,6 +25,9 @@ function Profile() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [promoCode, setPromoCode] = useState('');
+  const [promoError, setPromoError] = useState('');
+  const [isRedeemingPromo, setIsRedeemingPromo] = useState(false);
   
   // Ошибки и успех
   const [error, setError] = useState('');
@@ -179,12 +182,38 @@ function Profile() {
     }
   };
 
+  const handleRedeemPromoCode = async () => {
+    const normalizedCode = String(promoCode || '').trim().toUpperCase();
+    if (!normalizedCode) {
+      setPromoError('Введите промокод');
+      return;
+    }
+
+    try {
+      setPromoError('');
+      setIsRedeemingPromo(true);
+      const updatedProfile = await profileAPI.redeemPromoCode(normalizedCode);
+      setUserData(updatedProfile);
+      setPromoCode('');
+      window.dispatchEvent(new CustomEvent('profile-updated', { detail: updatedProfile }));
+      setSuccess('Промокод активирован!');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setPromoError(getErrorMessage(err, 'Не удалось активировать промокод'));
+    } finally {
+      setIsRedeemingPromo(false);
+    }
+  };
+
   if (loading) {
     return <PageLoader label="Загружаем профиль..." variant="profile" />;
   }
 
   const user = userData;
   const avatarUrl = editAvatarPreview || userData?.avatar_url;
+  const promoRedeemedAt = user?.landing_promo_redeemed_at
+    ? new Date(user.landing_promo_redeemed_at).toLocaleString('ru-RU')
+    : '';
 
   return (
     <div className="font-sans-figma text-white">
@@ -384,6 +413,68 @@ function Profile() {
                     </svg>
                   </button>
                 </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <h3 className="text-[20px] leading-[24px] tracking-[0.02em] font-medium">
+                Промокод
+              </h3>
+
+              <div className="bg-white/[0.03] rounded-[20px] border border-white/[0.06] p-6 flex flex-col gap-5">
+                <div className="flex flex-col gap-2">
+                  <p className="text-[18px] leading-[24px] tracking-[0.02em] text-white">
+                    Активируй код из hunt-механики на лендинге
+                  </p>
+                  <p className="text-[15px] leading-[24px] tracking-[0.02em] text-white/62">
+                    После активации ты получишь +10 баллов в рейтинг обучения. Промокод
+                    одноразовый и действует ограниченное время.
+                  </p>
+                </div>
+
+                {user?.has_redeemed_landing_promo ? (
+                  <div className="rounded-[16px] border border-emerald-400/30 bg-emerald-400/10 px-4 py-4 text-emerald-100">
+                    <div className="text-[16px] leading-[20px] tracking-[0.04em]">
+                      Промокод лендинга уже активирован
+                    </div>
+                    {promoRedeemedAt ? (
+                      <div className="mt-2 text-[14px] leading-[20px] text-emerald-200/80">
+                        Дата активации: {promoRedeemedAt}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-col gap-3 xl:flex-row">
+                      <input
+                        type="text"
+                        value={promoCode}
+                        onChange={(event) => {
+                          setPromoCode(event.target.value.toUpperCase());
+                          if (promoError) {
+                            setPromoError('');
+                          }
+                        }}
+                        placeholder="Например, E5YV7"
+                        className="h-14 flex-1 rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] leading-[20px] tracking-[0.16em] text-white uppercase placeholder:text-white/30 outline-none transition focus:border-white/30"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRedeemPromoCode}
+                        disabled={isRedeemingPromo}
+                        className="h-14 rounded-[10px] bg-[#9B6BFF] px-6 text-[16px] leading-[20px] tracking-[0.04em] text-white transition hover:bg-[#8452FF] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {isRedeemingPromo ? 'Активируем...' : 'Активировать'}
+                      </button>
+                    </div>
+
+                    {promoError ? (
+                      <div className="rounded-[12px] border border-rose-400/35 bg-rose-500/10 px-4 py-3 text-[14px] leading-[20px] text-rose-200">
+                        {promoError}
+                      </div>
+                    ) : null}
+                  </>
+                )}
               </div>
             </div>
 

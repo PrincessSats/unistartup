@@ -71,6 +71,52 @@ CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user
 CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at
     ON auth_refresh_tokens(expires_at);
 
+-- 3.3 Публичный hunt на лендинге
+CREATE TABLE IF NOT EXISTS landing_hunt_sessions (
+    id              BIGSERIAL PRIMARY KEY,
+    session_token   TEXT NOT NULL UNIQUE,
+    completed_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS landing_hunt_session_items (
+    session_id      BIGINT NOT NULL REFERENCES landing_hunt_sessions(id) ON DELETE CASCADE,
+    bug_key         TEXT NOT NULL,
+    found_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (session_id, bug_key)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_landing_hunt_sessions_token
+    ON landing_hunt_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_landing_hunt_session_items_found_at
+    ON landing_hunt_session_items(found_at DESC);
+
+-- 3.4 Персональные промокоды
+CREATE TABLE IF NOT EXISTS promo_codes (
+    id                      BIGSERIAL PRIMARY KEY,
+    code                    TEXT NOT NULL UNIQUE,
+    source                  TEXT NOT NULL,
+    reward_points           INTEGER NOT NULL DEFAULT 0,
+    expires_at              TIMESTAMPTZ NOT NULL,
+    issued_hunt_session_id  BIGINT UNIQUE REFERENCES landing_hunt_sessions(id) ON DELETE SET NULL,
+    redeemed_by_user_id     BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    redeemed_at             TIMESTAMPTZ,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_code
+    ON promo_codes(code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_issued_hunt_session_id
+    ON promo_codes(issued_hunt_session_id);
+CREATE INDEX IF NOT EXISTS idx_promo_codes_source_expires_at
+    ON promo_codes(source, expires_at);
+CREATE INDEX IF NOT EXISTS idx_promo_codes_redeemed_by_user_id
+    ON promo_codes(redeemed_by_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_landing_redeemed_user_unique
+    ON promo_codes(redeemed_by_user_id)
+    WHERE source = 'landing_hunt' AND redeemed_by_user_id IS NOT NULL;
+
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
     id                  BIGSERIAL PRIMARY KEY,

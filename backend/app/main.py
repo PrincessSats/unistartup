@@ -6,8 +6,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
-from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge, education
-from app.database import ensure_auth_schema_compatibility, ensure_performance_indexes
+from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge, education, landing
+from app.database import (
+    ensure_auth_schema_compatibility,
+    ensure_landing_hunt_schema_compatibility,
+    ensure_performance_indexes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,8 +98,9 @@ app.include_router(ratings.router)
 app.include_router(feedback.router)
 app.include_router(knowledge.router)
 app.include_router(education.router)
+app.include_router(landing.router)
 
-logger.info("Routers loaded: auth, pages, profile, contests, ratings, feedback, knowledge, education")
+logger.info("Routers loaded: auth, pages, profile, contests, ratings, feedback, knowledge, education, landing")
 
 
 @app.middleware("http")
@@ -140,5 +145,6 @@ async def startup_tasks():
         return
 
     await ensure_auth_schema_compatibility()
+    await ensure_landing_hunt_schema_compatibility()
     # На старте дополнительно гарантируем индексы для быстрых пользовательских сценариев.
     await ensure_performance_indexes()
