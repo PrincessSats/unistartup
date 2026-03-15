@@ -57,6 +57,7 @@ const HOME_KNOWLEDGE_CACHE_TTL_MS = 5 * 60 * 1000;
 const HOME_LEADERBOARD_CACHE_KEY = 'home:leaderboard-stats:v1';
 const HOME_LEADERBOARD_CACHE_TTL_MS = 2 * 60 * 1000;
 const ONBOARDING_STEPS_COUNT = 4;
+const INTRO_TRAINING_TASK_ID = 10;
 
 function readKnowledgeFeedCache() {
   try {
@@ -340,7 +341,7 @@ function KnowledgeCard({ title }) {
   );
 }
 
-function TrainingNotificationCard() {
+function TrainingNotificationCard({ onClose, onStart }) {
   return (
     <div className="backdrop-blur-[64px] bg-[#9B6BFF]/[0.14] rounded-[20px] p-6 flex flex-col gap-6">
       <div className="flex items-start gap-6">
@@ -353,9 +354,15 @@ function TrainingNotificationCard() {
             <br />в рейтинг
           </div>
         </div>
-        <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
+        <button type="button" onClick={onClose} className="shrink-0">
+          <AppIcon name="close" className="w-[22px] h-[22px] text-white/80" />
+        </button>
       </div>
-      <button onClick={() => window.location.href = 'https://www.hacknet.tech/#/education/10'} className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit">
+      <button
+        type="button"
+        onClick={onStart}
+        className="bg-[#9B6BFF] rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] text-white w-fit"
+      >
         Пройти
       </button>
     </div>
@@ -510,6 +517,7 @@ function getArticleTitle(entry) {
 export default function Home({ currentUser: currentUserProp = null }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAuthenticated = authAPI.isAuthenticated();
   // Приоритет у данных из Layout, чтобы не ждать дополнительной загрузки пользователя.
   const outletContext = useOutletContext();
   const currentUser = outletContext?.currentUser || currentUserProp;
@@ -520,6 +528,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
   const [profile, setProfile] = useState(currentUser);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const [showFeedbackCard, setShowFeedbackCard] = useState(true);
+  const [showTrainingTaskCard, setShowTrainingTaskCard] = useState(true);
   const [homeMode, setHomeMode] = useState(!currentUser ? 'education' : 'championship');
   const [knowledgeItems, setKnowledgeItems] = useState(initialKnowledgeFeed);
   const [knowledgeLoading, setKnowledgeLoading] = useState(initialKnowledgeFeed.length === 0);
@@ -540,6 +549,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
     }
   );
   const [leaderboardStatsLoading, setLeaderboardStatsLoading] = useState(!hasCachedLeaderboardStats);
+  const [introTrainingTaskSolved, setIntroTrainingTaskSolved] = useState(() => (isAuthenticated ? null : false));
   const autoOnboardingStartedRef = useRef(false);
   const isAdmin = profile?.role === 'admin';
   const onboardingStatus = profile?.onboarding_status ?? null;
@@ -766,6 +776,37 @@ export default function Home({ currentUser: currentUserProp = null }) {
     };
   }, [hasCachedLeaderboardStats]);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    if (!isAuthenticated) {
+      setIntroTrainingTaskSolved(false);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const fetchIntroTrainingTaskState = async () => {
+      try {
+        const task = await educationAPI.getPracticeTask(INTRO_TRAINING_TASK_ID);
+        if (isMounted) {
+          setIntroTrainingTaskSolved(task?.my_status === 'solved');
+        }
+      } catch (error) {
+        console.error('Не удалось загрузить статус обучающей задачи для главной страницы', error);
+        if (isMounted) {
+          setIntroTrainingTaskSolved(false);
+        }
+      }
+    };
+
+    fetchIntroTrainingTaskState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthenticated]);
+
   const inProgressTasks = useMemo(
     () => practiceTrainingItems.filter((t) => t.my_status === 'in_progress'),
     [practiceTrainingItems]
@@ -794,6 +835,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
     { label: 'First blood', value: modeStats.firstBlood },
   ];
   const practiceGridClassName = 'grid grid-cols-3 gap-4 w-full';
+  const shouldShowTrainingNotification = showTrainingTaskCard && introTrainingTaskSolved === false;
 
   return (
     <div className="font-sans-figma text-white">
@@ -871,30 +913,40 @@ export default function Home({ currentUser: currentUserProp = null }) {
         <div className="flex-1 flex flex-col gap-4 min-w-0">
           <div data-onboarding-target="home-training" className="bg-white/[0.03] rounded-[20px] px-6 pt-8 pb-6">
             <div className="flex flex-col gap-8">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="min-w-0 flex-1 text-[24px] leading-[30px] tracking-[0.58px] font-medium sm:text-[29px] sm:leading-[36px]">
                   Обучение под мои интересы
                 </h2>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
                   <button
+                    type="button"
+                    aria-label="Теория"
                     onClick={() => setTrainingTab('theory')}
-                    className={`rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] border ${
+                    className={`inline-flex h-14 min-w-[56px] items-center justify-center gap-2 rounded-[10px] border px-3 transition-colors min-[1180px]:px-5 ${
                       trainingTab === 'theory'
                         ? 'bg-white/10 border-white/10 text-[#9B6BFF]'
                         : 'bg-white/5 border-white/10 text-white/60'
                     }`}
                   >
-                    Теория
+                    <AppIcon name="book" className="h-5 w-5 min-[1180px]:hidden" />
+                    <span className="hidden text-[18px] leading-[24px] tracking-[0.72px] min-[1180px]:inline">
+                      Теория
+                    </span>
                   </button>
                   <button
+                    type="button"
+                    aria-label="Практика"
                     onClick={() => setTrainingTab('practice')}
-                    className={`rounded-[10px] px-5 py-4 text-[18px] leading-[24px] tracking-[0.72px] border ${
+                    className={`inline-flex h-14 min-w-[56px] items-center justify-center gap-2 rounded-[10px] border px-3 transition-colors min-[1180px]:px-5 ${
                       trainingTab === 'practice'
                         ? 'bg-white/10 border-white/10 text-[#9B6BFF]'
                         : 'bg-white/5 border-white/10 text-white/60'
                     }`}
                   >
-                    Практика
+                    <AppIcon name="keyboard" className="h-5 w-5 min-[1180px]:hidden" />
+                    <span className="hidden text-[18px] leading-[24px] tracking-[0.72px] min-[1180px]:inline">
+                      Практика
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1025,9 +1077,14 @@ export default function Home({ currentUser: currentUserProp = null }) {
         </div>
 
         <aside className="w-full xl:w-[440px] flex flex-col gap-4">
-          <div data-onboarding-target="home-first-task">
-            <TrainingNotificationCard />
-          </div>
+          {shouldShowTrainingNotification && (
+            <div data-onboarding-target="home-first-task">
+              <TrainingNotificationCard
+                onClose={() => setShowTrainingTaskCard(false)}
+                onStart={() => navigate(`/education/${INTRO_TRAINING_TASK_ID}`)}
+              />
+            </div>
+          )}
           {showFeedbackCard && (
             <FeedbackCard
               onOpen={() => setIsFeedbackOpen(true)}

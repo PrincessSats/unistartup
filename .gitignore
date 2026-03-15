@@ -32,7 +32,9 @@ Thumbs.db
 *.key
 .env
 .codex
+.claude
 dnevnik.txt
 
 security_best_practices_report.md
 CLAUDE.md
+CODEX.md
