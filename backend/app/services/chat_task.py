@@ -30,7 +30,7 @@ LLM_COMPLETION_MAX_ATTEMPTS = 3
 LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
 CHAT_ASSISTANT_REPLY_MAX_ROUNDS = 8
 CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS = (0.35, 0.8, 1.3)
-YANDEX_CHAT_MODEL_ID = "qwen3-235b-a22b-fp8"
+YANDEX_CHAT_MODEL_ID = "deepseek-v32"
 YANDEX_CHAT_MODEL_VERSION = "latest"
 
 _CONTEST_FILTER_UNSET = object()
@@ -153,7 +153,7 @@ def _build_async_client() -> AsyncOpenAI:
     if _async_client is None:
         _async_client = AsyncOpenAI(
             api_key=api_key,
-            base_url="https://llm.api.cloud.yandex.net/v1",
+            base_url="https://ai.api.cloud.yandex.net/v1",
             project=folder,
         )
     return _async_client
