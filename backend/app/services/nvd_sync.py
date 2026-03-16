@@ -156,6 +156,35 @@ async def store_kb_entries(vulns: List[Dict[str, Any]], *, dry_run: bool) -> int
             new_rows,
         )
         await session.commit()
+
+        # Embed newly inserted entries (non-critical — backfill can fix later)
+        try:
+            from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
+            svc = EmbeddingService()
+            try:
+                for row in new_rows:
+                    text_parts = [row.get("cve_id") or "", row.get("raw_en_text") or ""]
+                    embed_text = " ".join(filter(None, text_parts)).strip()
+                    if not embed_text:
+                        continue
+                    try:
+                        vector = await svc.embed_document(embed_text)
+                        await session.execute(
+                            text(
+                                "UPDATE kb_entries SET embedding = CAST(:vec AS vector) "
+                                "WHERE cve_id = :cve_id AND source = :source AND embedding IS NULL"
+                            ),
+                            {"vec": str(vector), "cve_id": row["cve_id"], "source": row["source"]},
+                        )
+                    except EmbeddingError:
+                        pass
+                await session.commit()
+            finally:
+                await svc.close()
+        except Exception as exc:
+            import logging as _logging
+            _logging.getLogger(__name__).warning("NVD embedding hook failed: %s", exc)
+
         return len(new_rows)
 
 

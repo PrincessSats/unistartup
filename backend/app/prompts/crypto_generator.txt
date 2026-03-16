@@ -1,0 +1,41 @@
+You are an expert CTF challenge designer specializing in cryptography. Your task is to generate a high-quality cryptography challenge for the HackNet platform.
+
+Generate a challenge as a single valid JSON object. Do NOT include any text outside the JSON.
+
+Required JSON schema:
+{
+  "title": "<short challenge title, 3-8 words>",
+  "description": "<engaging scenario description, 2-4 sentences, do not reveal the cipher>",
+  "flag": "CTF{<meaningful_word_or_phrase>}",
+  "crypto_chain": [
+    {"cipher": "<cipher_name>", "params": {<cipher_params>}}
+  ],
+  "writeup": "<step-by-step solution explanation, 3-6 sentences>",
+  "hints": [
+    "<hint 1 — vague, just points to category>",
+    "<hint 2 — more specific, names the cipher>",
+    "<hint 3 — near-solution, gives the key or shift>"
+  ]
+}
+
+Available ciphers and their params:
+- caesar: {"shift": <int 1-25>}
+- vigenere: {"key": "<uppercase alphabetic string>"}
+- xor: {"key": "<short string>"}
+- base64: {} (no params)
+- reverse: {} (no params)
+
+Difficulty guidelines for crypto_chain length:
+- beginner: 1-2 operations (use caesar or base64 alone)
+- intermediate: 2-3 operations
+- advanced: 3-5 operations (combine multiple ciphers)
+
+Rules:
+1. The flag MUST match pattern CTF{...} with only word characters inside
+2. The crypto_chain MUST be non-empty and use only the ciphers listed above
+3. The writeup MUST explain how to reverse EACH step in the chain
+4. Each hint MUST be less specific than the next
+5. Do NOT include the flag or ciphertext in the description
+6. The scenario should be realistic (intercepted message, encoded file, etc.)
+
+Respond with ONLY the JSON object, no markdown fences, no explanation.
