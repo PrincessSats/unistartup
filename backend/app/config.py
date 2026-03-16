@@ -95,7 +95,16 @@ class Settings(BaseSettings):
         ),
     )
     PROMPTS_DIR: str = ""
-    
+
+    # AI Generator (GRPO pipeline)
+    AI_GEN_NUM_VARIANTS: int = 5
+    AI_GEN_MAX_RETRIES: int = 2
+    AI_GEN_MIN_REWARD_THRESHOLD: float = 0.6
+    AI_GEN_BASE_TEMPERATURE: float = 0.7
+    AI_GEN_TEMPERATURE_STEP: float = 0.1
+    AI_GEN_RAG_CONTEXT_LIMIT: int = 5
+    AI_GEN_EMBEDDING_DIMENSION: int = 256
+
     class Config:
         # Support both backend/.env and repo-root .env for local/prod parity.
         env_file = (ENV_FILE_PATH, ROOT_ENV_FILE_PATH)
