@@ -57,7 +57,7 @@ def _load_tasks() -> list[tuple[str, str]]:
     return tasks
 
 
-model_name = f"gpt://{YANDEX_CLOUD_FOLDER}/qwen3-235b-a22b-fp8/latest"
+model_name = f"gpt://{YANDEX_CLOUD_FOLDER}/deepseek-v32/latest"
 
 for task_name, task_content in _load_tasks():
     response = client.chat.completions.create(

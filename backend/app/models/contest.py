@@ -2,6 +2,7 @@ from sqlalchemy import Column, BigInteger, Integer, SmallInteger, Text, Boolean,
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 
@@ -23,6 +24,18 @@ class KBEntry(Base):
     __tablename__ = "kb_entries"
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
+    source = Column(Text, nullable=False)
+    source_id = Column(Text, nullable=False)
+    cve_id = Column(Text)
+    raw_en_text = Column(Text)
+    ru_title = Column(Text)
+    ru_summary = Column(Text)
+    ru_explainer = Column(Text)
+    tags = Column(ARRAY(Text), default=list)
+    difficulty = Column(Text)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    embedding = Column(Vector(256))
 
 
 class Task(Base):
@@ -44,6 +57,7 @@ class Task(Base):
     chat_model_max_output_tokens = Column(Integer, nullable=False, default=256)
     chat_session_ttl_minutes = Column(Integer, nullable=False, default=180)
     state = Column(Text, nullable=False, default="draft")
+    embedding = Column(Vector(256))
     kb_entry_id = Column(BigInteger, ForeignKey("kb_entries.id"))
     llm_raw_response = Column(JSONB)
     created_by = Column(BigInteger, ForeignKey("users.id"))
