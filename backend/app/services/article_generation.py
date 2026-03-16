@@ -55,7 +55,7 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/gpt-oss-120b/latest"
+    model_name = f"gpt://{folder}/deepseek-v32/latest"
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
     logger.info(
         "KB generation started (model=%s, reasoning_effort=%s, chars=%s)",
