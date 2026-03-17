@@ -1,13 +1,9 @@
-import os
 import unittest
 from datetime import timedelta
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import apply_test_env_defaults
+
+apply_test_env_defaults()
 
 from app.auth.security import (  # noqa: E402
     build_access_token,

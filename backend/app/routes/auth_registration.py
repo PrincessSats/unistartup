@@ -66,6 +66,15 @@ def _get_request_host(request: Request) -> str:
     return ""
 
 
+def _get_request_scheme(request: Request) -> str:
+    forwarded_proto = str(request.headers.get("x-forwarded-proto") or "").strip()
+    if forwarded_proto:
+        return forwarded_proto.split(",")[0].strip()
+    if request.url.scheme:
+        return request.url.scheme
+    return "https"
+
+
 def _build_flow_token(flow: AuthRegistrationFlow) -> str:
     return build_registration_flow_token(flow.id, expires_at=flow.expires_at)
 
@@ -171,6 +180,7 @@ async def start_email_registration(
     await db.flush()
 
     magic_link_url = build_magic_link_callback_url(
+        request_scheme=_get_request_scheme(request),
         request_host=_get_request_host(request),
         token=magic_link_token,
     )
@@ -226,6 +236,7 @@ async def resend_email_registration_link(
     flow.magic_link_sent_count = int(flow.magic_link_sent_count or 0) + 1
 
     magic_link_url = build_magic_link_callback_url(
+        request_scheme=_get_request_scheme(request),
         request_host=_get_request_host(request),
         token=magic_link_token,
     )
@@ -312,7 +323,10 @@ async def start_yandex_oauth(
 
     authorize_url = build_yandex_authorize_url(
         client_id=settings.YANDEX_CLIENT_ID,
-        redirect_uri=resolve_backend_yandex_callback_url(_get_request_host(request)),
+        redirect_uri=resolve_backend_yandex_callback_url(
+            request_scheme=_get_request_scheme(request),
+            request_host=_get_request_host(request),
+        ),
         scope=settings.YANDEX_OAUTH_SCOPES,
         state=state,
         code_challenge=code_challenge,
@@ -329,6 +343,7 @@ async def yandex_oauth_callback(
     db: AsyncSession = Depends(get_db),
 ):
     request_host = _get_request_host(request)
+    request_scheme = _get_request_scheme(request)
     if error:
         return _flow_error_redirect(request, route_path="/login", error_code=f"yandex_{error}")
     if not code or not state:
@@ -344,7 +359,10 @@ async def yandex_oauth_callback(
         token_payload = await exchange_yandex_code_for_token(
             code=code,
             code_verifier=flow.oauth_code_verifier or "",
-            redirect_uri=resolve_backend_yandex_callback_url(request_host),
+            redirect_uri=resolve_backend_yandex_callback_url(
+                request_scheme=request_scheme,
+                request_host=request_host,
+            ),
         )
         oauth_access_token = str(token_payload.get("access_token") or "").strip()
         if not oauth_access_token:

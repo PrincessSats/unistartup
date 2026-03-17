@@ -1,12 +1,8 @@
-import os
 import unittest
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import apply_test_env_defaults
+
+apply_test_env_defaults()
 
 from app.routes.education import (  # noqa: E402
     _compute_passed_users_count,

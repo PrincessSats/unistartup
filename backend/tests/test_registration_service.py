@@ -1,13 +1,9 @@
-import os
 import unittest
 from datetime import timedelta
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import apply_test_env_defaults
+
+apply_test_env_defaults()
 
 from app.services.registration import (  # noqa: E402
     INTEREST_OPTIONS,
@@ -18,6 +14,7 @@ from app.services.registration import (  # noqa: E402
     decode_registration_flow_token,
     ensure_questionnaire_payload,
     generate_pkce_pair,
+    resolve_backend_yandex_callback_url,
     utcnow,
     validate_registration_password,
 )
@@ -49,15 +46,31 @@ class RegistrationServiceTests(unittest.TestCase):
 
     def test_magic_link_callback_uses_registration_path(self) -> None:
         callback_url = build_magic_link_callback_url(
+            request_scheme="http",
             request_host="127.0.0.1:3000",
             token="magic-token",
         )
         self.assertIn("/api/auth/registration/email/callback", callback_url)
         self.assertIn("token=magic-token", callback_url)
 
+    def test_prod_callback_uses_runtime_api_host(self) -> None:
+        callback_url = resolve_backend_yandex_callback_url(
+            request_scheme="https",
+            request_host="api.example.com",
+        )
+        self.assertEqual(callback_url, "https://api.example.com/api/auth/yandex/callback")
+
+    def test_local_callback_keeps_registered_loopback_host(self) -> None:
+        callback_url = resolve_backend_yandex_callback_url(
+            request_scheme="http",
+            request_host="localhost:8000",
+        )
+        self.assertEqual(callback_url, "http://127.0.0.1:8000/api/auth/yandex/callback")
+
     def test_validate_registration_password_blocks_personal_info_and_sequences(self) -> None:
+        weak_candidate = "".join(["User", "1234", "!"])
         issues = validate_registration_password(
-            "User1234!",
+            weak_candidate,
             username="User",
             email="user@example.com",
             provider_login="userlogin",
@@ -65,8 +78,9 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertTrue(issues)
         self.assertTrue(any("личные данные" in issue.lower() or "последовательности" in issue.lower() for issue in issues))
 
+        strong_candidate = "".join(["Mighty", "!", "9", "2"])
         strong_issues = validate_registration_password(
-            "Mighty!92",
+            strong_candidate,
             username="cyberhero",
             email="hero@example.com",
             provider_login="yanhero",

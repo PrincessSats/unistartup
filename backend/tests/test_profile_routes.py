@@ -1,14 +1,10 @@
-import os
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import apply_test_env_defaults
+
+apply_test_env_defaults()
 
 from fastapi import HTTPException, Response  # noqa: E402
 
