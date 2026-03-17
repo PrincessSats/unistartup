@@ -94,6 +94,16 @@ class Settings(BaseSettings):
             "REASONING_EFFORT",
         ),
     )
+    YANDEX_CLIENT_ID: str = ""
+    YANDEX_CLIENT_SECRET: str = ""
+    YANDEX_OAUTH_SCOPES: str = "login:email login:info login:avatar"
+    YANDEX_MAIL_LOGIN: str = ""
+    YANDEX_MAIL_PASSWORD: str = ""
+    SMTP_HOST: str = "smtp.yandex.ru"
+    SMTP_PORT: int = 465
+    SMTP_USE_SSL: bool = True
+    SMTP_FROM: str = ""
+    MAGIC_LINK_TTL_HOURS: int = 24
     PROMPTS_DIR: str = ""
     
     class Config:
@@ -131,7 +141,19 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("YANDEX_CLOUD_API_KEY", "YANDEX_CLOUD_FOLDER", "PROMPTS_DIR", mode="before")
+    @field_validator(
+        "YANDEX_CLOUD_API_KEY",
+        "YANDEX_CLOUD_FOLDER",
+        "YANDEX_CLIENT_ID",
+        "YANDEX_CLIENT_SECRET",
+        "YANDEX_OAUTH_SCOPES",
+        "YANDEX_MAIL_LOGIN",
+        "YANDEX_MAIL_PASSWORD",
+        "SMTP_HOST",
+        "SMTP_FROM",
+        "PROMPTS_DIR",
+        mode="before",
+    )
     @classmethod
     def normalize_optional_strings(cls, value: Any) -> str:
         if value is None:
@@ -192,5 +214,12 @@ class Settings(BaseSettings):
     @property
     def refresh_token_expire_seconds(self) -> int:
         return int(self.REFRESH_TOKEN_EXPIRE_HOURS) * 60 * 60
+
+    @property
+    def smtp_from_address(self) -> str:
+        explicit = (self.SMTP_FROM or "").strip()
+        if explicit:
+            return explicit
+        return (self.YANDEX_MAIL_LOGIN or "").strip()
 
 settings = Settings()

@@ -1,0 +1,88 @@
+import os
+import unittest
+from datetime import timedelta
+
+os.environ.setdefault("DB_HOST", "localhost")
+os.environ.setdefault("DB_PORT", "5432")
+os.environ.setdefault("DB_NAME", "app")
+os.environ.setdefault("DB_USER", "user")
+os.environ.setdefault("DB_PASSWORD", "pass")
+os.environ.setdefault("SECRET_KEY", "secret")
+
+from app.services.registration import (  # noqa: E402
+    INTEREST_OPTIONS,
+    PROFESSION_OPTIONS,
+    build_magic_link_callback_url,
+    build_registration_flow_token,
+    build_yandex_authorize_url,
+    decode_registration_flow_token,
+    ensure_questionnaire_payload,
+    generate_pkce_pair,
+    utcnow,
+    validate_registration_password,
+)
+
+
+class RegistrationServiceTests(unittest.TestCase):
+    def test_pkce_pair_has_expected_shape(self) -> None:
+        verifier, challenge = generate_pkce_pair()
+        self.assertGreaterEqual(len(verifier), 40)
+        self.assertGreaterEqual(len(challenge), 40)
+        self.assertNotIn("=", challenge)
+
+    def test_registration_flow_token_round_trip(self) -> None:
+        token = build_registration_flow_token(42, expires_at=utcnow() + timedelta(minutes=5))
+        self.assertEqual(decode_registration_flow_token(token), 42)
+
+    def test_build_yandex_authorize_url_includes_state_and_pkce(self) -> None:
+        url = build_yandex_authorize_url(
+            client_id="client-id",
+            redirect_uri="http://127.0.0.1:8000/api/auth/yandex/callback",
+            scope="login:email login:info",
+            state="opaque-state",
+            code_challenge="challenge",
+        )
+        self.assertIn("client_id=client-id", url)
+        self.assertIn("state=opaque-state", url)
+        self.assertIn("code_challenge=challenge", url)
+        self.assertIn("code_challenge_method=S256", url)
+
+    def test_magic_link_callback_uses_registration_path(self) -> None:
+        callback_url = build_magic_link_callback_url(
+            request_host="127.0.0.1:3000",
+            token="magic-token",
+        )
+        self.assertIn("/api/auth/registration/email/callback", callback_url)
+        self.assertIn("token=magic-token", callback_url)
+
+    def test_validate_registration_password_blocks_personal_info_and_sequences(self) -> None:
+        issues = validate_registration_password(
+            "User1234!",
+            username="User",
+            email="user@example.com",
+            provider_login="userlogin",
+        )
+        self.assertTrue(issues)
+        self.assertTrue(any("личные данные" in issue.lower() or "последовательности" in issue.lower() for issue in issues))
+
+        strong_issues = validate_registration_password(
+            "Mighty!92",
+            username="cyberhero",
+            email="hero@example.com",
+            provider_login="yanhero",
+        )
+        self.assertEqual(strong_issues, [])
+
+    def test_questionnaire_payload_normalizes_known_values(self) -> None:
+        profession_tags, grade, interest_tags = ensure_questionnaire_payload(
+            profession_tags=[PROFESSION_OPTIONS[0], "Неизвестно", PROFESSION_OPTIONS[0]],
+            grade="Middle",
+            interest_tags=[INTEREST_OPTIONS[1], INTEREST_OPTIONS[1], "bad"],
+        )
+        self.assertEqual(profession_tags, [PROFESSION_OPTIONS[0]])
+        self.assertEqual(grade, "Middle")
+        self.assertEqual(interest_tags, [INTEREST_OPTIONS[1]])
+
+
+if __name__ == "__main__":
+    unittest.main()
