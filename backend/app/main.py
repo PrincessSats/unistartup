@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
-from app.routes import auth, pages, profile, contests, ratings, feedback, knowledge, education
+from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
 from app.database import ensure_auth_schema_compatibility, ensure_performance_indexes
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(auth_registration.router)
 app.include_router(pages.router)
 app.include_router(profile.router)  # ← новый роутер
 app.include_router(contests.router)
@@ -95,7 +96,7 @@ app.include_router(feedback.router)
 app.include_router(knowledge.router)
 app.include_router(education.router)
 
-logger.info("Routers loaded: auth, pages, profile, contests, ratings, feedback, knowledge, education")
+logger.info("Routers loaded: auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education")
 
 
 @app.middleware("http")

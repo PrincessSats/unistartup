@@ -123,6 +123,112 @@ async def ensure_auth_schema_compatibility() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_refresh_tokens_hash ON auth_refresh_tokens(token_hash)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user ON auth_refresh_tokens(user_id, revoked_at, expires_at)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at ON auth_refresh_tokens(expires_at)",
+        # OAuth identities для линковки внешних провайдеров.
+        """
+        CREATE TABLE IF NOT EXISTS user_auth_identities (
+            id BIGSERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            provider TEXT NOT NULL,
+            provider_user_id TEXT NOT NULL,
+            provider_email TEXT,
+            provider_login TEXT,
+            provider_avatar_url TEXT,
+            raw_profile_json JSONB,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            last_login_at TIMESTAMPTZ
+        )
+        """,
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS provider_email TEXT",
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS provider_login TEXT",
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS provider_avatar_url TEXT",
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS raw_profile_json JSONB",
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE user_auth_identities ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ",
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_user_auth_identities_provider_subject
+            ON user_auth_identities(provider, provider_user_id)
+        """,
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_user_auth_identities_user_provider
+            ON user_auth_identities(user_id, provider)
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_user_auth_identities_email ON user_auth_identities(provider_email)",
+        # Draft flows регистрации для magic-link и OAuth continuation.
+        """
+        CREATE TABLE IF NOT EXISTS auth_registration_flows (
+            id BIGSERIAL PRIMARY KEY,
+            intent TEXT NOT NULL DEFAULT 'register',
+            source TEXT NOT NULL,
+            email TEXT,
+            email_verified_at TIMESTAMPTZ,
+            terms_accepted_at TIMESTAMPTZ,
+            marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+            marketing_opt_in_at TIMESTAMPTZ,
+            provider TEXT,
+            provider_user_id TEXT,
+            provider_email TEXT,
+            provider_login TEXT,
+            provider_avatar_url TEXT,
+            provider_raw_profile_json JSONB,
+            oauth_state_hash TEXT,
+            oauth_code_verifier TEXT,
+            magic_link_token_hash TEXT,
+            magic_link_expires_at TIMESTAMPTZ,
+            magic_link_sent_count INTEGER NOT NULL DEFAULT 0,
+            last_magic_link_sent_at TIMESTAMPTZ,
+            magic_link_consumed_at TIMESTAMPTZ,
+            expires_at TIMESTAMPTZ NOT NULL,
+            completed_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+            consumed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS provider_email TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS provider_login TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS provider_avatar_url TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS provider_raw_profile_json JSONB",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS oauth_state_hash TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS oauth_code_verifier TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS magic_link_token_hash TEXT",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS magic_link_expires_at TIMESTAMPTZ",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS magic_link_sent_count INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS last_magic_link_sent_at TIMESTAMPTZ",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS magic_link_consumed_at TIMESTAMPTZ",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS completed_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS consumed_at TIMESTAMPTZ",
+        "ALTER TABLE auth_registration_flows ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_state_hash ON auth_registration_flows(oauth_state_hash)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_magic_link_hash ON auth_registration_flows(magic_link_token_hash)",
+        "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_email ON auth_registration_flows(email)",
+        "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_expires_at ON auth_registration_flows(expires_at)",
+        # Ответы анкеты после завершения регистрации.
+        """
+        CREATE TABLE IF NOT EXISTS user_registration_data (
+            user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            registration_source TEXT NOT NULL,
+            terms_accepted_at TIMESTAMPTZ NOT NULL,
+            marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE,
+            marketing_opt_in_at TIMESTAMPTZ,
+            profession_tags TEXT[] NOT NULL DEFAULT '{}'::text[],
+            grade TEXT,
+            interest_tags TEXT[] NOT NULL DEFAULT '{}'::text[],
+            questionnaire_completed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS registration_source TEXT",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS marketing_opt_in BOOLEAN NOT NULL DEFAULT FALSE",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS marketing_opt_in_at TIMESTAMPTZ",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS profession_tags TEXT[] NOT NULL DEFAULT '{}'::text[]",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS grade TEXT",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS interest_tags TEXT[] NOT NULL DEFAULT '{}'::text[]",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS questionnaire_completed_at TIMESTAMPTZ",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "CREATE INDEX IF NOT EXISTS idx_user_registration_data_source ON user_registration_data(registration_source)",
         # Для legacy-пользователей, у которых ещё нет профиля/рейтинга.
         """
         INSERT INTO user_profiles (user_id, username, role)
