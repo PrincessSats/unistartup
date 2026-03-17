@@ -22,7 +22,7 @@ from app.models.ai_generation import (
     AIGenerationVariant,
     AIGenerationAnalytics,
 )
-from app.models.contest import Task, TaskFlag
+from app.models.contest import Task, TaskFlag, TaskMaterial, TaskAuthorSolution
 from app.models.user import User, UserProfile
 from app.schemas.ai_generation import (
     AnalyticsResponse,
@@ -30,6 +30,7 @@ from app.schemas.ai_generation import (
     GenerateRequest,
     GenerateResponse,
     RewardCheckSchema,
+    VariantReviewSchema,
     VariantSchema,
 )
 from app.services.ai_generator.pipeline import run_pipeline
@@ -64,6 +65,13 @@ def _variant_to_schema(v: AIGenerationVariant) -> VariantSchema:
             )
             for c in v.reward_checks
         ]
+    # Extract safe fields from spec (never expose flag)
+    spec = v.generated_spec or {}
+    spec_title = spec.get("title") if spec else None
+    spec_description = spec.get("description") if spec else None
+    # Extract artifact content (ciphertext only, no verification_data)
+    artifact = v.artifact_result or {}
+    artifact_content = artifact.get("content") if artifact else None
     return VariantSchema(
         id=str(v.id),
         variant_number=v.variant_number,
@@ -75,6 +83,15 @@ def _variant_to_schema(v: AIGenerationVariant) -> VariantSchema:
         quality_score=v.quality_score,
         failure_reason=v.failure_reason,
         reward_checks=checks,
+        temperature=v.temperature,
+        model_used=v.model_used,
+        tokens_input=v.tokens_input,
+        tokens_output=v.tokens_output,
+        generation_time_ms=v.generation_time_ms,
+        quality_details=v.quality_details,
+        spec_title=spec_title,
+        spec_description=spec_description,
+        artifact_content=artifact_content,
     )
 
 
@@ -204,6 +221,84 @@ async def get_batch_status(
         selected_variant_id=str(batch.selected_variant_id) if batch.selected_variant_id else None,
         rag_context_ids=batch.rag_context_ids,
         rag_query_text=batch.rag_query_text,
+        current_stage=batch.current_stage,
+        stage_started_at=batch.stage_started_at.isoformat() if batch.stage_started_at else None,
+        stage_meta=batch.stage_meta,
+        created_at=batch.created_at.isoformat() if batch.created_at else None,
+        num_variants=batch.num_variants,
+    )
+
+
+@router.get("/ai-generate/batch/{batch_id}/variant/{variant_id}/review", response_model=VariantReviewSchema)
+async def get_variant_review(
+    batch_id: str,
+    variant_id: str,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> VariantReviewSchema:
+    """Admin only: full variant detail including flag and verification data for pre-publish review."""
+    try:
+        bid = uuid.UUID(batch_id)
+        vid = uuid.UUID(variant_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
+
+    result = await db.execute(
+        select(AIGenerationVariant).where(
+            AIGenerationVariant.id == vid,
+            AIGenerationVariant.batch_id == bid,
+        )
+    )
+    variant = result.scalar_one_or_none()
+    if not variant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variant not found")
+
+    spec = variant.generated_spec or {}
+    artifact = variant.artifact_result or {}
+
+    checks = None
+    if variant.reward_checks:
+        checks = [
+            RewardCheckSchema(
+                type=c.get("type", ""),
+                score=c.get("score", 0.0),
+                weight=c.get("weight", 1.0),
+                detail=c.get("detail", ""),
+                error=c.get("error"),
+            )
+            for c in variant.reward_checks
+        ]
+
+    return VariantReviewSchema(
+        id=str(variant.id),
+        variant_number=variant.variant_number,
+        spec_title=spec.get("title"),
+        spec_description=spec.get("description"),
+        spec_story=spec.get("story") or spec.get("participant_description"),
+        spec_flag=spec.get("flag"),
+        spec_hint=spec.get("hint"),
+        spec_category=spec.get("category"),
+        spec_raw=spec if spec else None,  # full spec including flag — admin-only endpoint
+        artifact_content=artifact.get("content"),
+        artifact_file_url=artifact.get("file_url"),
+        artifact_verification=artifact.get("verification_data"),
+        artifact_error=artifact.get("error"),
+        temperature=variant.temperature,
+        model_used=variant.model_used,
+        tokens_input=variant.tokens_input,
+        tokens_output=variant.tokens_output,
+        generation_time_ms=variant.generation_time_ms,
+        reward_total=variant.reward_total,
+        reward_binary=variant.reward_binary,
+        quality_score=variant.quality_score,
+        quality_details=variant.quality_details,
+        advantage=variant.advantage,
+        rank_in_group=variant.rank_in_group,
+        passed_all_binary=variant.passed_all_binary or False,
+        failure_reason=variant.failure_reason,
+        reward_checks=checks,
+        is_selected=variant.is_selected or False,
+        published_task_id=variant.published_task_id,
     )
 
 
@@ -259,9 +354,17 @@ async def publish_variant(
     }
     access_type = access_type_map.get(batch.task_type, "just_flag")
 
-    # Determine access_data (file URL or page URL for non-crypto types)
     artifact = variant.artifact_result or {}
-    access_data = artifact.get("file_url") or artifact.get("content") or None
+    ciphertext = artifact.get("content")
+    file_url = artifact.get("file_url")
+    verification_data = artifact.get("verification_data") or {}
+
+    # Build participant_description: base description + ciphertext if present
+    base_desc = spec.get("description") or spec.get("participant_description") or ""
+    if ciphertext and ciphertext not in base_desc:
+        participant_desc = f"{base_desc}\n\nCiphertext (what you need to decode):\n```\n{ciphertext}\n```" if base_desc else f"Ciphertext (what you need to decode):\n```\n{ciphertext}\n```"
+    else:
+        participant_desc = base_desc
 
     # Create the task
     difficulty_to_points = {"beginner": 50, "intermediate": 100, "advanced": 200}
@@ -271,8 +374,9 @@ async def publish_variant(
         difficulty={"beginner": 1, "intermediate": 2, "advanced": 3}.get(batch.difficulty, 1),
         points=difficulty_to_points.get(batch.difficulty, 100),
         access_type=access_type,
-        story=spec.get("description"),
-        participant_description=spec.get("description"),
+        story=spec.get("story") or spec.get("description"),
+        participant_description=participant_desc,
+        llm_raw_response=spec,  # full spec stored for admin reference
         created_by=user.id,
     )
     db.add(task)
@@ -287,6 +391,41 @@ async def publish_variant(
             format="static",
             expected_value=flag_value,
             description="Auto-generated flag",
+        ))
+
+    # Store artifact as TaskMaterial so it's always retrievable
+    if ciphertext or file_url:
+        crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
+        db.add(TaskMaterial(
+            task_id=task.id,
+            type="artifact",
+            name="Generated artifact",
+            description=f"Auto-generated artifact for {batch.task_type}",
+            url=file_url,
+            meta={
+                "content": ciphertext,
+                "crypto_chain": crypto_chain,
+                "task_type": batch.task_type,
+            },
+        ))
+
+    # Store author solution (crypto chain reversal steps)
+    crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
+    if crypto_chain:
+        reversed_steps = [
+            {"step": i + 1, "cipher": op.get("cipher"), "params": op.get("params", {}), "direction": "reverse"}
+            for i, op in enumerate(reversed(crypto_chain))
+        ]
+        forward_steps = [
+            {"step": i + 1, "cipher": op.get("cipher"), "params": op.get("params", {}), "direction": "encrypt"}
+            for i, op in enumerate(crypto_chain)
+        ]
+        chain_summary = " → ".join(op.get("cipher", "?") for op in crypto_chain)
+        db.add(TaskAuthorSolution(
+            task_id=task.id,
+            summary=f"Reverse the encryption chain: {chain_summary}",
+            creation_solution=f"Flag was encrypted with: {chain_summary}\nTo solve: apply inverse operations in reverse order.",
+            steps={"encrypt": forward_steps, "decrypt": reversed_steps},
         ))
 
     # Mark variant as published
@@ -318,6 +457,49 @@ async def publish_variant(
 
     logger.info("Published variant=%s as task=%s", variant_id, task.id)
     return {"task_id": task.id, "variant_id": variant_id, "status": "published"}
+
+
+@router.get("/ai-generate/batches")
+async def list_batches(
+    status: Optional[str] = None,
+    task_type: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Admin only: paginated list of generation batches."""
+    query = select(AIGenerationBatch).order_by(AIGenerationBatch.created_at.desc())
+    if status:
+        query = query.where(AIGenerationBatch.status == status)
+    if task_type:
+        query = query.where(AIGenerationBatch.task_type == task_type)
+
+    count_result = await db.execute(select(func.count()).select_from(query.subquery()))
+    total = count_result.scalar() or 0
+
+    result = await db.execute(query.limit(limit).offset(offset))
+    batches = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "batch_id": str(b.id),
+                "task_type": b.task_type,
+                "difficulty": b.difficulty,
+                "status": b.status,
+                "current_stage": b.current_stage,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+                "completed_at": b.completed_at.isoformat() if b.completed_at else None,
+                "pass_rate": b.pass_rate,
+                "selected_variant_id": str(b.selected_variant_id) if b.selected_variant_id else None,
+                "attempt": b.attempt,
+                "num_variants": b.num_variants,
+            }
+            for b in batches
+        ],
+        "total": total,
+    }
 
 
 @router.get("/ai-generate/analytics", response_model=list[AnalyticsResponse])

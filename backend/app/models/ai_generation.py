@@ -19,6 +19,9 @@ class AIGenerationBatch(Base):
     num_variants = Column(Integer, nullable=False, default=5)
     attempt = Column(Integer, nullable=False, default=1)
     status = Column(Text, nullable=False, default="pending")
+    current_stage = Column(Text, default="pending")
+    stage_started_at = Column(TIMESTAMP(timezone=True))
+    stage_meta = Column(JSONB)
     # GRPO group stats
     group_mean_reward = Column(Float)
     group_std_reward = Column(Float)

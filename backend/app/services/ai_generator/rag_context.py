@@ -57,31 +57,31 @@ class RAGContext:
             return ""
 
         lines: list[str] = [
-            "## Relevant CVE Context (use for grounding the challenge)",
+            "## Контекст CVE (используй для обоснования задания)",
             "",
         ]
         for entry in self.cve_entries:
-            title = entry.ru_title or entry.cve_id or "Unknown"
+            title = entry.ru_title or entry.cve_id or "Неизвестно"
             lines.append(f"### {title}")
             if entry.cve_id:
                 lines.append(f"- CVE: {entry.cve_id}")
             if entry.ru_summary:
-                lines.append(f"- Summary: {entry.ru_summary}")
+                lines.append(f"- Описание: {entry.ru_summary}")
             elif entry.raw_en_text:
                 snippet = entry.raw_en_text[:300].rstrip()
-                lines.append(f"- Description: {snippet}...")
+                lines.append(f"- Описание (EN): {snippet}...")
             if entry.tags:
-                lines.append(f"- Tags: {', '.join(entry.tags)}")
+                lines.append(f"- Теги: {', '.join(entry.tags)}")
             lines.append("")
 
         if self.existing_task_titles:
-            lines.append("## Already existing tasks (avoid duplicating these):")
+            lines.append("## Уже существующие задания (не дублируй их):")
             for title in self.existing_task_titles[:10]:
                 lines.append(f"- {title}")
             lines.append("")
 
         if self.last_nvd_sync:
-            lines.append(f"_NVD data last synced: {self.last_nvd_sync.strftime('%Y-%m-%d %H:%M UTC')}_")
+            lines.append(f"_Данные NVD последний раз синхронизированы: {self.last_nvd_sync.strftime('%Y-%m-%d %H:%M UTC')}_")
             lines.append("")
 
         return "\n".join(lines)

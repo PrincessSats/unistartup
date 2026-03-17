@@ -37,6 +37,15 @@ class VariantSchema(BaseModel):
     failure_reason: Optional[str] = None
     reward_checks: Optional[list[RewardCheckSchema]] = None
     # generated_spec intentionally excluded — contains flag
+    temperature: Optional[float] = None
+    model_used: Optional[str] = None
+    tokens_input: Optional[int] = None
+    tokens_output: Optional[int] = None
+    generation_time_ms: Optional[int] = None
+    quality_details: Optional[dict] = None
+    spec_title: Optional[str] = None
+    spec_description: Optional[str] = None
+    artifact_content: Optional[str] = None
 
 
 class BatchStatusResponse(BaseModel):
@@ -52,6 +61,48 @@ class BatchStatusResponse(BaseModel):
     selected_variant_id: Optional[str] = None
     rag_context_ids: Optional[list[int]] = None
     rag_query_text: Optional[str] = None
+    current_stage: Optional[str] = None
+    stage_started_at: Optional[str] = None
+    stage_meta: Optional[dict] = None
+    created_at: Optional[str] = None
+    num_variants: int = 5
+
+
+class VariantReviewSchema(BaseModel):
+    """Full variant detail for admin review — includes flag and verification_data."""
+    id: str
+    variant_number: int
+    # Spec — full, including flag (admin only)
+    spec_title: Optional[str] = None
+    spec_description: Optional[str] = None
+    spec_story: Optional[str] = None
+    spec_flag: Optional[str] = None
+    spec_hint: Optional[str] = None
+    spec_category: Optional[str] = None
+    spec_raw: Optional[dict] = None
+    # Artifact
+    artifact_content: Optional[str] = None
+    artifact_file_url: Optional[str] = None
+    artifact_verification: Optional[dict] = None
+    artifact_error: Optional[str] = None
+    # Generation stats
+    temperature: Optional[float] = None
+    model_used: Optional[str] = None
+    tokens_input: Optional[int] = None
+    tokens_output: Optional[int] = None
+    generation_time_ms: Optional[int] = None
+    # Rewards
+    reward_total: Optional[float] = None
+    reward_binary: Optional[float] = None
+    quality_score: Optional[float] = None
+    quality_details: Optional[dict] = None
+    advantage: Optional[float] = None
+    rank_in_group: Optional[int] = None
+    passed_all_binary: bool = False
+    failure_reason: Optional[str] = None
+    reward_checks: Optional[list[RewardCheckSchema]] = None
+    is_selected: bool = False
+    published_task_id: Optional[int] = None
 
 
 class AnalyticsResponse(BaseModel):

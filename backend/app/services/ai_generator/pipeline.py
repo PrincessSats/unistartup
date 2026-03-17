@@ -99,12 +99,17 @@ def _build_user_message(
     failure_context: list[str],
     rag_context_text: str = "",
 ) -> str:
-    parts = [f'Generate a {difficulty} difficulty challenge.']
+    difficulty_ru = {
+        "beginner": "начального",
+        "intermediate": "среднего",
+        "advanced": "продвинутого",
+    }.get(difficulty, difficulty)
+    parts = [f'Создай задание уровня сложности {difficulty_ru}.']
     if rag_context_text:
         parts.append("")
         parts.append(rag_context_text)
     if failure_context:
-        parts.append("\nAvoid these common mistakes from previous attempts:")
+        parts.append("\nИзбегай этих ошибок из предыдущих попыток:")
         parts.extend(f"- {reason}" for reason in failure_context[-5:])
     return "\n".join(parts)
 
@@ -176,6 +181,18 @@ async def _generate_one_spec(
     )
 
 
+async def _update_stage(db: AsyncSession, batch_id: uuid.UUID, stage: str, meta: Optional[dict] = None) -> None:
+    """Update the current pipeline stage on the batch row."""
+    from datetime import datetime, timezone
+    result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
+    batch = result.scalar_one_or_none()
+    if batch:
+        batch.current_stage = stage
+        batch.stage_started_at = datetime.now(timezone.utc)
+        batch.stage_meta = meta
+        await db.commit()
+
+
 async def run_pipeline(
     *,
     task_type: str,
@@ -201,6 +218,7 @@ async def run_pipeline(
 
     # Build RAG context in its own session so any DB error (e.g. missing table)
     # cannot abort the pipeline session's transaction.
+    await _update_stage(db, batch_id, "rag_context")
     from app.database import AsyncSessionLocal
     rag_context: RAGContext = RAGContext()
     try:
@@ -242,6 +260,7 @@ async def run_pipeline(
         await db.commit()
 
         # ── Step 1: Generate N specs in parallel ─────────────────────────────
+        await _update_stage(db, batch_id, "spec_generation", {"num_variants": num_variants})
         temperatures = [base_temp + i * temp_step for i in range(num_variants)]
         generation_tasks = [
             _generate_one_spec(
@@ -264,6 +283,7 @@ async def run_pipeline(
                 spec, err, tok_in, tok_out, ms = result
                 specs_and_meta.append((spec, err, temperatures[i], tok_in, tok_out, ms))
 
+        await _update_stage(db, batch_id, "artifact_creation")
         artifact_tasks = [
             create_artifact(task_type, spec) if spec is not None else _failed_artifact(err)
             for spec, err, *_ in specs_and_meta
@@ -271,6 +291,7 @@ async def run_pipeline(
         artifacts: list[ArtifactResult] = await asyncio.gather(*artifact_tasks, return_exceptions=True)
 
         # ── Step 3 & 4: Validate and score each variant ───────────────────────
+        await _update_stage(db, batch_id, "validation")
         variant_rewards: list[VariantReward] = []
         variant_data: list[dict] = []
 
@@ -301,6 +322,7 @@ async def run_pipeline(
             quality_score = None
             quality_details = None
             if vr.passed_all_binary and spec is not None:
+                await _update_stage(db, batch_id, "llm_quality_review", {"variant_number": variant_counter})
                 try:
                     quality_score, quality_details = await review_variant(spec, task_type, difficulty)
                     # Inject quality into checks for total_reward recalculation
@@ -330,6 +352,7 @@ async def run_pipeline(
             })
 
         # ── Step 5: Compute group-relative advantages ─────────────────────────
+        await _update_stage(db, batch_id, "grpo_computation")
         compute_group_advantages(variant_rewards)
 
         # Assign ranks among passed variants
@@ -392,6 +415,7 @@ async def run_pipeline(
         await db.commit()
 
         # ── Step 9: Select best variant ───────────────────────────────────────
+        await _update_stage(db, batch_id, "selection", {"pass_rate": len(passed) / max(len(variant_rewards), 1)})
         if passed_sorted:
             best_idx, best_reward = passed_sorted[0]
             best_variant = stored_variants[best_idx]
@@ -408,6 +432,7 @@ async def run_pipeline(
                 batch.pass_rate = len(passed) / len(variant_rewards)
                 batch.selected_variant_id = best_variant.id
                 batch.status = "completed"
+                batch.current_stage = "completed"
                 from datetime import datetime, timezone
                 batch.completed_at = datetime.now(timezone.utc)
 
@@ -435,6 +460,7 @@ async def run_pipeline(
     batch = batch_result.scalar_one_or_none()
     if batch:
         batch.status = "failed"
+        batch.current_stage = "failed"
         batch.failure_reasons_summary = {"failure_context": failure_context[-10:]}
         from datetime import datetime, timezone
         batch.completed_at = datetime.now(timezone.utc)
