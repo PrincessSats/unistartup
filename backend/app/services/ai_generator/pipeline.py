@@ -22,7 +22,7 @@ import time
 import uuid
 from typing import Any, Optional
 
-from openai import AsyncOpenAI
+from openai import OpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -46,14 +46,14 @@ _PROMPT_FILE_MAP: dict[str, str] = {
     "crypto_text_web": "crypto_generator.txt",
 }
 
-_generator_client: Optional[AsyncOpenAI] = None
+_generator_client: Optional[OpenAI] = None
 
 
 class PipelineError(RuntimeError):
     pass
 
 
-def _build_generator_client() -> AsyncOpenAI:
+def _build_generator_client() -> OpenAI:
     global _generator_client
     api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
@@ -65,9 +65,9 @@ def _build_generator_client() -> AsyncOpenAI:
     if missing:
         raise PipelineError(f"Missing Yandex LLM config: {', '.join(missing)}")
     if _generator_client is None:
-        _generator_client = AsyncOpenAI(
+        _generator_client = OpenAI(
             api_key=api_key,
-            base_url="https://ai.api.cloud.yandex.net/v1",
+            base_url="https://llm.api.cloud.yandex.net/v1",
             project=folder,
         )
     return _generator_client
@@ -109,7 +109,7 @@ def _build_user_message(
     return "\n".join(parts)
 
 
-async def _generate_one_spec(
+def _run_one_spec(
     *,
     task_type: str,
     difficulty: str,
@@ -117,27 +117,23 @@ async def _generate_one_spec(
     failure_context: list[str],
     rag_context_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
-    """
-    Call the LLM to generate one spec.
-
-    Returns: (spec_dict, error_str, tokens_in, tokens_out, time_ms)
-    """
+    """Sync LLM call — runs in a thread via asyncio.to_thread."""
     client = _build_generator_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
     system_prompt = _load_system_prompt(task_type)
     user_message = _build_user_message(difficulty, failure_context, rag_context_text)
 
     start = time.monotonic()
     try:
-        response = await client.chat.completions.create(
+        response = client.chat.completions.create(
             model=model,
-            temperature=temperature,
+            reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
-            max_tokens=2048,
         )
     except Exception as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
@@ -159,6 +155,25 @@ async def _generate_one_spec(
         return spec, None, tokens_in, tokens_out, elapsed_ms
     except json.JSONDecodeError as exc:
         return None, f"JSON parse error: {exc} — raw={raw[:200]!r}", tokens_in, tokens_out, elapsed_ms
+
+
+async def _generate_one_spec(
+    *,
+    task_type: str,
+    difficulty: str,
+    temperature: float,
+    failure_context: list[str],
+    rag_context_text: str = "",
+) -> tuple[Optional[dict], Optional[str], int, int, int]:
+    """Async wrapper — runs sync LLM call in a thread."""
+    return await asyncio.to_thread(
+        _run_one_spec,
+        task_type=task_type,
+        difficulty=difficulty,
+        temperature=temperature,
+        failure_context=failure_context,
+        rag_context_text=rag_context_text,
+    )
 
 
 async def run_pipeline(
