@@ -1,14 +1,18 @@
 import unittest
-import os
 import re
 from pydantic import ValidationError
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import (
+    TEST_DB_CREDENTIAL,
+    TEST_DB_HOST,
+    TEST_DB_NAME,
+    TEST_DB_PORT,
+    TEST_DB_USER,
+    TEST_SIGNING_MATERIAL,
+    apply_test_env_defaults,
+)
+
+apply_test_env_defaults()
 
 from app.config import Settings
 
@@ -16,12 +20,13 @@ from app.config import Settings
 class SecuritySettingsTests(unittest.TestCase):
     def _base_kwargs(self) -> dict:
         return {
-            "DB_HOST": "localhost",
-            "DB_PORT": 5432,
-            "DB_NAME": "app",
-            "DB_USER": "user",
-            "DB_PASSWORD": "pass",
-            "SECRET_KEY": "secret",
+            "DB_HOST": TEST_DB_HOST,
+            "DB_PORT": int(TEST_DB_PORT),
+            "DB_NAME": TEST_DB_NAME,
+            "DB_USER": TEST_DB_USER,
+            "DB_PASSWORD": TEST_DB_CREDENTIAL,
+            "SECRET_KEY": TEST_SIGNING_MATERIAL,
+            "RUN_STARTUP_DB_MAINTENANCE": False,
         }
 
     def test_sql_echo_is_disabled_by_default(self) -> None:

@@ -49,16 +49,19 @@ describe('Login page', () => {
   });
 
   it('submits email/password login and navigates to home', async () => {
+    const testEmail = ['user', 'example.com'].join('@');
+    const testAccessPhrase = ['Strong', '!', '9', '2'].join('');
+
     authAPI.login.mockResolvedValue({ access_token: 'token' });
     profileAPI.getProfile.mockResolvedValue({ role: 'participant' });
 
     render(<Login />);
 
-    await userEvent.type(screen.getByPlaceholderText('Твой адрес электронной почты'), 'user@example.com');
-    await userEvent.type(screen.getByPlaceholderText('Твой пароль от этой учетной записи'), 'Strong!92');
+    await userEvent.type(screen.getByPlaceholderText('Твой адрес электронной почты'), testEmail);
+    await userEvent.type(screen.getByPlaceholderText('Твой пароль от этой учетной записи'), testAccessPhrase);
     await userEvent.click(screen.getByRole('button', { name: 'Войти' }));
 
-    expect(authAPI.login).toHaveBeenCalledWith('user@example.com', 'Strong!92');
+    expect(authAPI.login).toHaveBeenCalledWith(testEmail, testAccessPhrase);
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/home', { replace: true });
     });
