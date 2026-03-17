@@ -22,8 +22,7 @@ YANDEX_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 YANDEX_INFO_URL = "https://login.yandex.ru/info"
 
-LOCAL_BACKEND_YANDEX_CALLBACK_URL = "http://127.0.0.1:8000/api/auth/yandex/callback"
-PROD_BACKEND_YANDEX_CALLBACK_URL = "https://www.hacknet.tech/api/auth/yandex/callback"
+LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000"
 LOCAL_FRONTEND_URL = "http://127.0.0.1:3000"
 PROD_FRONTEND_URL = "https://www.hacknet.tech"
 
@@ -85,8 +84,22 @@ def is_local_request_host(host: str) -> bool:
     return normalized.startswith("127.0.0.1") or normalized.startswith("localhost")
 
 
-def resolve_backend_yandex_callback_url(request_host: str) -> str:
-    return LOCAL_BACKEND_YANDEX_CALLBACK_URL if is_local_request_host(request_host) else PROD_BACKEND_YANDEX_CALLBACK_URL
+def normalize_request_scheme(scheme: str) -> str:
+    normalized = str(scheme or "").strip().lower()
+    if normalized in {"http", "https"}:
+        return normalized
+    return "https"
+
+
+def resolve_backend_base_url(*, request_scheme: str, request_host: str) -> str:
+    if is_local_request_host(request_host):
+        return LOCAL_BACKEND_BASE_URL
+    return f"{normalize_request_scheme(request_scheme)}://{str(request_host or '').strip()}"
+
+
+def resolve_backend_yandex_callback_url(*, request_scheme: str, request_host: str) -> str:
+    base_url = resolve_backend_base_url(request_scheme=request_scheme, request_host=request_host)
+    return f"{base_url}/api/auth/yandex/callback"
 
 
 def resolve_frontend_base_url(request_host: str) -> str:
@@ -224,11 +237,10 @@ async def fetch_yandex_profile(access_token: str) -> YandexProfile:
     )
 
 
-def build_magic_link_callback_url(*, request_host: str, token: str) -> str:
-    base = resolve_backend_yandex_callback_url(request_host)
-    if base.endswith("/yandex/callback"):
-        base = base[: -len("/yandex/callback")] + "/registration/email/callback"
-    return f"{base}?{urlencode({'token': token})}"
+def build_magic_link_callback_url(*, request_scheme: str, request_host: str, token: str) -> str:
+    base_url = resolve_backend_base_url(request_scheme=request_scheme, request_host=request_host)
+    callback_url = f"{base_url}/api/auth/registration/email/callback"
+    return f"{callback_url}?{urlencode({'token': token})}"
 
 
 def _send_magic_link_email_sync(*, to_email: str, magic_link_url: str) -> None:
