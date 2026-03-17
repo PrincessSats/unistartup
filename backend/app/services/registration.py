@@ -94,7 +94,7 @@ def normalize_request_scheme(scheme: str) -> str:
 def resolve_backend_base_url(*, request_scheme: str, request_host: str) -> str:
     if is_local_request_host(request_host):
         return LOCAL_BACKEND_BASE_URL
-    return f"{normalize_request_scheme(request_scheme)}://{str(request_host or '').strip()}"
+    return f"https://{str(request_host or '').strip()}"
 
 
 def resolve_backend_yandex_callback_url(*, request_scheme: str, request_host: str) -> str:
