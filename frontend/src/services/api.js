@@ -921,4 +921,30 @@ export const feedbackAPI = {
   },
 };
 
+export const pipelineAPI = {
+  startGeneration: async (payload) => {
+    const response = await api.post('/ai-generate/', payload);
+    return response.data;
+  },
+  getBatchStatus: async (batchId) => {
+    const response = await api.get(`/ai-generate/batch/${batchId}`);
+    return response.data;
+  },
+  listBatches: async (params = {}) => {
+    const response = await api.get('/ai-generate/batches', { params });
+    return response.data;
+  },
+  publishVariant: async (batchId, variantId) => {
+    const response = await api.post(`/ai-generate/batch/${batchId}/publish/${variantId}`);
+    return response.data;
+  },
+  getVariantReview: async (batchId, variantId) => {
+    const response = await api.get(`/ai-generate/batch/${batchId}/variant/${variantId}/review`);
+    return response.data;
+  },
+  getAnalytics: async () => {
+    return cachedGet('/ai-generate/analytics', { ttlMs: CACHE_TTLS_MS.adminDashboard });
+  },
+};
+
 export default api;
