@@ -758,9 +758,10 @@ export default function Pipeline() {
   useEffect(() => { loadBatches(); }, [loadBatches]);
 
   // Polling
+  const batchStatusStr = batchStatus?.status ?? null;
   useEffect(() => {
     if (!activeBatchId) return;
-    if (batchStatus && ['completed', 'failed'].includes(batchStatus.status)) return;
+    if (batchStatusStr && ['completed', 'failed'].includes(batchStatusStr)) return;
     const interval = setInterval(async () => {
       try {
         const data = await pipelineAPI.getBatchStatus(activeBatchId);
@@ -770,7 +771,7 @@ export default function Pipeline() {
       } catch { setPollError('Status fetch failed'); }
     }, 2500);
     return () => clearInterval(interval);
-  }, [activeBatchId, batchStatus?.status, loadBatches]);
+  }, [activeBatchId, batchStatusStr, loadBatches]);
 
   async function handleGenerate() {
     setGenerateError(null);

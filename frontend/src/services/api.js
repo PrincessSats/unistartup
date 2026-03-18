@@ -4,8 +4,35 @@ import axios from 'axios';
 
 // local or prod env
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_URL = process.env.REACT_APP_API_BASE_URL || (isLocalhost ? 'http://localhost:8000' : '');
+
+function normalizeLocalApiBaseUrl(rawUrl) {
+  const configured = String(rawUrl || '').trim();
+  if (!configured || !isLocalhost) {
+    return configured;
+  }
+
+  try {
+    const url = new URL(configured);
+    const isLocalApiHost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    if (!isLocalApiHost) {
+      return configured;
+    }
+
+    if (url.hostname !== window.location.hostname) {
+      url.hostname = window.location.hostname;
+      return url.toString().replace(/\/$/, '');
+    }
+    return configured;
+  } catch {
+    return configured;
+  }
+}
+
+const API_URL = normalizeLocalApiBaseUrl(
+  process.env.REACT_APP_API_BASE_URL || (isLocalhost ? `http://${window.location.hostname}:8000` : '')
+);
 const ACCESS_TOKEN_STORAGE_KEY = 'token';
+const PROFILE_CACHE_STORAGE_KEY = 'layout:profile:v1';
 const parsedTimeout = Number(process.env.REACT_APP_API_TIMEOUT_MS || 15000);
 const REQUEST_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout >= 3000 ? parsedTimeout : 15000;
 const parsedLoginTimeout = Number(process.env.REACT_APP_AUTH_LOGIN_TIMEOUT_MS || 10000);
@@ -78,6 +105,14 @@ function clearStoredAccessToken() {
   localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
 }
 
+function clearProfileSessionCache() {
+  try {
+    sessionStorage.removeItem(PROFILE_CACHE_STORAGE_KEY);
+  } catch {
+    // Session storage cleanup is best-effort.
+  }
+}
+
 function decodeJwtPayload(token) {
   if (!token || typeof token !== 'string') return null;
   const parts = token.split('.');
@@ -122,7 +157,20 @@ function resolveRequestPath(configOrUrl) {
 }
 
 function isAuthPath(pathname) {
-  return pathname === '/auth' || pathname.startsWith('/auth/');
+  return pathname === '/auth'
+    || pathname.startsWith('/auth/')
+    || pathname === '/api/auth'
+    || pathname.startsWith('/api/auth/');
+}
+
+function buildApiUrl(pathname) {
+  if (!pathname) return API_URL || window.location.origin;
+  if (pathname.includes('://')) return pathname;
+  const normalizedPath = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  if (API_URL) {
+    return new URL(normalizedPath, API_URL).toString();
+  }
+  return new URL(normalizedPath, window.location.origin).toString();
 }
 
 function isTimeoutError(error) {
@@ -148,6 +196,7 @@ function buildLoginHash(reason = '') {
   if (!encodedReason) return '#/login';
   return `#/login?reason=${encodeURIComponent(encodedReason)}`;
 }
+
 
 function redirectToLogin(reason = '') {
   const target = buildLoginHash(reason);
@@ -214,6 +263,12 @@ function invalidateGetCacheByPrefix(prefix) {
 function clearAllRequestCache() {
   inFlightGetRequests.clear();
   getResponseCache.clear();
+}
+
+function clearClientAuthState() {
+  clearStoredAccessToken();
+  clearProfileSessionCache();
+  clearAllRequestCache();
 }
 
 async function cachedGet(url, { params = {}, ttlMs = 0 } = {}) {
@@ -375,6 +430,117 @@ export const authAPI = {
     return response.data;
   },
 
+  startEmailRegistration: async ({ email, termsAccepted, marketingOptIn = false }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/registration/email/start', {
+      email,
+      terms_accepted: termsAccepted,
+      marketing_opt_in: marketingOptIn,
+    }, {
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
+  resendEmailRegistration: async ({ flowToken }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/registration/email/resend', {
+      flow_token: flowToken,
+    }, {
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
+  attachEmailToRegistrationFlow: async ({ flowToken, email, termsAccepted, marketingOptIn = false }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/registration/email/attach', {
+      flow_token: flowToken,
+      email,
+      terms_accepted: termsAccepted,
+      marketing_opt_in: marketingOptIn,
+    }, {
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
+  getRegistrationFlow: async ({ flowToken }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.get('/api/auth/registration/flow', {
+      params: { flow_token: flowToken },
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
+  completeRegistration: async (payload) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    clearAllRequestCache();
+    const response = await api.post('/api/auth/registration/complete', {
+      flow_token: payload.flowToken,
+      username: payload.username,
+      password: payload.password ?? null,
+      profession_tags: payload.professionTags,
+      grade: payload.grade,
+      interest_tags: payload.interestTags,
+    }, {
+      withCredentials: true,
+      timeout: AUTH_LOGIN_TIMEOUT_MS,
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
+  startYandexLogin: () => {
+    window.location.assign(buildApiUrl('/api/auth/yandex/start?intent=login'));
+  },
+
+  startGithubLogin: () => {
+    window.location.assign(buildApiUrl('/api/auth/github/start?intent=login'));
+  },
+
+  startTelegramLogin: () => {
+    window.location.assign(buildApiUrl('/api/auth/telegram/start?intent=login'));
+  },
+
+  startYandexRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    const params = new URLSearchParams({
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    });
+    window.location.assign(buildApiUrl(`/api/auth/yandex/start?${params.toString()}`));
+  },
+
+  startGithubRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    const params = new URLSearchParams({
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    });
+    window.location.assign(buildApiUrl(`/api/auth/github/start?${params.toString()}`));
+  },
+
+  startTelegramRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    const params = new URLSearchParams({
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    });
+    window.location.assign(buildApiUrl(`/api/auth/telegram/start?${params.toString()}`));
+  },
+
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
     return refreshAccessToken({ timeoutMs });
   },
@@ -403,8 +569,7 @@ export const authAPI = {
       return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
     } catch (err) {
       const reason = isTimeoutError(err) ? 'network_timeout' : 'session_expired';
-      clearStoredAccessToken();
-      clearAllRequestCache();
+      clearClientAuthState();
       // eslint-disable-next-line no-console
       console.warn('Auth bootstrap failed', { reason, elapsedMs: performance.now() - startedAt });
       return { authenticated: false, reason, elapsedMs: performance.now() - startedAt };
@@ -419,8 +584,7 @@ export const authAPI = {
         __skipAuthRefresh: true,
       }).catch(() => {});
     }
-    clearStoredAccessToken();
-    clearAllRequestCache();
+    clearClientAuthState();
     if (redirect) {
       redirectToLogin(reason);
     }
@@ -432,6 +596,10 @@ export const authAPI = {
 
   hasFreshAccessToken: () => {
     return isAccessTokenFresh(getStoredAccessToken());
+  },
+
+  persistAccessToken: (token) => {
+    setStoredAccessToken(token);
   },
 };
 
@@ -668,6 +836,14 @@ export const profileAPI = {
 
   updateOnboardingStatus: async (status) => {
     const response = await api.put('/profile/onboarding', { status });
+    invalidateGetCacheByPrefix('/profile');
+    return response.data;
+  },
+
+  deleteAccount: async (username) => {
+    const response = await api.delete('/profile', {
+      data: { username },
+    });
     invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
