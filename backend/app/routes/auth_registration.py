@@ -26,8 +26,6 @@ from app.schemas.user import (
     FlowEmailAttachRequest,
     RegistrationCompleteRequest,
     RegistrationFlowResponse,
-    TelegramAuthVerifyRequest,
-    TelegramAuthVerifyResponse,
     Token,
 )
 from app.security.rate_limit import RateLimit, enforce_rate_limit
@@ -36,22 +34,26 @@ from app.services.registration import (
     MAGIC_LINK_MAX_SENDS,
     MAGIC_LINK_RESEND_COOLDOWN_SECONDS,
     OAUTH_FLOW_TTL_MINUTES,
+    TelegramProfile,
     build_frontend_hash_url,
     build_github_authorize_url,
     build_magic_link_callback_url,
     build_registration_flow_token,
+    build_telegram_authorize_url,
     build_yandex_authorize_url,
     decode_registration_flow_token,
     ensure_questionnaire_payload,
     exchange_github_code_for_token,
+    exchange_telegram_code_for_token,
     exchange_yandex_code_for_token,
     fetch_github_profile,
-    verify_telegram_auth,
+    fetch_telegram_profile_from_id_token,
     fetch_yandex_profile,
     generate_opaque_token,
     generate_pkce_pair,
     hash_secret_token,
     normalize_email,
+    resolve_backend_telegram_callback_url,
     resolve_backend_yandex_callback_url,
     send_magic_link_email,
     validate_registration_password,
@@ -143,11 +145,11 @@ def _ensure_github_oauth_configured() -> None:
         )
 
 
-def _ensure_telegram_auth_configured() -> None:
-    if not settings.TELEGRAM_BOT_API_TOKEN:
+def _ensure_telegram_oidc_configured() -> None:
+    if not settings.TELEGRAM_CLIENT_ID or not settings.TELEGRAM_CLIENT_SECRET:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Не настроен Telegram bot token.",
+            detail="Не настроены Telegram OIDC credentials (TG_CLIENT_ID / TG_CLIENT_SECRET).",
         )
 
 
@@ -732,35 +734,58 @@ async def github_oauth_callback(
     )
 
 
-@router.post("/telegram/verify", response_model=TelegramAuthVerifyResponse)
-async def verify_telegram_widget_auth(
-    payload: TelegramAuthVerifyRequest,
+@router.get("/telegram/start")
+async def start_telegram_oidc(
     request: Request,
-    response: Response,
+    intent: str = Query(default="login"),
+    terms_accepted: bool = Query(default=False),
+    marketing_opt_in: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
 ):
-    _ensure_telegram_auth_configured()
-    normalized_intent = "register" if str(payload.intent).strip().lower() == "register" else "login"
+    _ensure_telegram_oidc_configured()
+    normalized_intent = "register" if str(intent).strip().lower() == "register" else "login"
+    if normalized_intent == "register" and not terms_accepted:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно принять условия пользования.")
 
-    try:
-        telegram_profile = verify_telegram_auth(
-            telegram_user={
-                "id": payload.id,
-                "first_name": payload.first_name,
-                "last_name": payload.last_name,
-                "username": payload.username,
-                "photo_url": payload.photo_url,
-                "auth_date": payload.auth_date,
-                "hash": payload.hash,
-            },
-            bot_token=settings.TELEGRAM_BOT_API_TOKEN,
-            max_age_seconds=settings.TELEGRAM_AUTH_MAX_AGE_SECONDS,
-        )
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Не удалось подтвердить вход через Telegram.",
-        ) from exc
+    state = generate_opaque_token()
+    code_verifier, code_challenge = generate_pkce_pair()
+    now = utcnow()
+    flow = AuthRegistrationFlow(
+        intent=normalized_intent,
+        source="telegram",
+        provider="telegram",
+        terms_accepted_at=now if normalized_intent == "register" else None,
+        marketing_opt_in=marketing_opt_in if normalized_intent == "register" else False,
+        marketing_opt_in_at=now if normalized_intent == "register" and marketing_opt_in else None,
+        oauth_state_hash=hash_secret_token(state),
+        oauth_code_verifier=code_verifier,
+        expires_at=now + timedelta(minutes=OAUTH_FLOW_TTL_MINUTES),
+    )
+    db.add(flow)
+    await db.commit()
+
+    authorize_url = build_telegram_authorize_url(
+        client_id=settings.TELEGRAM_CLIENT_ID,
+        redirect_uri=resolve_backend_telegram_callback_url(
+            request_scheme=_get_request_scheme(request),
+            request_host=_get_request_host(request),
+        ),
+        scope=settings.TELEGRAM_OAUTH_SCOPES,
+        state=state,
+        code_challenge=code_challenge,
+    )
+    return RedirectResponse(url=authorize_url, status_code=status.HTTP_302_FOUND)
+
+
+async def _finalize_telegram_oidc_callback(
+    *,
+    request: Request,
+    db: AsyncSession,
+    flow: AuthRegistrationFlow,
+    telegram_profile: TelegramProfile,
+) -> RedirectResponse:
+    request_host = _get_request_host(request)
+    now = utcnow()
 
     identity_result = await db.execute(
         select(UserAuthIdentity).where(
@@ -772,11 +797,12 @@ async def verify_telegram_widget_auth(
     user = await db.get(User, identity.user_id) if identity is not None else None
 
     if user is not None:
-        now = utcnow()
         if user.is_active is None:
             user.is_active = True
         if user.is_active is False:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт заблокирован.")
+            flow.consumed_at = now
+            await db.commit()
+            return _flow_error_redirect(request, route_path="/login", error_code="account_blocked")
 
         identity.provider_login = telegram_profile.login
         identity.provider_avatar_url = telegram_profile.avatar_url
@@ -791,37 +817,96 @@ async def verify_telegram_widget_auth(
             if profile is not None and not profile.avatar_url:
                 profile.avatar_url = telegram_profile.avatar_url
 
+        flow.completed_user_id = user.id
+        flow.consumed_at = now
         refresh_token, _, _, _ = await issue_login_session(
             request=request,
             db=db,
             user=user,
         )
-        set_refresh_cookie(response, refresh_token)
-        return TelegramAuthVerifyResponse(status="authenticated")
+        redirect = RedirectResponse(
+            url=build_frontend_hash_url(
+                request_host=request_host,
+                route_path="/auth/bridge",
+                params={"provider": "telegram"},
+            ),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        set_refresh_cookie(redirect, refresh_token)
+        return redirect
 
-    if normalized_intent == "register" and not payload.terms_accepted:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно принять условия пользования.")
+    await db.commit()
+    redirect_url = build_frontend_hash_url(
+        request_host=request_host,
+        route_path="/register",
+        params={"flow_token": _build_flow_token(flow)},
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.get("/telegram/callback")
+async def telegram_oidc_callback(
+    request: Request,
+    code: Optional[str] = Query(default=None),
+    state: Optional[str] = Query(default=None),
+    error: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    request_host = _get_request_host(request)
+    request_scheme = _get_request_scheme(request)
+    if error:
+        return _flow_error_redirect(request, route_path="/login", error_code=f"telegram_{error}")
+    if not code or not state:
+        return _flow_error_redirect(request, route_path="/login", error_code="telegram_missing_code")
+
+    state_hash = hash_secret_token(state)
+    result = await db.execute(select(AuthRegistrationFlow).where(AuthRegistrationFlow.oauth_state_hash == state_hash))
+    flow = result.scalar_one_or_none()
+    if flow is None or _is_expired(flow.expires_at) or flow.consumed_at is not None:
+        return _flow_error_redirect(request, route_path="/login", error_code="telegram_state_invalid")
+
+    redirect_uri = resolve_backend_telegram_callback_url(
+        request_scheme=request_scheme,
+        request_host=request_host,
+    )
+    try:
+        token_payload = await exchange_telegram_code_for_token(
+            code=code,
+            code_verifier=flow.oauth_code_verifier or "",
+            redirect_uri=redirect_uri,
+            client_id=settings.TELEGRAM_CLIENT_ID,
+            client_secret=settings.TELEGRAM_CLIENT_SECRET,
+        )
+        id_token = str(token_payload.get("id_token") or "").strip()
+        if not id_token:
+            raise ValueError("Telegram token response missing id_token")
+        telegram_profile = await fetch_telegram_profile_from_id_token(
+            id_token=id_token,
+            client_id=settings.TELEGRAM_CLIENT_ID,
+        )
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.exception("Telegram OIDC exchange failed")
+        return _flow_error_redirect(
+            request,
+            route_path="/register" if flow.intent == "register" else "/login",
+            error_code="telegram_oauth_failed",
+        )
 
     now = utcnow()
-    flow = AuthRegistrationFlow(
-        intent="register",
-        source="telegram",
-        provider="telegram",
-        provider_user_id=telegram_profile.provider_user_id,
-        provider_login=telegram_profile.login,
-        provider_avatar_url=telegram_profile.avatar_url,
-        provider_raw_profile_json=telegram_profile.raw_profile,
-        terms_accepted_at=now if normalized_intent == "register" and payload.terms_accepted else None,
-        marketing_opt_in=payload.marketing_opt_in if normalized_intent == "register" else False,
-        marketing_opt_in_at=now if normalized_intent == "register" and payload.marketing_opt_in else None,
-        expires_at=now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS),
-    )
-    db.add(flow)
-    await db.commit()
+    flow.provider = "telegram"
+    flow.provider_user_id = telegram_profile.provider_user_id
+    flow.provider_login = telegram_profile.login
+    flow.provider_avatar_url = telegram_profile.avatar_url
+    flow.provider_raw_profile_json = telegram_profile.raw_profile
+    flow.oauth_state_hash = None
+    flow.oauth_code_verifier = None
+    flow.expires_at = now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS)
 
-    return TelegramAuthVerifyResponse(
-        status="registration_required",
-        flow_token=_build_flow_token(flow),
+    return await _finalize_telegram_oidc_callback(
+        request=request,
+        db=db,
+        flow=flow,
+        telegram_profile=telegram_profile,
     )
 
 
