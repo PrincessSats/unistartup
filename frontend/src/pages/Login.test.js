@@ -16,6 +16,7 @@ jest.mock('../services/api', () => ({
     warmup: jest.fn(),
     login: jest.fn(),
     logout: jest.fn(),
+    startGithubLogin: jest.fn(),
     startYandexLogin: jest.fn(),
   },
   profileAPI: {
@@ -46,6 +47,13 @@ describe('Login page', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Яндекс' }));
     expect(authAPI.startYandexLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts GitHub login from the social button', async () => {
+    render(<Login />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'GitHub' }));
+    expect(authAPI.startGithubLogin).toHaveBeenCalledTimes(1);
   });
 
   it('submits email/password login and navigates to home', async () => {
