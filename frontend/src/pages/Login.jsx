@@ -35,6 +35,15 @@ function mapAuthNotice(search) {
   if (error === 'yandex_oauth_failed') {
     return { error: 'Не удалось завершить вход через Яндекс. Попробуй еще раз.', notice: '' };
   }
+  if (error === 'github_access_denied') {
+    return { error: '', notice: 'Вход через GitHub был отменен.' };
+  }
+  if (error === 'github_missing_code' || error === 'github_state_invalid') {
+    return { error: 'Сессия входа через GitHub устарела. Начни вход заново.', notice: '' };
+  }
+  if (error === 'github_oauth_failed') {
+    return { error: 'Не удалось завершить вход через GitHub. Попробуй еще раз.', notice: '' };
+  }
   return { error: '', notice: '' };
 }
 
@@ -136,7 +145,7 @@ function Login() {
                 placeholder="Твой адрес электронной почты"
                 autoComplete="email"
                 required
-                className="h-14 w-full rounded-[18px] border border-white/10 bg-[#0D0B13] px-4 text-[15px] text-white outline-none transition placeholder:text-white/28 focus:border-[#8452FF]"
+                className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
               />
             </label>
 
@@ -151,7 +160,7 @@ function Login() {
                   placeholder="Твой пароль от этой учетной записи"
                   autoComplete="current-password"
                   required
-                  className="h-14 w-full rounded-[18px] border border-white/10 bg-[#0D0B13] px-4 pr-14 text-[15px] text-white outline-none transition placeholder:text-white/28 focus:border-[#8452FF]"
+                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-14 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
                 />
                 <PasswordVisibilityButton visible={showPassword} onToggle={() => setShowPassword((current) => !current)} />
               </div>
@@ -171,7 +180,9 @@ function Login() {
 
           <SocialAuthButtons
             mode="login"
+            onGithub={() => authAPI.startGithubLogin()}
             onYandex={() => authAPI.startYandexLogin()}
+            githubDisabled={loading}
             yandexDisabled={loading}
             footerLabel="Еще не с нами?"
             footerActionLabel="Зарегистрироваться"
