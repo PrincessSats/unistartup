@@ -197,6 +197,16 @@ function buildLoginHash(reason = '') {
   return `#/login?reason=${encodeURIComponent(encodedReason)}`;
 }
 
+function buildFrontendHashPath(routePath, params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || String(value) === '') return;
+    search.set(key, String(value));
+  });
+  const suffix = search.toString() ? `?${search.toString()}` : '';
+  return `${window.location.origin}${window.location.pathname}#${routePath}${suffix}`;
+}
+
 function redirectToLogin(reason = '') {
   const target = buildLoginHash(reason);
   if (window.location.hash !== target) {
@@ -455,6 +465,21 @@ export const authAPI = {
     return response.data;
   },
 
+  attachEmailToRegistrationFlow: async ({ flowToken, email, termsAccepted, marketingOptIn = false }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/registration/email/attach', {
+      flow_token: flowToken,
+      email,
+      terms_accepted: termsAccepted,
+      marketing_opt_in: marketingOptIn,
+    }, {
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
   getRegistrationFlow: async ({ flowToken }) => {
     if (!API_URL) {
       throw new Error('API base URL is not configured');
@@ -494,6 +519,10 @@ export const authAPI = {
     window.location.assign(buildApiUrl('/api/auth/github/start?intent=login'));
   },
 
+  startTelegramLogin: () => {
+    window.location.assign(buildFrontendHashPath('/auth/telegram', { intent: 'login' }));
+  },
+
   startYandexRegistration: ({ termsAccepted, marketingOptIn = false }) => {
     const params = new URLSearchParams({
       intent: 'register',
@@ -510,6 +539,31 @@ export const authAPI = {
       marketing_opt_in: String(Boolean(marketingOptIn)),
     });
     window.location.assign(buildApiUrl(`/api/auth/github/start?${params.toString()}`));
+  },
+
+  startTelegramRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    window.location.assign(buildFrontendHashPath('/auth/telegram', {
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    }));
+  },
+
+  completeTelegramAuth: async ({ intent, termsAccepted = false, marketingOptIn = false, telegramUser }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/telegram/verify', {
+      intent,
+      terms_accepted: termsAccepted,
+      marketing_opt_in: marketingOptIn,
+      ...telegramUser,
+    }, {
+      withCredentials: true,
+      timeout: AUTH_LOGIN_TIMEOUT_MS,
+      __skipAuthRefresh: true,
+    });
+    return response.data;
   },
 
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
