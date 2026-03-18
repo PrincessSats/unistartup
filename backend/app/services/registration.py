@@ -119,6 +119,9 @@ def normalize_request_scheme(scheme: str) -> str:
 
 
 def resolve_backend_base_url(*, request_scheme: str, request_host: str) -> str:
+    explicit = str(settings.BACKEND_CALLBACK_BASE_URL or "").strip().rstrip("/")
+    if explicit:
+        return explicit
     if is_local_request_host(request_host):
         return LOCAL_BACKEND_BASE_URL
     return f"https://{str(request_host or '').strip()}"
@@ -485,22 +488,77 @@ def build_magic_link_callback_url(*, request_scheme: str, request_host: str, tok
 
 
 def _send_magic_link_email_sync(*, to_email: str, magic_link_url: str) -> None:
+    ttl = settings.MAGIC_LINK_TTL_HOURS
+
+    plain = "\n".join([
+        "Привет!",
+        "",
+        "Чтобы подтвердить почту и продолжить регистрацию в HackNet,",
+        "нажми кнопку в письме или перейди по ссылке ниже:",
+        "",
+        magic_link_url,
+        "",
+        f"Ссылка действует {ttl} ч.",
+        "",
+        "Если ты не регистрировался — просто проигнорируй это письмо.",
+    ])
+
+    html = f"""<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0f0f13;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f0f13;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:480px;background:#1a1a24;border-radius:16px;overflow:hidden;">
+        <tr>
+          <td style="background:linear-gradient(135deg,#8452ff,#5c6fff);padding:32px 40px;text-align:center;">
+            <span style="font-size:28px;font-weight:700;color:#fff;letter-spacing:-0.5px;">HackNet</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:36px 40px;">
+            <p style="margin:0 0 8px;font-size:22px;font-weight:600;color:#fff;">Подтверди почту</p>
+            <p style="margin:0 0 28px;font-size:15px;line-height:1.6;color:rgba(255,255,255,0.6);">
+              Нажми кнопку ниже, чтобы подтвердить адрес и продолжить регистрацию&nbsp;в&nbsp;HackNet.
+            </p>
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">
+              <tr>
+                <td align="center" style="background:linear-gradient(135deg,#8452ff,#5c6fff);border-radius:12px;">
+                  <a href="{magic_link_url}"
+                     style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:600;color:#fff;text-decoration:none;letter-spacing:0.2px;">
+                    Подтвердить почту
+                  </a>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 6px;font-size:13px;color:rgba(255,255,255,0.35);">
+              Кнопка не работает? Скопируй ссылку в браузер:
+            </p>
+            <p style="margin:0;word-break:break-all;font-size:12px;color:rgba(255,255,255,0.25);">
+              <a href="{magic_link_url}" style="color:rgba(255,255,255,0.25);">{magic_link_url}</a>
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:20px 40px 28px;border-top:1px solid rgba(255,255,255,0.06);">
+            <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);line-height:1.6;">
+              Ссылка действует <strong style="color:rgba(255,255,255,0.45);">{ttl}&nbsp;ч.</strong><br>
+              Если ты не регистрировался — просто проигнорируй это письмо.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
     message = EmailMessage()
-    message["Subject"] = "Заверши регистрацию в HackNet"
+    message["Subject"] = "Подтвердите почту — HackNet"
     message["From"] = settings.smtp_from_address
     message["To"] = to_email
-    message.set_content(
-        "\n".join(
-            [
-                "Привет!",
-                "",
-                "Чтобы подтвердить почту и продолжить регистрацию в HackNet, открой ссылку:",
-                magic_link_url,
-                "",
-                f"Ссылка действует {settings.MAGIC_LINK_TTL_HOURS} часа(ов).",
-            ]
-        )
-    )
+    message.set_content(plain)
+    message.add_alternative(html, subtype="html")
 
     if settings.SMTP_USE_SSL:
         context = ssl.create_default_context()

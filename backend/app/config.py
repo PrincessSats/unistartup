@@ -112,6 +112,10 @@ class Settings(BaseSettings):
         ),
     )
     GITHUB_OAUTH_SCOPES: str = "read:user user:email"
+    # Explicit public base URL of this backend instance (e.g. https://api.hacknet.tech).
+    # When set, all OAuth callback URLs are built from this value instead of
+    # being derived from the incoming request's Host header.
+    BACKEND_CALLBACK_BASE_URL: str = ""
     TELEGRAM_BOT_API_TOKEN: str = Field(
         default="",
         validation_alias=AliasChoices(
@@ -187,6 +191,7 @@ class Settings(BaseSettings):
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "GITHUB_OAUTH_SCOPES",
+        "BACKEND_CALLBACK_BASE_URL",
         "TELEGRAM_BOT_API_TOKEN",
         "TELEGRAM_CLIENT_ID",
         "TELEGRAM_CLIENT_SECRET",
