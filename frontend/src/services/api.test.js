@@ -1,20 +1,22 @@
+var mockAxiosInstance;
+
 jest.mock('axios', () => {
-  const instance = {
+  mockAxiosInstance = {
     get: jest.fn(),
     post: jest.fn(() => Promise.resolve({ data: {} })),
     put: jest.fn(),
-    delete: jest.fn(),
+    delete: jest.fn(() => Promise.resolve({ data: {} })),
     interceptors: {
       request: { use: jest.fn() },
       response: { use: jest.fn() },
     },
   };
   return {
-    create: jest.fn(() => instance),
+    create: jest.fn(() => mockAxiosInstance),
   };
 });
 
-import { authAPI } from './api';
+import { authAPI, profileAPI } from './api';
 
 function encodeBase64Url(payload) {
   return window.btoa(JSON.stringify(payload))
@@ -49,7 +51,19 @@ describe('authAPI token freshness', () => {
   it('logout clears stored token', () => {
     const exp = Math.floor(Date.now() / 1000) + 300;
     window.localStorage.setItem('token', buildToken(exp));
+    window.sessionStorage.setItem('layout:profile:v1', JSON.stringify({ username: 'stale-user' }));
     authAPI.logout({ remote: false, redirect: false });
     expect(window.localStorage.getItem('token')).toBeNull();
+    expect(window.sessionStorage.getItem('layout:profile:v1')).toBeNull();
+  });
+
+  it('profile delete sends confirmation username', async () => {
+    mockAxiosInstance.delete.mockResolvedValue({ data: {} });
+
+    await profileAPI.deleteAccount('cyberhero');
+
+    expect(mockAxiosInstance.delete).toHaveBeenCalledWith('/profile', {
+      data: { username: 'cyberhero' },
+    });
   });
 });

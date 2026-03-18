@@ -15,7 +15,9 @@ function Profile() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   
   // Временные значения для редактирования
   const [editUsername, setEditUsername] = useState('');
@@ -25,6 +27,7 @@ function Profile() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [deleteConfirmationUsername, setDeleteConfirmationUsername] = useState('');
   
   // Ошибки и успех
   const [error, setError] = useState('');
@@ -75,6 +78,18 @@ function Profile() {
   const handleLogout = () => {
     authAPI.logout();
     navigate('/login', { replace: true });
+  };
+
+  const openDeleteAccountModal = () => {
+    setDeleteConfirmationUsername('');
+    setError('');
+    setShowDeleteAccountModal(true);
+  };
+
+  const closeDeleteAccountModal = () => {
+    setShowDeleteAccountModal(false);
+    setDeleteConfirmationUsername('');
+    setError('');
   };
 
   // Обработка выбора файла аватарки
@@ -179,12 +194,40 @@ function Profile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const submittedUsername = deleteConfirmationUsername.trim();
+    const currentUsername = (userData?.username || '').trim();
+
+    if (!submittedUsername) {
+      setError('Введите никнейм для подтверждения удаления');
+      return;
+    }
+
+    if (submittedUsername !== currentUsername) {
+      setError('Никнейм не совпадает');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    try {
+      setError('');
+      await profileAPI.deleteAccount(submittedUsername);
+      authAPI.logout({ remote: false, redirect: false });
+      navigate('/login?reason=account_deleted', { replace: true });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Не удалось удалить аккаунт'));
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
   if (loading) {
     return <PageLoader label="Загружаем профиль..." variant="profile" />;
   }
 
   const user = userData;
   const avatarUrl = editAvatarPreview || userData?.avatar_url;
+  const isDeleteConfirmationMatch = deleteConfirmationUsername.trim() === (user?.username || '').trim();
 
   return (
     <div className="font-sans-figma text-white">
@@ -394,7 +437,10 @@ function Profile() {
               >
                 Выйти
               </button>
-              <button className="text-[18px] leading-[24px] tracking-[0.04em] text-[#FF5A6E] hover:text-[#FF6F80] transition-colors">
+              <button
+                onClick={openDeleteAccountModal}
+                className="text-[18px] leading-[24px] tracking-[0.04em] text-[#FF5A6E] hover:text-[#FF6F80] transition-colors"
+              >
                 Удалить аккаунт
               </button>
             </div>
@@ -600,6 +646,57 @@ function Profile() {
                 className="flex-1 h-12 bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-[10px] transition-colors"
               >
                 Сменить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteAccountModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#0B0A10] border border-[#FF5A6E]/25 rounded-[20px] p-8 w-full max-w-md mx-4 font-sans-figma">
+            <h3 className="text-white text-[24px] leading-[32px] font-medium mb-4">Удалить аккаунт</h3>
+
+            <p className="text-white/65 text-sm leading-6 mb-6">
+              Это действие необратимо. Чтобы подтвердить удаление, введите свой никнейм:
+              {' '}
+              <span className="text-white font-medium">{user?.username || 'username'}</span>
+            </p>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-2 rounded-[12px] mb-4 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="mb-6">
+              <label className="text-white text-sm mb-2 block">Никнейм</label>
+              <input
+                type="text"
+                value={deleteConfirmationUsername}
+                onChange={(e) => setDeleteConfirmationUsername(e.target.value)}
+                placeholder="Впиши свой никнейм"
+                className="w-full h-14 bg-white/[0.03] border border-white/[0.09] rounded-[10px] px-4 text-white/80 focus:outline-none focus:border-white/30"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={closeDeleteAccountModal}
+                className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                disabled={isDeletingAccount}
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                className="flex-1 h-12 bg-[#FF5A6E] hover:bg-[#FF6F80] text-white rounded-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                disabled={!isDeleteConfirmationMatch || isDeletingAccount}
+              >
+                {isDeletingAccount && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white" />
+                )}
+                {isDeletingAccount ? 'Удаление...' : 'Удалить'}
               </button>
             </div>
           </div>

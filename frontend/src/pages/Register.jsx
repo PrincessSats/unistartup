@@ -1,11 +1,221 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authAPI, profileAPI } from '../services/api';
-import HacknetLogo from '../components/HacknetLogo';
+import React, { useEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import AppIcon from '../components/AppIcon';
+import {
+  AuthPrimaryButton,
+  AuthShell,
+  AuthSurface,
+  PasswordVisibilityButton,
+  SocialAuthButtons,
+} from '../components/AuthUI';
+import { authAPI } from '../services/api';
+
+const PROFESSION_OPTIONS = [
+  'Студент',
+  'Хакер',
+  'Разработчик',
+  'Тестировщик',
+  'Аналитик',
+  'Специалист информационной безопасности',
+  'Другое',
+];
+
+const GRADE_OPTIONS = [
+  'Новичок',
+  'Junior',
+  'Middle',
+  'Senior',
+  'Lead / Principal',
+  'CISO / Руководитель',
+];
+
+const INTEREST_OPTIONS = [
+  'Веб',
+  'Криптография',
+  'Форензика',
+  'Реверс-инжиниринг',
+  'Стеганография',
+  'OSINT',
+  'PVN',
+  'Pentest Machines',
+  'Все варианты',
+];
+
+function mapRegistrationError(code) {
+  switch (code) {
+    case 'invalid_magic_link':
+      return 'Ссылка недействительна. Запроси письмо повторно и попробуй еще раз.';
+    case 'expired_magic_link':
+      return 'Срок действия ссылки истек. Отправь письмо заново.';
+    case 'registration_already_completed':
+      return 'Эта регистрация уже завершена. Войди в учетную запись.';
+    case 'yandex_access_denied':
+      return 'Авторизация через Яндекс была отменена.';
+    case 'yandex_missing_code':
+    case 'yandex_state_invalid':
+      return 'Сессия входа через Яндекс устарела. Начни регистрацию заново.';
+    case 'yandex_oauth_failed':
+      return 'Не удалось получить данные из Яндекса. Попробуй еще раз.';
+    case 'github_access_denied':
+      return 'Авторизация через GitHub была отменена.';
+    case 'github_missing_code':
+    case 'github_state_invalid':
+      return 'Сессия входа через GitHub устарела. Начни регистрацию заново.';
+    case 'github_oauth_failed':
+      return 'Не удалось получить данные из GitHub. Попробуй еще раз.';
+    default:
+      return '';
+  }
+}
+
+function splitIdentityParts(...values) {
+  const parts = [];
+  values.forEach((value) => {
+    const normalized = String(value || '').trim().toLowerCase();
+    if (!normalized) return;
+    normalized.split(/[^a-z0-9]+/).forEach((part) => {
+      if (part.length >= 3 && !parts.includes(part)) {
+        parts.push(part);
+      }
+    });
+  });
+  return parts;
+}
+
+function hasForbiddenSequence(password) {
+  const normalized = String(password || '').toLowerCase();
+  const sources = ['abcdefghijklmnopqrstuvwxyz', '0123456789'];
+  for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex += 1) {
+    const source = sources[sourceIndex];
+    for (let length = 4; length <= 6; length += 1) {
+      for (let index = 0; index <= source.length - length; index += 1) {
+        const chunk = source.slice(index, index + length);
+        if (normalized.includes(chunk) || normalized.includes(chunk.split('').reverse().join(''))) {
+          return true;
+        }
+      }
+    }
+  }
+  return Array.from(new Set(normalized)).some((char) => char && normalized.includes(char.repeat(4)));
+}
+
+function getPasswordChecks(password, { username, email, providerLogin }) {
+  const value = String(password || '');
+  const emailLocal = String(email || '').toLowerCase().split('@', 1)[0];
+  const identityParts = splitIdentityParts(username, emailLocal, providerLogin);
+  const lower = value.toLowerCase();
+  const containsPersonalInfo = identityParts.some((part) => lower.includes(part));
+
+  return [
+    {
+      label: 'Только латинские буквы, цифры и спецсимволы',
+      passed: /^[\x21-\x7E]+$/.test(value),
+    },
+    {
+      label: 'Минимум 8 символов',
+      passed: value.length >= 8,
+    },
+    {
+      label: 'Минимум одна заглавная буква',
+      passed: /[A-Z]/.test(value),
+    },
+    {
+      label: 'Хотя бы одна цифра',
+      passed: /\d/.test(value),
+    },
+    {
+      label: 'Есть специальный символ',
+      passed: /[^A-Za-z0-9]/.test(value),
+    },
+    {
+      label: 'Не содержит личных данных',
+      passed: !containsPersonalInfo,
+    },
+    {
+      label: 'Не повторяет простые последовательности',
+      passed: !hasForbiddenSequence(value),
+    },
+  ];
+}
+
+function Banner({ tone = 'error', children }) {
+  const classes = tone === 'notice'
+    ? 'border-sky-400/25 bg-sky-400/10 text-sky-50'
+    : 'border-[#FF5A6E]/35 bg-[#FF5A6E]/10 text-[#FFD6DB]';
+
+  return (
+    <div className={`rounded-[18px] border px-4 py-3 text-[14px] leading-6 ${classes}`}>
+      {children}
+    </div>
+  );
+}
+
+function ConsentCheckbox({ checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="sr-only"
+      />
+      <span
+        className={[
+          'mt-0.5 flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[4px] transition',
+          checked ? 'bg-[#8C5EFF] text-white' : 'bg-white/[0.05] text-transparent',
+        ].join(' ')}
+        aria-hidden="true"
+      >
+        <AppIcon name="check-circle" className="h-2.5 w-2.5" />
+      </span>
+      <span>{children}</span>
+    </label>
+  );
+}
+
+function QuestionOption({ label, selected, onToggle, single = false, compact = false }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={[
+        'flex w-full items-center gap-4 rounded-[18px] border px-4 text-left transition',
+        compact ? 'min-h-[52px] py-3' : 'min-h-[76px] py-4',
+        selected
+          ? 'border-[#8D63FF] bg-[#1B1430] text-white'
+          : 'border-white/10 bg-white/[0.03] text-white/82 hover:border-white/20 hover:bg-white/[0.05]',
+      ].join(' ')}
+    >
+      <span
+        className={[
+          'flex h-5 w-5 shrink-0 items-center justify-center border transition',
+          single ? 'rounded-full' : 'rounded-[6px]',
+          selected ? 'border-[#8452FF] bg-[#8452FF]' : 'border-white/24 bg-transparent',
+        ].join(' ')}
+      >
+        {selected ? (
+          single ? <span className="h-2.5 w-2.5 rounded-full bg-white" /> : <AppIcon name="check-circle" className="h-3.5 w-3.5" />
+        ) : null}
+      </span>
+      <span className="text-[15px] leading-6">{label}</span>
+    </button>
+  );
+}
 
 function Register() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [step, setStep] = useState('email');
+  const [registrationSource, setRegistrationSource] = useState('email_magic_link');
+  const [loading, setLoading] = useState(false);
+  const [loadingFlow, setLoadingFlow] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [flowToken, setFlowToken] = useState('');
+  const [providerLogin, setProviderLogin] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordHints, setShowPasswordHints] = useState(false);
+  const [successName, setSuccessName] = useState('CyberNinja');
   const [formData, setFormData] = useState({
     email: '',
     username: '',
@@ -15,73 +225,145 @@ function Register() {
     terms: false,
     marketing: false,
   });
-  const [showPasswordHints, setShowPasswordHints] = useState(false);
-  const [successName, setSuccessName] = useState('CyberNinja');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [questionnaire, setQuestionnaire] = useState({
+    professionTags: [],
+    grade: '',
+    interestTags: [],
+  });
+  const isOAuthContinuation = registrationSource !== 'email_magic_link';
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-  };
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const incomingFlowToken = String(params.get('flow_token') || '').trim();
+    const incomingError = String(params.get('error') || '').trim();
 
-  const handleConsentChange = (e) => {
-    setConsents((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.checked,
-    }));
-  };
+    if (incomingError) {
+      setError(mapRegistrationError(incomingError) || 'Не удалось продолжить регистрацию.');
+      setNotice('');
+    }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    if (step === 'email') {
-      if (!formData.email || !consents.terms || loading) {
-        return;
-      }
-      setStep('details');
+    if (!incomingFlowToken) {
+      setLoadingFlow(false);
       return;
     }
 
-    if (step !== 'details') {
+    let cancelled = false;
+    setLoadingFlow(true);
+
+    authAPI.getRegistrationFlow({ flowToken: incomingFlowToken })
+      .then((flow) => {
+        if (cancelled) return;
+        setFlowToken(flow.flow_token);
+        setRegistrationSource(flow.source || 'email_magic_link');
+        setProviderLogin(flow.username_suggestion || '');
+        setFormData((current) => ({
+          ...current,
+          email: flow.email || current.email,
+          username: current.username || flow.username_suggestion || '',
+          password: flow.source === 'email_magic_link' ? current.password : '',
+        }));
+        setConsents({
+          terms: Boolean(flow.terms_accepted),
+          marketing: Boolean(flow.marketing_opt_in),
+        });
+        if (flow.step === 'email_sent') {
+          setStep('emailSent');
+        } else if (flow.step === 'email') {
+          setStep('flowEmail');
+        } else {
+          setStep('details');
+        }
+        setError('');
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const detail = err?.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : 'Не удалось продолжить регистрацию. Начни заново.');
+        setFlowToken('');
+        setStep('email');
+        navigate('/register', { replace: true });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoadingFlow(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [location.search, navigate]);
+
+  const passwordChecks = getPasswordChecks(formData.password, {
+    username: formData.username,
+    email: formData.email,
+    providerLogin,
+  });
+
+  const isPasswordValid = passwordChecks.every((item) => item.passed);
+
+  const handleInputChange = (event) => {
+    const { name, value } = event.target;
+    setFormData((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  };
+
+  const handleConsentChange = (event) => {
+    const { name, checked } = event.target;
+    setConsents((current) => ({
+      ...current,
+      [name]: checked,
+    }));
+  };
+
+  const resetToStart = () => {
+    setFlowToken('');
+    setProviderLogin('');
+    setRegistrationSource('email_magic_link');
+    setStep('email');
+    setNotice('');
+    setError('');
+    setShowPassword(false);
+    setShowPasswordHints(false);
+    setFormData((current) => ({
+      email: current.email,
+      username: '',
+      password: '',
+    }));
+    setQuestionnaire({
+      professionTags: [],
+      grade: '',
+      interestTags: [],
+    });
+    navigate('/register', { replace: true });
+  };
+
+  const handleStartRegistration = async (event) => {
+    event.preventDefault();
+    if (!formData.email || !consents.terms || loading) {
       return;
     }
 
     setLoading(true);
+    setError('');
+    setNotice('');
 
     try {
-      await authAPI.register(formData.email, formData.username, formData.password);
-      // После регистрации автоматически входим
-      await authAPI.login(formData.email, formData.password);
-      setSuccessName(formData.username || 'CyberNinja');
-      setStep('success');
-      let target = '/home';
-      try {
-        const profile = await profileAPI.getProfile();
-        if (profile?.role === 'admin') {
-          target = '/admin';
-        }
-      } catch (profileErr) {
-        const status = Number(profileErr?.response?.status || 0);
-        if (status === 401) {
-          authAPI.logout({ remote: false });
-          setError('Регистрация завершена, но сессия не подтверждена. Войдите снова.');
-          setStep('details');
-          return;
-        }
-      }
-      setTimeout(() => {
-        navigate(target);
-      }, 1200);
+      const response = await authAPI.startEmailRegistration({
+        email: formData.email,
+        termsAccepted: consents.terms,
+        marketingOptIn: consents.marketing,
+      });
+      setFlowToken(response.flow_token);
+      setStep('emailSent');
+      navigate(`/register?flow_token=${encodeURIComponent(response.flow_token)}`, { replace: true });
     } catch (err) {
       if (err?.message === 'API base URL is not configured') {
         setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
-      } else
-      if (!err.response) {
-        setError('Не удалось подключиться к серверу (сеть или CORS). Попробуйте снова.');
+      } else if (!err?.response) {
+        setError('Не удалось подключиться к серверу. Попробуйте снова.');
       } else {
         setError(err.response?.data?.detail || 'Ошибка регистрации');
       }
@@ -90,225 +372,586 @@ function Register() {
     }
   };
 
-  const isEmailStepReady = formData.email && consents.terms;
-  const isDetailsStepReady = formData.username && formData.password.length >= 8;
-  const isPrimaryDisabled = loading || (step === 'email' ? !isEmailStepReady : !isDetailsStepReady);
+  const handleResend = async () => {
+    if (!flowToken || loading) {
+      return;
+    }
 
-  return (
-    <div className="min-h-screen bg-[#0B0A10] bg-[radial-gradient(circle_at_top,_rgba(132,82,255,0.14)_0,_rgba(11,10,16,0)_45%)] flex items-center justify-center px-4 font-sans-figma text-white">
-      <div className="w-full max-w-[420px]">
-        <div className="flex justify-center mb-6">
-          <HacknetLogo />
-        </div>
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await authAPI.resendEmailRegistration({ flowToken });
+      setFlowToken(response.flow_token);
+      setNotice('Письмо отправлено повторно.');
+      navigate(`/register?flow_token=${encodeURIComponent(response.flow_token)}`, { replace: true });
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : 'Не удалось отправить письмо повторно.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        {step !== 'success' && (
-          <h1 className="text-3xl text-center mb-7 tracking-wide">Регистрация</h1>
-        )}
+  const handleYandexRegistration = () => {
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед регистрацией через Яндекс.');
+      setNotice('');
+      return;
+    }
+    authAPI.startYandexRegistration({
+      termsAccepted: consents.terms,
+      marketingOptIn: consents.marketing,
+    });
+  };
 
-        {step === 'success' ? (
-          <div className="text-center">
-            <div className="text-4xl tracking-wide mb-2">{successName},</div>
-            <div className="text-white/60 text-lg">Добро пожаловать в Hacknet!</div>
+  const handleGithubRegistration = () => {
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед регистрацией через GitHub.');
+      setNotice('');
+      return;
+    }
+    authAPI.startGithubRegistration({
+      termsAccepted: consents.terms,
+      marketingOptIn: consents.marketing,
+    });
+  };
+
+  const handleTelegramRegistration = () => {
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед регистрацией через Telegram.');
+      setNotice('');
+      return;
+    }
+    authAPI.startTelegramRegistration({
+      termsAccepted: consents.terms,
+      marketingOptIn: consents.marketing,
+    });
+  };
+
+  const handleAttachEmailToFlow = async (event) => {
+    event.preventDefault();
+    if (!flowToken || !formData.email || loading) {
+      return;
+    }
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед продолжением регистрации.');
+      setNotice('');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await authAPI.attachEmailToRegistrationFlow({
+        flowToken,
+        email: formData.email,
+        termsAccepted: consents.terms,
+        marketingOptIn: consents.marketing,
+      });
+      setFlowToken(response.flow_token);
+      setStep('emailSent');
+      navigate(`/register?flow_token=${encodeURIComponent(response.flow_token)}`, { replace: true });
+    } catch (err) {
+      if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else if (!err?.response) {
+        setError('Не удалось подключиться к серверу. Попробуйте снова.');
+      } else {
+        setError(err.response?.data?.detail || 'Не удалось отправить письмо для подтверждения.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleContinueFromDetails = (event) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+
+    if (String(formData.username || '').trim().length < 3) {
+      setError('Никнейм должен быть не короче 3 символов.');
+      return;
+    }
+    if (!isOAuthContinuation && !isPasswordValid) {
+      setError('Проверь пароль. Он должен соответствовать всем требованиям.');
+      return;
+    }
+    setSuccessName(String(formData.username || '').trim() || 'CyberNinja');
+    setStep('welcome');
+  };
+
+  const toggleMultiValue = (field, value) => {
+    setQuestionnaire((current) => {
+      const source = current[field];
+      const nextValues = source.includes(value)
+        ? source.filter((item) => item !== value)
+        : [...source, value];
+      return {
+        ...current,
+        [field]: nextValues,
+      };
+    });
+  };
+
+  const completeRegistration = async () => {
+    if (!flowToken || loading) {
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+
+    try {
+      const result = await authAPI.completeRegistration({
+        flowToken,
+        username: formData.username.trim(),
+        password: isOAuthContinuation ? null : formData.password,
+        professionTags: questionnaire.professionTags,
+        grade: questionnaire.grade,
+        interestTags: questionnaire.interestTags,
+      });
+      authAPI.persistAccessToken(result?.access_token);
+      navigate('/home', { replace: true });
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      if (typeof detail === 'string') {
+        setError(detail);
+      } else if (Array.isArray(detail) && detail.length > 0) {
+        setError(String(detail[0]));
+      } else if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else {
+        setError('Не удалось завершить регистрацию.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderStatus = () => (
+    <>
+      {notice ? <Banner tone="notice">{notice}</Banner> : null}
+      {error ? <Banner>{error}</Banner> : null}
+    </>
+  );
+
+  const renderEmailForm = () => (
+    <AuthShell title="Регистрация">
+      <AuthSurface>
+        <form onSubmit={handleStartRegistration} className="space-y-8">
+          {renderStatus()}
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-[14px] leading-5 text-white/56">Электронная почта</span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="Твой адрес электронной почты"
+                autoComplete="email"
+                required
+                className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+              />
+            </label>
+
+            <div className="space-y-2 pt-1 text-[14px] leading-5 tracking-[0.04em] text-white/60">
+              <ConsentCheckbox
+                checked={consents.terms}
+                onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
+              >
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+              </ConsentCheckbox>
+              <ConsentCheckbox
+                checked={consents.marketing}
+                onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
+              >
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+              </ConsentCheckbox>
+            </div>
           </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="rounded-2xl border border-white/10 bg-[#15141C]/90 px-6 py-7 shadow-[0_30px_80px_-40px_rgba(0,0,0,0.8)] space-y-5"
-          >
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/40 text-red-300 px-4 py-3 rounded-xl text-sm">
-                {error}
-              </div>
-            )}
 
-            <div>
-              <label className="text-white/60 text-xs mb-2 block">
-                Электронная почта
-              </label>
+          <AuthPrimaryButton type="submit" disabled={loading || !formData.email || !consents.terms}>
+            {loading ? 'Загрузка...' : 'Зарегистрироваться'}
+          </AuthPrimaryButton>
+
+          <SocialAuthButtons
+            mode="register"
+            onGithub={handleGithubRegistration}
+            onYandex={handleYandexRegistration}
+            onTelegram={handleTelegramRegistration}
+            githubDisabled={loading}
+            yandexDisabled={loading}
+            telegramDisabled={loading}
+            footerLabel="Уже с нами?"
+            footerActionLabel="Войти"
+            onFooterAction={() => navigate('/login')}
+          />
+        </form>
+      </AuthSurface>
+    </AuthShell>
+  );
+
+  const renderEmailSent = () => (
+    <AuthShell title="Регистрация" className="justify-center">
+      <div className="w-full text-center">
+        <div className="mx-auto max-w-[530px] space-y-8">
+          {renderStatus()}
+          <p className="text-[18px] leading-8 text-white/72">
+            Отправили ссылку для входа на указанную почту. Если не найдешь ее в основном ящике, загляни в папку «Спам». Ссылка действительна 24 часа
+          </p>
+
+          <div className="mx-auto flex w-full max-w-[268px] flex-col gap-2">
+            <AuthPrimaryButton onClick={handleResend} disabled={loading}>
+              {loading ? 'Отправляем...' : 'Отправить повторно'}
+            </AuthPrimaryButton>
+            <button
+              type="button"
+              onClick={resetToStart}
+              className="h-[54px] rounded-[10px] border border-white/[0.06] bg-white/[0.05] text-[18px] tracking-[0.04em] text-white transition hover:bg-white/[0.07]"
+            >
+              Вернуться назад
+            </button>
+          </div>
+        </div>
+      </div>
+    </AuthShell>
+  );
+
+  const renderFlowEmail = () => (
+    <AuthShell title="Регистрация">
+      <AuthSurface className="max-w-[520px]">
+        <form onSubmit={handleAttachEmailToFlow} className="space-y-8">
+          {renderStatus()}
+
+          <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-4 text-[14px] leading-6 text-white/74">
+            Telegram аккаунт подключен. Укажи электронную почту, подтверди её по magic-link и после этого продолжишь регистрацию без пароля.
+          </div>
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-[14px] leading-5 text-white/56">Электронная почта</span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="Твой адрес электронной почты"
+                autoComplete="email"
+                required
+                className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+              />
+            </label>
+
+            <div className="space-y-2 pt-1 text-[14px] leading-5 tracking-[0.04em] text-white/60">
+              <ConsentCheckbox
+                checked={consents.terms}
+                onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
+              >
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+              </ConsentCheckbox>
+              <ConsentCheckbox
+                checked={consents.marketing}
+                onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
+              >
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+              </ConsentCheckbox>
+            </div>
+          </div>
+
+          <AuthPrimaryButton type="submit" disabled={loading || !formData.email || !consents.terms}>
+            {loading ? 'Отправляем...' : 'Продолжить'}
+          </AuthPrimaryButton>
+        </form>
+      </AuthSurface>
+    </AuthShell>
+  );
+
+  const renderDetails = () => (
+    <AuthShell title="Регистрация">
+      <AuthSurface className={isOAuthContinuation ? 'max-w-[520px]' : ''}>
+        <form onSubmit={handleContinueFromDetails} className="space-y-8">
+          {renderStatus()}
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-[14px] leading-5 text-white/56">Электронная почта</span>
               <div className="relative">
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
-                  onChange={handleChange}
-                  placeholder="Твой адрес электронной почты"
-                  required
-                  readOnly={step === 'details'}
-                  className="w-full bg-[#1B1A22] border border-white/5 text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8452FF]/60 focus:border-transparent placeholder:text-white/30 pr-10"
+                  readOnly
+                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-12 text-[16px] tracking-[0.04em] text-white/40 outline-none"
                 />
-                {step === 'email' && formData.email && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8C5EFF]">
+                  <AppIcon name="check-circle" className="h-3.5 w-3.5" />
+                </span>
+              </div>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-[14px] leading-5 text-white/56">Никнейм</span>
+              <div className="relative">
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  placeholder="Придумай никнейм"
+                  autoComplete="username"
+                  required
+                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-12 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+                />
+                {formData.username ? (
                   <button
                     type="button"
-                    onClick={() => setFormData((prev) => ({ ...prev, email: '' }))}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 text-sm"
+                    onClick={() => setFormData((current) => ({ ...current, username: '' }))}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45 transition hover:text-white"
+                    aria-label="Очистить никнейм"
                   >
-                    ✕
+                    <AppIcon name="close" className="h-3.5 w-3.5" />
                   </button>
-                )}
-                {step === 'details' && (
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8452FF] text-sm">
-                    ✓
-                  </span>
-                )}
+                ) : null}
               </div>
-            </div>
+            </label>
 
-            {step === 'email' && (
-              <div className="space-y-3 text-xs text-white/50 leading-relaxed">
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="terms"
-                    checked={consents.terms}
-                    onChange={handleConsentChange}
-                    className="mt-0.5 h-4 w-4 accent-[#8452FF]"
-                  />
-                  <span>Я принимаю условия пользования платформой и даю согласие на обработку персональных данных</span>
-                </label>
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    name="marketing"
-                    checked={consents.marketing}
-                    onChange={handleConsentChange}
-                    className="mt-0.5 h-4 w-4 accent-[#8452FF]"
-                  />
-                  <span>
-                    Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и
-                    на обработку своих персональных данных для указанной цели
-                  </span>
-                </label>
-              </div>
-            )}
-
-            {step === 'details' && (
-              <>
-                <div>
-                  <label className="text-white/60 text-xs mb-2 block">
-                    Никнейм
-                  </label>
-                  <input
-                    type="text"
-                    name="username"
-                    value={formData.username}
-                    onChange={handleChange}
-                    placeholder="Придумай никнейм"
-                    required
-                    className="w-full bg-[#1B1A22] border border-white/5 text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8452FF]/60 focus:border-transparent placeholder:text-white/30"
-                  />
-                </div>
-
+            {!isOAuthContinuation ? (
+              <label className="relative block">
+                <span className="mb-2 block text-[14px] leading-5 text-white/56">Пароль</span>
                 <div className="relative">
-                  <label className="text-white/60 text-xs mb-2 block">
-                    Пароль
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      onFocus={() => setShowPasswordHints(true)}
-                      onBlur={() => setShowPasswordHints(false)}
-                      placeholder="Придумай пароль"
-                      required
-                      minLength={8}
-                      className="w-full bg-[#1B1A22] border border-white/5 text-white text-sm px-4 py-3 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8452FF]/60 focus:border-transparent placeholder:text-white/30 pr-10"
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    onFocus={() => setShowPasswordHints(true)}
+                    onBlur={() => setShowPasswordHints(false)}
+                    placeholder="Придумай пароль"
+                    autoComplete="new-password"
+                    required
+                    className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-20 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+                  />
+                  <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                    <PasswordVisibilityButton
+                      visible={showPassword}
+                      onToggle={() => setShowPassword((current) => !current)}
+                      inline
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">
-                      ?
-                    </span>
-                  </div>
-
-                  <div
-                    className={`mt-3 md:mt-0 md:absolute md:left-full md:top-7 md:ml-3 w-full md:w-56 rounded-xl bg-[#2A2440] border border-white/10 px-3 py-3 text-xs text-white/80 space-y-2 transition-opacity ${showPasswordHints ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-                  >
-                    <div>• Только латинские буквы, цифры и спецсимволы</div>
-                    <div>• Минимум 8 символов</div>
-                    <div>• Минимум одна заглавная буква</div>
-                    <div>• Хотя бы одна цифра</div>
-                    <div>• Есть специальный символ (например, @, #, $, %)</div>
-                    <div>• Не содержит личных данных (имя, дата рождения и т.д.)</div>
-                    <div>• Не повторяет последовательности (например, "123456")</div>
+                    {formData.password ? (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((current) => ({ ...current, password: '' }))}
+                        className="text-white/45 transition hover:text-white"
+                        aria-label="Очистить пароль"
+                      >
+                        <AppIcon name="close" className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-              </>
-            )}
 
-            <button
-              type="submit"
-              disabled={isPrimaryDisabled}
-              className={`w-full py-3 rounded-xl transition-colors ${isPrimaryDisabled ? 'bg-[#1B1A22] border border-white/5 text-white/40' : 'bg-[#8452FF] hover:bg-[#9B6BFF] text-white'}`}
-            >
-              {loading
-                ? 'Загрузка...'
-                : step === 'email'
-                  ? 'Зарегистрироваться'
-                  : 'Завершить регистрацию'}
-            </button>
+                <div className={`mt-3 rounded-[20px] border border-white/10 bg-[#2B2440] px-4 py-4 text-[12px] leading-5 text-white/80 transition lg:absolute lg:left-[calc(100%+18px)] lg:top-[28px] lg:mt-0 lg:w-[290px] ${showPasswordHints || formData.password ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+                  <div className="space-y-2">
+                    {passwordChecks.map((item) => (
+                      <div key={item.label} className={`flex items-start gap-2 ${item.passed ? 'text-[#E9DFFF]' : 'text-white/58'}`}>
+                        <span className={`mt-1 h-1.5 w-1.5 rounded-full ${item.passed ? 'bg-[#8452FF]' : 'bg-white/20'}`} />
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </label>
+            ) : null}
+          </div>
 
-            <div className="flex items-center gap-4 pt-3">
-              <div className="flex-1 h-px bg-white/10"></div>
-              <span className="text-white/40 text-xs">Или зарегистрироваться через</span>
-              <div className="flex-1 h-px bg-white/10"></div>
-            </div>
+          <AuthPrimaryButton
+            type="submit"
+            disabled={loading || !formData.username || (!isOAuthContinuation && (!formData.password || !isPasswordValid))}
+          >
+            {isOAuthContinuation ? 'Продолжить' : 'Продолжить'}
+          </AuthPrimaryButton>
 
-            <div className="space-y-3">
-              <button
-                type="button"
-                className="w-full bg-[#1B1A22] border border-white/5 hover:bg-[#23222b] text-white text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-              >
-                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-                </svg>
-                Github
-              </button>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" className="bg-[#1B1A22] border border-white/5 hover:bg-[#23222b] text-white text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-                  </svg>
-                  Apple
-                </button>
-                <button type="button" className="bg-[#1B1A22] border border-white/5 hover:bg-[#23222b] text-white text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                  </svg>
-                  Google
-                </button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button type="button" className="bg-[#1B1A22] border border-white/5 hover:bg-[#23222b] text-white text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 bg-[#FC3F1D] rounded flex items-center justify-center text-[10px] font-semibold text-white">Я</span>
-                  Яндекс
-                </button>
-                <button type="button" className="bg-[#1B1A22] border border-white/5 hover:bg-[#23222b] text-white text-sm py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
-                  <svg className="w-4 h-4 text-[#26A5E4]" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
-                  </svg>
-                  Телеграм
-                </button>
-              </div>
-            </div>
-
-            <div className="text-center pt-2 text-xs text-white/50">
-              Уже с нами?{' '}
-              <button
-                type="button"
-                onClick={() => navigate('/login')}
-                className="text-white hover:text-[#9B6BFF] transition-colors"
-              >
-                Войти
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+          {!isOAuthContinuation ? (
+            <SocialAuthButtons
+              mode="register"
+              onGithub={handleGithubRegistration}
+              onYandex={handleYandexRegistration}
+              onTelegram={handleTelegramRegistration}
+              githubDisabled={loading}
+              yandexDisabled={loading}
+              telegramDisabled={loading}
+              footerLabel="Уже с нами?"
+              footerActionLabel="Войти"
+              onFooterAction={() => navigate('/login')}
+            />
+          ) : null}
+        </form>
+      </AuthSurface>
+    </AuthShell>
   );
+
+  const renderQuestionnaire = ({
+    counter,
+    title,
+    hint,
+    options,
+    field,
+    single = false,
+    nextLabel,
+    onNext,
+    onBack,
+  }) => (
+    <AuthShell title={null} className="justify-center">
+      <div className="w-full max-w-[480px] space-y-10">
+        {renderStatus()}
+
+        <div className="space-y-2 text-center">
+          <p className="text-[14px] leading-5 text-white/54">{counter}</p>
+          <h2 className="text-[44px] font-medium leading-[1] tracking-[-0.03em] text-white">{title}</h2>
+        </div>
+
+        <div className="space-y-4">
+          <p className={`text-[14px] leading-5 text-white/54 ${single ? 'text-left' : 'text-center'}`}>{hint}</p>
+          <div className="space-y-2">
+            {options.map((option) => {
+              const selected = single
+                ? questionnaire[field] === option
+                : questionnaire[field].includes(option);
+
+              return (
+                <QuestionOption
+                  key={option}
+                  label={option}
+                  selected={selected}
+                  single={single}
+                  compact={!single}
+                  onToggle={() => {
+                    if (single) {
+                      setQuestionnaire((current) => ({ ...current, [field]: option }));
+                      return;
+                    }
+                    toggleMultiValue(field, option);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={`grid gap-2 ${onBack ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-14 rounded-[10px] border border-white/[0.06] bg-white/[0.05] text-[18px] tracking-[0.04em] text-white transition hover:bg-white/[0.07]"
+            >
+              Назад
+            </button>
+          ) : null}
+          <AuthPrimaryButton
+            onClick={onNext}
+            disabled={
+              loading
+              || (single ? !questionnaire[field] : questionnaire[field].length === 0)
+            }
+          >
+            {loading && field === 'interestTags' ? 'Завершаем...' : nextLabel}
+          </AuthPrimaryButton>
+        </div>
+      </div>
+    </AuthShell>
+  );
+
+  const renderWelcome = () => (
+    <AuthShell title={null} className="justify-center">
+      <div className="w-full max-w-[334px] text-center">
+        <h2 className="text-[64px] font-medium leading-[1] tracking-[-0.05em] text-white">{successName},</h2>
+        <p className="mt-5 text-[28px] leading-8 text-white/75">Добро пожаловать в&nbsp;Hacknet!</p>
+      </div>
+    </AuthShell>
+  );
+
+  useEffect(() => {
+    if (step !== 'welcome') {
+      return undefined;
+    }
+    const timerId = window.setTimeout(() => {
+      setStep('profession');
+    }, 1300);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [step]);
+
+  if (loadingFlow) {
+    return (
+      <AuthShell title="Регистрация">
+        <AuthSurface className="max-w-[420px] px-10 py-10 text-center">
+          <div className="space-y-3">
+            <p className="text-[15px] leading-6 text-white/70">Восстанавливаем шаг регистрации и проверяем ссылку.</p>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-[#8452FF]" aria-hidden="true" />
+          </div>
+        </AuthSurface>
+      </AuthShell>
+    );
+  }
+
+  if (step === 'emailSent') {
+    return renderEmailSent();
+  }
+  if (step === 'flowEmail') {
+    return renderFlowEmail();
+  }
+  if (step === 'details') {
+    return renderDetails();
+  }
+  if (step === 'profession') {
+    return renderQuestionnaire({
+      counter: '1 / 3 вопросов',
+      title: 'Твоя профессия',
+      hint: 'Выбери хотя бы один вариант',
+      options: PROFESSION_OPTIONS,
+      field: 'professionTags',
+      nextLabel: 'Далее',
+      onNext: () => setStep('grade'),
+    });
+  }
+  if (step === 'grade') {
+    return renderQuestionnaire({
+      counter: '2 / 3 вопросов',
+      title: 'Твой грейд',
+      hint: 'Выбери один вариант',
+      options: GRADE_OPTIONS,
+      field: 'grade',
+      single: true,
+      nextLabel: 'Далее',
+      onNext: () => setStep('interests'),
+      onBack: () => setStep('profession'),
+    });
+  }
+  if (step === 'interests') {
+    return renderQuestionnaire({
+      counter: '3 / 3 вопросов',
+      title: 'Что тебя интересует',
+      hint: 'Выбери хотя бы один вариант',
+      options: INTEREST_OPTIONS,
+      field: 'interestTags',
+      nextLabel: 'Завершить регистрацию',
+      onNext: completeRegistration,
+      onBack: () => setStep('grade'),
+    });
+  }
+  if (step === 'welcome') {
+    return renderWelcome();
+  }
+
+  return renderEmailForm();
 }
 
 export default Register;
