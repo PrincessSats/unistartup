@@ -520,7 +520,7 @@ export const authAPI = {
   },
 
   startTelegramLogin: () => {
-    window.location.assign(buildFrontendHashPath('/auth/telegram', { intent: 'login' }));
+    window.location.assign(buildApiUrl('/api/auth/telegram/start?intent=login'));
   },
 
   startYandexRegistration: ({ termsAccepted, marketingOptIn = false }) => {
@@ -542,28 +542,12 @@ export const authAPI = {
   },
 
   startTelegramRegistration: ({ termsAccepted, marketingOptIn = false }) => {
-    window.location.assign(buildFrontendHashPath('/auth/telegram', {
+    const params = new URLSearchParams({
       intent: 'register',
       terms_accepted: String(Boolean(termsAccepted)),
       marketing_opt_in: String(Boolean(marketingOptIn)),
-    }));
-  },
-
-  completeTelegramAuth: async ({ intent, termsAccepted = false, marketingOptIn = false, telegramUser }) => {
-    if (!API_URL) {
-      throw new Error('API base URL is not configured');
-    }
-    const response = await api.post('/api/auth/telegram/verify', {
-      intent,
-      terms_accepted: termsAccepted,
-      marketing_opt_in: marketingOptIn,
-      ...telegramUser,
-    }, {
-      withCredentials: true,
-      timeout: AUTH_LOGIN_TIMEOUT_MS,
-      __skipAuthRefresh: true,
     });
-    return response.data;
+    window.location.assign(buildApiUrl(`/api/auth/telegram/start?${params.toString()}`));
   },
 
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
