@@ -11,10 +11,12 @@ from app.services.registration import (  # noqa: E402
     build_github_authorize_url,
     build_magic_link_callback_url,
     build_registration_flow_token,
+    build_telegram_authorize_url,
     build_yandex_authorize_url,
     decode_registration_flow_token,
     ensure_questionnaire_payload,
     generate_pkce_pair,
+    resolve_backend_telegram_callback_url,
     resolve_backend_yandex_callback_url,
     utcnow,
     validate_registration_password,
@@ -56,6 +58,28 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertIn("state=opaque-state", url)
         self.assertIn("scope=read%3Auser+user%3Aemail", url)
         self.assertIn("redirect_uri=https%3A%2F%2Fapi.example.com%2Fapi%2Fauth%2Fgithub%2Fcallback", url)
+
+    def test_build_telegram_authorize_url_includes_required_params(self) -> None:
+        url = build_telegram_authorize_url(
+            client_id="tg-client-id",
+            redirect_uri="https://api.example.com/api/auth/telegram/callback",
+            scope="openid profile",
+            state="opaque-state",
+            code_challenge="challenge",
+        )
+        self.assertIn("client_id=tg-client-id", url)
+        self.assertIn("state=opaque-state", url)
+        self.assertIn("response_type=code", url)
+        self.assertIn("code_challenge=challenge", url)
+        self.assertIn("code_challenge_method=S256", url)
+        self.assertIn("oauth.telegram.org/auth", url)
+
+    def test_telegram_callback_url_uses_correct_path(self) -> None:
+        url = resolve_backend_telegram_callback_url(
+            request_scheme="https",
+            request_host="api.example.com",
+        )
+        self.assertEqual(url, "https://api.example.com/api/auth/telegram/callback")
 
     def test_magic_link_callback_uses_registration_path(self) -> None:
         callback_url = build_magic_link_callback_url(

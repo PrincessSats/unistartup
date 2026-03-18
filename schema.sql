@@ -535,6 +535,15 @@ CREATE TABLE submissions (
 
 CREATE INDEX idx_submissions_user_contest ON submissions(user_id, contest_id);
 
+-- 12.1 Старты практических задач
+CREATE TABLE IF NOT EXISTS practice_task_starts (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_id     BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    started_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_practice_task_starts_user_task UNIQUE (user_id, task_id)
+);
+
 -- 13. Пользовательские оценки задач чемпионата
 CREATE TABLE contest_task_ratings (
     id          BIGSERIAL PRIMARY KEY,
