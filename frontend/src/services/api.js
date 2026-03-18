@@ -197,6 +197,7 @@ function buildLoginHash(reason = '') {
   return `#/login?reason=${encodeURIComponent(encodedReason)}`;
 }
 
+
 function redirectToLogin(reason = '') {
   const target = buildLoginHash(reason);
   if (window.location.hash !== target) {
@@ -455,6 +456,21 @@ export const authAPI = {
     return response.data;
   },
 
+  attachEmailToRegistrationFlow: async ({ flowToken, email, termsAccepted, marketingOptIn = false }) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    const response = await api.post('/api/auth/registration/email/attach', {
+      flow_token: flowToken,
+      email,
+      terms_accepted: termsAccepted,
+      marketing_opt_in: marketingOptIn,
+    }, {
+      __skipAuthRefresh: true,
+    });
+    return response.data;
+  },
+
   getRegistrationFlow: async ({ flowToken }) => {
     if (!API_URL) {
       throw new Error('API base URL is not configured');
@@ -494,6 +510,10 @@ export const authAPI = {
     window.location.assign(buildApiUrl('/api/auth/github/start?intent=login'));
   },
 
+  startTelegramLogin: () => {
+    window.location.assign(buildApiUrl('/api/auth/telegram/start?intent=login'));
+  },
+
   startYandexRegistration: ({ termsAccepted, marketingOptIn = false }) => {
     const params = new URLSearchParams({
       intent: 'register',
@@ -510,6 +530,15 @@ export const authAPI = {
       marketing_opt_in: String(Boolean(marketingOptIn)),
     });
     window.location.assign(buildApiUrl(`/api/auth/github/start?${params.toString()}`));
+  },
+
+  startTelegramRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    const params = new URLSearchParams({
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    });
+    window.location.assign(buildApiUrl(`/api/auth/telegram/start?${params.toString()}`));
   },
 
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {

@@ -5,6 +5,7 @@ import re
 import secrets
 import smtplib
 import ssl
+import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any, Iterable, Optional
@@ -12,7 +13,7 @@ from urllib.parse import urlencode
 
 import anyio
 import httpx
-from jose import JWTError, jwt
+from jose import JWTError, jwk as jose_jwk, jwt
 from pydantic import BaseModel
 
 from app.auth.security import hash_refresh_token
@@ -25,6 +26,13 @@ GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
 GITHUB_USER_URL = "https://api.github.com/user"
 GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
+TELEGRAM_AUTHORIZE_URL = "https://oauth.telegram.org/auth"
+TELEGRAM_TOKEN_URL = "https://oauth.telegram.org/token"
+TELEGRAM_JWKS_URL = "https://oauth.telegram.org/.well-known/jwks.json"
+TELEGRAM_ISSUER = "https://oauth.telegram.org"
+_TELEGRAM_JWKS_TTL = 3600.0
+_telegram_jwks_cache: Optional[dict] = None
+_telegram_jwks_fetched_at: float = 0.0
 
 LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000"
 LOCAL_FRONTEND_URL = "http://127.0.0.1:3000"
@@ -78,6 +86,13 @@ class YandexProfile(BaseModel):
 class GitHubProfile(BaseModel):
     provider_user_id: str
     email: str
+    login: Optional[str] = None
+    avatar_url: Optional[str] = None
+    raw_profile: dict[str, Any]
+
+
+class TelegramProfile(BaseModel):
+    provider_user_id: str
     login: Optional[str] = None
     avatar_url: Optional[str] = None
     raw_profile: dict[str, Any]
@@ -342,6 +357,124 @@ async def fetch_github_profile(access_token: str) -> GitHubProfile:
         login=str(payload.get("login") or "").strip() or None,
         avatar_url=str(payload.get("avatar_url") or "").strip() or None,
         raw_profile=payload,
+    )
+
+
+def resolve_backend_telegram_callback_url(*, request_scheme: str, request_host: str) -> str:
+    base_url = resolve_backend_base_url(request_scheme=request_scheme, request_host=request_host)
+    return f"{base_url}/api/auth/telegram/callback"
+
+
+def build_telegram_authorize_url(
+    *,
+    client_id: str,
+    redirect_uri: str,
+    scope: str,
+    state: str,
+    code_challenge: str,
+) -> str:
+    query = urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "response_type": "code",
+            "scope": scope,
+            "state": state,
+            "code_challenge": code_challenge,
+            "code_challenge_method": "S256",
+        }
+    )
+    return f"{TELEGRAM_AUTHORIZE_URL}?{query}"
+
+
+async def _get_telegram_jwks() -> dict:
+    global _telegram_jwks_cache, _telegram_jwks_fetched_at
+    now = time.monotonic()
+    if _telegram_jwks_cache is None or now - _telegram_jwks_fetched_at > _TELEGRAM_JWKS_TTL:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(TELEGRAM_JWKS_URL)
+            resp.raise_for_status()
+            _telegram_jwks_cache = resp.json()
+            _telegram_jwks_fetched_at = now
+    return _telegram_jwks_cache
+
+
+async def exchange_telegram_code_for_token(
+    *,
+    code: str,
+    code_verifier: str,
+    redirect_uri: str,
+    client_id: str,
+    client_secret: str,
+) -> dict[str, Any]:
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            TELEGRAM_TOKEN_URL,
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": redirect_uri,
+                "client_id": client_id,
+                "code_verifier": code_verifier,
+            },
+            headers={
+                "Authorization": f"Basic {credentials}",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Accept": "application/json",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def fetch_telegram_profile_from_id_token(*, id_token: str, client_id: str) -> TelegramProfile:
+    jwks_data = await _get_telegram_jwks()
+
+    try:
+        header = jwt.get_unverified_header(id_token)
+    except JWTError as exc:
+        raise ValueError("Telegram id_token has invalid header") from exc
+
+    kid = header.get("kid")
+    keys = jwks_data.get("keys", [])
+    matching_key_data: Optional[dict] = None
+    if kid:
+        matching_key_data = next((k for k in keys if k.get("kid") == kid), None)
+    if matching_key_data is None and keys:
+        matching_key_data = keys[0]
+    if matching_key_data is None:
+        raise ValueError("No suitable key found in Telegram JWKS")
+
+    try:
+        payload = jwt.decode(
+            id_token,
+            matching_key_data,
+            algorithms=[header.get("alg", "RS256")],
+            audience=str(client_id),
+            issuer=TELEGRAM_ISSUER,
+        )
+    except JWTError as exc:
+        raise ValueError(f"Telegram id_token validation failed: {exc}") from exc
+
+    provider_user_id = str(payload.get("sub") or payload.get("id") or "").strip()
+    if not provider_user_id:
+        raise ValueError("Telegram id_token missing sub/id claim")
+
+    preferred_username = str(payload.get("preferred_username") or "").strip()
+    picture = str(payload.get("picture") or "").strip()
+    name = str(payload.get("name") or "").strip()
+
+    return TelegramProfile(
+        provider_user_id=provider_user_id,
+        login=preferred_username or None,
+        avatar_url=picture or None,
+        raw_profile={
+            "sub": provider_user_id,
+            "name": name or None,
+            "preferred_username": preferred_username or None,
+            "picture": picture or None,
+        },
     )
 
 
