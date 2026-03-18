@@ -92,20 +92,4 @@ class RegistrationCompleteRequest(BaseModel):
     interest_tags: list[str] = Field(default_factory=list)
 
 
-class TelegramAuthVerifyRequest(BaseModel):
-    intent: Literal["login", "register"] = "login"
-    terms_accepted: bool = False
-    marketing_opt_in: bool = False
-    id: str
-    first_name: Optional[str] = None
-    last_name: Optional[str] = None
-    username: Optional[str] = None
-    photo_url: Optional[str] = None
-    auth_date: int
-    hash: str = Field(..., min_length=16)
 
-
-class TelegramAuthVerifyResponse(BaseModel):
-    status: Literal["authenticated", "registration_required"]
-    provider: Literal["telegram"] = "telegram"
-    flow_token: Optional[str] = None
