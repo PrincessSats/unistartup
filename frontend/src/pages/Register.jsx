@@ -56,6 +56,13 @@ function mapRegistrationError(code) {
       return 'Сессия входа через Яндекс устарела. Начни регистрацию заново.';
     case 'yandex_oauth_failed':
       return 'Не удалось получить данные из Яндекса. Попробуй еще раз.';
+    case 'github_access_denied':
+      return 'Авторизация через GitHub была отменена.';
+    case 'github_missing_code':
+    case 'github_state_invalid':
+      return 'Сессия входа через GitHub устарела. Начни регистрацию заново.';
+    case 'github_oauth_failed':
+      return 'Не удалось получить данные из GitHub. Попробуй еще раз.';
     default:
       return '';
   }
@@ -140,6 +147,29 @@ function Banner({ tone = 'error', children }) {
     <div className={`rounded-[18px] border px-4 py-3 text-[14px] leading-6 ${classes}`}>
       {children}
     </div>
+  );
+}
+
+function ConsentCheckbox({ checked, onChange, children }) {
+  return (
+    <label className="flex cursor-pointer items-start gap-3">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onChange}
+        className="sr-only"
+      />
+      <span
+        className={[
+          'mt-0.5 flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[4px] transition',
+          checked ? 'bg-[#8C5EFF] text-white' : 'bg-white/[0.05] text-transparent',
+        ].join(' ')}
+        aria-hidden="true"
+      >
+        <AppIcon name="check-circle" className="h-2.5 w-2.5" />
+      </span>
+      <span>{children}</span>
+    </label>
   );
 }
 
@@ -369,6 +399,18 @@ function Register() {
     });
   };
 
+  const handleGithubRegistration = () => {
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед регистрацией через GitHub.');
+      setNotice('');
+      return;
+    }
+    authAPI.startGithubRegistration({
+      termsAccepted: consents.terms,
+      marketingOptIn: consents.marketing,
+    });
+  };
+
   const handleContinueFromDetails = (event) => {
     event.preventDefault();
     setError('');
@@ -459,31 +501,23 @@ function Register() {
                 placeholder="Твой адрес электронной почты"
                 autoComplete="email"
                 required
-                className="h-14 w-full rounded-[18px] border border-white/10 bg-[#0D0B13] px-4 text-[15px] text-white outline-none transition placeholder:text-white/28 focus:border-[#8452FF]"
+                className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
               />
             </label>
 
-            <div className="space-y-3 pt-1 text-[13px] leading-5 text-white/58">
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  name="terms"
-                  checked={consents.terms}
-                  onChange={handleConsentChange}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#8452FF]"
-                />
-                <span>Я принимаю условия пользования платформой и даю согласие на обработку персональных данных</span>
-              </label>
-              <label className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  name="marketing"
-                  checked={consents.marketing}
-                  onChange={handleConsentChange}
-                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#8452FF]"
-                />
-                <span>Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели</span>
-              </label>
+            <div className="space-y-2 pt-1 text-[14px] leading-5 tracking-[0.04em] text-white/60">
+              <ConsentCheckbox
+                checked={consents.terms}
+                onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
+              >
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+              </ConsentCheckbox>
+              <ConsentCheckbox
+                checked={consents.marketing}
+                onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
+              >
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+              </ConsentCheckbox>
             </div>
           </div>
 
@@ -493,7 +527,9 @@ function Register() {
 
           <SocialAuthButtons
             mode="register"
+            onGithub={handleGithubRegistration}
             onYandex={handleYandexRegistration}
+            githubDisabled={loading}
             yandexDisabled={loading}
             footerLabel="Уже с нами?"
             footerActionLabel="Войти"
@@ -520,7 +556,7 @@ function Register() {
             <button
               type="button"
               onClick={resetToStart}
-              className="h-[54px] rounded-[18px] border border-white/10 bg-white/[0.03] text-[15px] font-medium text-white transition hover:border-white/20 hover:bg-white/[0.06]"
+              className="h-[54px] rounded-[10px] border border-white/[0.06] bg-white/[0.05] text-[18px] tracking-[0.04em] text-white transition hover:bg-white/[0.07]"
             >
               Вернуться назад
             </button>
@@ -545,26 +581,38 @@ function Register() {
                   name="email"
                   value={formData.email}
                   readOnly
-                  className="h-14 w-full rounded-[18px] border border-[#8452FF]/25 bg-[#100D18] px-4 pr-12 text-[15px] text-white outline-none"
+                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-12 text-[16px] tracking-[0.04em] text-white/40 outline-none"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8452FF]">
-                  <AppIcon name="check-circle" className="h-5 w-5" />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8C5EFF]">
+                  <AppIcon name="check-circle" className="h-3.5 w-3.5" />
                 </span>
               </div>
             </label>
 
             <label className="block">
               <span className="mb-2 block text-[14px] leading-5 text-white/56">Никнейм</span>
-              <input
-                type="text"
-                name="username"
-                value={formData.username}
-                onChange={handleInputChange}
-                placeholder="Придумай никнейм"
-                autoComplete="username"
-                required
-                className="h-14 w-full rounded-[18px] border border-white/10 bg-[#0D0B13] px-4 text-[15px] text-white outline-none transition placeholder:text-white/28 focus:border-[#8452FF]"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleInputChange}
+                  placeholder="Придумай никнейм"
+                  autoComplete="username"
+                  required
+                  className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-12 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+                />
+                {formData.username ? (
+                  <button
+                    type="button"
+                    onClick={() => setFormData((current) => ({ ...current, username: '' }))}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-white/45 transition hover:text-white"
+                    aria-label="Очистить никнейм"
+                  >
+                    <AppIcon name="close" className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
             </label>
 
             {!isOAuthContinuation ? (
@@ -581,9 +629,25 @@ function Register() {
                     placeholder="Придумай пароль"
                     autoComplete="new-password"
                     required
-                    className="h-14 w-full rounded-[18px] border border-white/10 bg-[#0D0B13] px-4 pr-14 text-[15px] text-white outline-none transition placeholder:text-white/28 focus:border-[#8452FF]"
+                    className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 pr-20 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
                   />
-                  <PasswordVisibilityButton visible={showPassword} onToggle={() => setShowPassword((current) => !current)} />
+                  <div className="absolute right-4 top-1/2 flex -translate-y-1/2 items-center gap-2">
+                    <PasswordVisibilityButton
+                      visible={showPassword}
+                      onToggle={() => setShowPassword((current) => !current)}
+                      inline
+                    />
+                    {formData.password ? (
+                      <button
+                        type="button"
+                        onClick={() => setFormData((current) => ({ ...current, password: '' }))}
+                        className="text-white/45 transition hover:text-white"
+                        aria-label="Очистить пароль"
+                      >
+                        <AppIcon name="close" className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className={`mt-3 rounded-[20px] border border-white/10 bg-[#2B2440] px-4 py-4 text-[12px] leading-5 text-white/80 transition lg:absolute lg:left-[calc(100%+18px)] lg:top-[28px] lg:mt-0 lg:w-[290px] ${showPasswordHints || formData.password ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
@@ -610,7 +674,9 @@ function Register() {
           {!isOAuthContinuation ? (
             <SocialAuthButtons
               mode="register"
+              onGithub={handleGithubRegistration}
               onYandex={handleYandexRegistration}
+              githubDisabled={loading}
               yandexDisabled={loading}
               footerLabel="Уже с нами?"
               footerActionLabel="Войти"
@@ -675,7 +741,7 @@ function Register() {
             <button
               type="button"
               onClick={onBack}
-              className="h-14 rounded-[18px] border border-white/10 bg-white/[0.03] text-[15px] font-medium text-white transition hover:border-white/20 hover:bg-white/[0.06]"
+              className="h-14 rounded-[10px] border border-white/[0.06] bg-white/[0.05] text-[18px] tracking-[0.04em] text-white transition hover:bg-white/[0.07]"
             >
               Назад
             </button>

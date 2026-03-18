@@ -97,6 +97,21 @@ class Settings(BaseSettings):
     YANDEX_CLIENT_ID: str = ""
     YANDEX_CLIENT_SECRET: str = ""
     YANDEX_OAUTH_SCOPES: str = "login:email login:info login:avatar"
+    GITHUB_CLIENT_ID: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "GITHUB_CLIENT_ID",
+            "CLIENT_GIT",
+        ),
+    )
+    GITHUB_CLIENT_SECRET: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "GITHUB_CLIENT_SECRET",
+            "CLIENT_GIT_SECRET",
+        ),
+    )
+    GITHUB_OAUTH_SCOPES: str = "read:user user:email"
     YANDEX_MAIL_LOGIN: str = ""
     YANDEX_MAIL_PASSWORD: str = ""
     SMTP_HOST: str = "smtp.yandex.ru"
@@ -147,6 +162,9 @@ class Settings(BaseSettings):
         "YANDEX_CLIENT_ID",
         "YANDEX_CLIENT_SECRET",
         "YANDEX_OAUTH_SCOPES",
+        "GITHUB_CLIENT_ID",
+        "GITHUB_CLIENT_SECRET",
+        "GITHUB_OAUTH_SCOPES",
         "YANDEX_MAIL_LOGIN",
         "YANDEX_MAIL_PASSWORD",
         "SMTP_HOST",

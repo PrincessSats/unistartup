@@ -8,6 +8,7 @@ apply_test_env_defaults()
 from app.services.registration import (  # noqa: E402
     INTEREST_OPTIONS,
     PROFESSION_OPTIONS,
+    build_github_authorize_url,
     build_magic_link_callback_url,
     build_registration_flow_token,
     build_yandex_authorize_url,
@@ -43,6 +44,18 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertIn("state=opaque-state", url)
         self.assertIn("code_challenge=challenge", url)
         self.assertIn("code_challenge_method=S256", url)
+
+    def test_build_github_authorize_url_includes_state_and_scope(self) -> None:
+        url = build_github_authorize_url(
+            client_id="gh-client-id",
+            redirect_uri="https://api.example.com/api/auth/github/callback",
+            scope="read:user user:email",
+            state="opaque-state",
+        )
+        self.assertIn("client_id=gh-client-id", url)
+        self.assertIn("state=opaque-state", url)
+        self.assertIn("scope=read%3Auser+user%3Aemail", url)
+        self.assertIn("redirect_uri=https%3A%2F%2Fapi.example.com%2Fapi%2Fauth%2Fgithub%2Fcallback", url)
 
     def test_magic_link_callback_uses_registration_path(self) -> None:
         callback_url = build_magic_link_callback_url(
