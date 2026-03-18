@@ -1,5 +1,4 @@
 import asyncio
-import os
 import unittest
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -7,12 +6,9 @@ from unittest.mock import AsyncMock, patch
 
 from sqlalchemy.dialects import postgresql
 
-os.environ.setdefault("DB_HOST", "localhost")
-os.environ.setdefault("DB_PORT", "5432")
-os.environ.setdefault("DB_NAME", "app")
-os.environ.setdefault("DB_USER", "user")
-os.environ.setdefault("DB_PASSWORD", "pass")
-os.environ.setdefault("SECRET_KEY", "secret")
+from env_fixtures import apply_test_env_defaults
+
+apply_test_env_defaults()
 
 from app.services.chat_task import (  # noqa: E402
     _run_llm_chat_completion,

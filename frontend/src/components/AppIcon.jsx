@@ -96,6 +96,15 @@ function getIconPath(name) {
           <circle cx="12" cy="12" r="2.5" />
         </>
       );
+    case 'eye-off':
+      return (
+        <>
+          <path d="M3 3 21 21" />
+          <path d="M10.6 6.4a10.7 10.7 0 0 1 1.4-.1c6.5 0 10 5.7 10 5.7a18 18 0 0 1-4 4.3" />
+          <path d="M6.1 8.1A18.8 18.8 0 0 0 2 12s3.5 5.7 10 5.7c1.1 0 2.2-.2 3.2-.5" />
+          <path d="M9.9 9.9A3 3 0 0 0 9 12a3 3 0 0 0 4.7 2.5" />
+        </>
+      );
     case 'arrow-left':
       return <path d="m15 6-6 6 6 6" />;
     case 'check-circle':
