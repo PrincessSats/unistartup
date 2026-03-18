@@ -34,12 +34,15 @@ from app.services.registration import (
     MAGIC_LINK_RESEND_COOLDOWN_SECONDS,
     OAUTH_FLOW_TTL_MINUTES,
     build_frontend_hash_url,
+    build_github_authorize_url,
     build_magic_link_callback_url,
     build_registration_flow_token,
     build_yandex_authorize_url,
     decode_registration_flow_token,
     ensure_questionnaire_payload,
+    exchange_github_code_for_token,
     exchange_yandex_code_for_token,
+    fetch_github_profile,
     fetch_yandex_profile,
     generate_opaque_token,
     generate_pkce_pair,
@@ -126,6 +129,122 @@ def _ensure_yandex_oauth_configured() -> None:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Не настроены Yandex OAuth credentials.",
         )
+
+
+def _ensure_github_oauth_configured() -> None:
+    if not settings.GITHUB_CLIENT_ID or not settings.GITHUB_CLIENT_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не настроены GitHub OAuth credentials.",
+        )
+
+
+async def _finalize_social_oauth_flow(
+    *,
+    request: Request,
+    db: AsyncSession,
+    flow: AuthRegistrationFlow,
+    provider: str,
+    provider_user_id: str,
+    email: str,
+    login: Optional[str],
+    avatar_url: Optional[str],
+    raw_profile: dict,
+) -> RedirectResponse:
+    request_host = _get_request_host(request)
+    now = utcnow()
+
+    flow.email = email
+    flow.email_verified_at = now
+    flow.provider = provider
+    flow.provider_user_id = provider_user_id
+    flow.provider_email = email
+    flow.provider_login = login
+    flow.provider_avatar_url = avatar_url
+    flow.provider_raw_profile_json = raw_profile
+    flow.oauth_state_hash = None
+    flow.oauth_code_verifier = None
+    flow.expires_at = now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS)
+
+    identity_result = await db.execute(
+        select(UserAuthIdentity).where(
+            UserAuthIdentity.provider == provider,
+            UserAuthIdentity.provider_user_id == provider_user_id,
+        )
+    )
+    identity = identity_result.scalar_one_or_none()
+
+    user = None
+    if identity is not None:
+        user = await db.get(User, identity.user_id)
+    if user is None:
+        user_result = await db.execute(select(User).where(User.email == email))
+        user = user_result.scalar_one_or_none()
+
+    if user is not None:
+        if user.is_active is None:
+            user.is_active = True
+        if user.is_active is False:
+            flow.consumed_at = now
+            await db.commit()
+            return _flow_error_redirect(request, route_path="/login", error_code="account_blocked")
+
+        if user.email_verified_at is None:
+            user.email_verified_at = now
+
+        if identity is None:
+            identity = UserAuthIdentity(
+                user_id=user.id,
+                provider=provider,
+                provider_user_id=provider_user_id,
+                provider_email=email,
+                provider_login=login,
+                provider_avatar_url=avatar_url,
+                raw_profile_json=raw_profile,
+                last_login_at=now,
+            )
+            db.add(identity)
+        else:
+            identity.provider_email = email
+            identity.provider_login = login
+            identity.provider_avatar_url = avatar_url
+            identity.raw_profile_json = raw_profile
+            identity.last_login_at = now
+
+        if avatar_url:
+            profile_result = await db.execute(
+                select(UserProfile).where(UserProfile.user_id == user.id)
+            )
+            profile = profile_result.scalar_one_or_none()
+            if profile is not None and not profile.avatar_url:
+                profile.avatar_url = avatar_url
+
+        flow.completed_user_id = user.id
+        flow.consumed_at = now
+        refresh_token, _, _, _ = await issue_login_session(
+            request=request,
+            db=db,
+            user=user,
+        )
+
+        redirect = RedirectResponse(
+            url=build_frontend_hash_url(
+                request_host=request_host,
+                route_path="/auth/bridge",
+                params={"provider": provider},
+            ),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+        set_refresh_cookie(redirect, refresh_token)
+        return redirect
+
+    await db.commit()
+    redirect_url = build_frontend_hash_url(
+        request_host=request_host,
+        route_path="/register",
+        params={"flow_token": _build_flow_token(flow)},
+    )
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post(
@@ -334,6 +453,43 @@ async def start_yandex_oauth(
     return RedirectResponse(url=authorize_url, status_code=status.HTTP_302_FOUND)
 
 
+@router.get("/github/start")
+async def start_github_oauth(
+    request: Request,
+    intent: str = Query(default="login"),
+    terms_accepted: bool = Query(default=False),
+    marketing_opt_in: bool = Query(default=False),
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_github_oauth_configured()
+    normalized_intent = "register" if str(intent).strip().lower() == "register" else "login"
+    if normalized_intent == "register" and not terms_accepted:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно принять условия пользования.")
+
+    state = generate_opaque_token()
+    now = utcnow()
+    flow = AuthRegistrationFlow(
+        intent=normalized_intent,
+        source="github",
+        provider="github",
+        terms_accepted_at=now if normalized_intent == "register" else None,
+        marketing_opt_in=marketing_opt_in if normalized_intent == "register" else False,
+        marketing_opt_in_at=now if normalized_intent == "register" and marketing_opt_in else None,
+        oauth_state_hash=hash_secret_token(state),
+        expires_at=now + timedelta(minutes=OAUTH_FLOW_TTL_MINUTES),
+    )
+    db.add(flow)
+    await db.commit()
+
+    authorize_url = build_github_authorize_url(
+        client_id=settings.GITHUB_CLIENT_ID,
+        redirect_uri=f"{resolve_backend_yandex_callback_url(request_scheme=_get_request_scheme(request), request_host=_get_request_host(request)).replace('/yandex/callback', '/github/callback')}",
+        scope=settings.GITHUB_OAUTH_SCOPES,
+        state=state,
+    )
+    return RedirectResponse(url=authorize_url, status_code=status.HTTP_302_FOUND)
+
+
 @router.get("/yandex/callback")
 async def yandex_oauth_callback(
     request: Request,
@@ -376,98 +532,69 @@ async def yandex_oauth_callback(
             error_code="yandex_oauth_failed",
         )
 
-    now = utcnow()
-    flow.email = yandex_profile.email
-    flow.email_verified_at = now
-    flow.provider = "yandex"
-    flow.provider_user_id = yandex_profile.provider_user_id
-    flow.provider_email = yandex_profile.email
-    flow.provider_login = yandex_profile.login
-    flow.provider_avatar_url = yandex_profile.avatar_url
-    flow.provider_raw_profile_json = yandex_profile.raw_profile
-    flow.oauth_state_hash = None
-    flow.oauth_code_verifier = None
-    flow.expires_at = now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS)
-
-    identity_result = await db.execute(
-        select(UserAuthIdentity).where(
-            UserAuthIdentity.provider == "yandex",
-            UserAuthIdentity.provider_user_id == yandex_profile.provider_user_id,
-        )
+    return await _finalize_social_oauth_flow(
+        request=request,
+        db=db,
+        flow=flow,
+        provider="yandex",
+        provider_user_id=yandex_profile.provider_user_id,
+        email=yandex_profile.email,
+        login=yandex_profile.login,
+        avatar_url=yandex_profile.avatar_url,
+        raw_profile=yandex_profile.raw_profile,
     )
-    identity = identity_result.scalar_one_or_none()
 
-    user = None
-    if identity is not None:
-        user = await db.get(User, identity.user_id)
-    if user is None:
-        user_result = await db.execute(select(User).where(User.email == yandex_profile.email))
-        user = user_result.scalar_one_or_none()
 
-    if user is not None:
-        if user.is_active is None:
-            user.is_active = True
-        if user.is_active is False:
-            flow.consumed_at = now
-            await db.commit()
-            return _flow_error_redirect(request, route_path="/login", error_code="account_blocked")
+@router.get("/github/callback")
+async def github_oauth_callback(
+    request: Request,
+    code: Optional[str] = Query(default=None),
+    state: Optional[str] = Query(default=None),
+    error: Optional[str] = Query(default=None),
+    db: AsyncSession = Depends(get_db),
+):
+    request_host = _get_request_host(request)
+    request_scheme = _get_request_scheme(request)
+    if error:
+        return _flow_error_redirect(request, route_path="/login", error_code=f"github_{error}")
+    if not code or not state:
+        return _flow_error_redirect(request, route_path="/login", error_code="github_missing_code")
 
-        if user.email_verified_at is None:
-            user.email_verified_at = now
+    state_hash = hash_secret_token(state)
+    result = await db.execute(select(AuthRegistrationFlow).where(AuthRegistrationFlow.oauth_state_hash == state_hash))
+    flow = result.scalar_one_or_none()
+    if flow is None or _is_expired(flow.expires_at) or flow.consumed_at is not None:
+        return _flow_error_redirect(request, route_path="/login", error_code="github_state_invalid")
 
-        if identity is None:
-            identity = UserAuthIdentity(
-                user_id=user.id,
-                provider="yandex",
-                provider_user_id=yandex_profile.provider_user_id,
-                provider_email=yandex_profile.email,
-                provider_login=yandex_profile.login,
-                provider_avatar_url=yandex_profile.avatar_url,
-                raw_profile_json=yandex_profile.raw_profile,
-                last_login_at=now,
-            )
-            db.add(identity)
-        else:
-            identity.provider_email = yandex_profile.email
-            identity.provider_login = yandex_profile.login
-            identity.provider_avatar_url = yandex_profile.avatar_url
-            identity.raw_profile_json = yandex_profile.raw_profile
-            identity.last_login_at = now
-
-        if yandex_profile.avatar_url:
-            profile_result = await db.execute(
-                select(UserProfile).where(UserProfile.user_id == user.id)
-            )
-            profile = profile_result.scalar_one_or_none()
-            if profile is not None and not profile.avatar_url:
-                profile.avatar_url = yandex_profile.avatar_url
-
-        flow.completed_user_id = user.id
-        flow.consumed_at = now
-        refresh_token, _, _, _ = await issue_login_session(
-            request=request,
-            db=db,
-            user=user,
+    redirect_uri = f"{resolve_backend_yandex_callback_url(request_scheme=request_scheme, request_host=request_host).replace('/yandex/callback', '/github/callback')}"
+    try:
+        token_payload = await exchange_github_code_for_token(
+            code=code,
+            redirect_uri=redirect_uri,
+        )
+        oauth_access_token = str(token_payload.get("access_token") or "").strip()
+        if not oauth_access_token:
+            raise ValueError("GitHub token response missing access_token")
+        github_profile = await fetch_github_profile(oauth_access_token)
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.exception("GitHub OAuth exchange failed")
+        return _flow_error_redirect(
+            request,
+            route_path="/register" if flow.intent == "register" else "/login",
+            error_code="github_oauth_failed",
         )
 
-        redirect = RedirectResponse(
-            url=build_frontend_hash_url(
-                request_host=request_host,
-                route_path="/auth/bridge",
-                params={"provider": "yandex"},
-            ),
-            status_code=status.HTTP_303_SEE_OTHER,
-        )
-        set_refresh_cookie(redirect, refresh_token)
-        return redirect
-
-    await db.commit()
-    redirect_url = build_frontend_hash_url(
-        request_host=request_host,
-        route_path="/register",
-        params={"flow_token": _build_flow_token(flow)},
+    return await _finalize_social_oauth_flow(
+        request=request,
+        db=db,
+        flow=flow,
+        provider="github",
+        provider_user_id=github_profile.provider_user_id,
+        email=github_profile.email,
+        login=github_profile.login,
+        avatar_url=github_profile.avatar_url,
+        raw_profile=github_profile.raw_profile,
     )
-    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/registration/flow", response_model=RegistrationFlowResponse)
@@ -480,7 +607,7 @@ async def get_registration_flow(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email для потока регистрации не найден.")
 
     email_verified = flow.email_verified_at is not None
-    step = "details" if email_verified or flow.source == "yandex" else "email_sent"
+    step = "details" if email_verified or flow.source != "email_magic_link" else "email_sent"
 
     return RegistrationFlowResponse(
         flow_token=flow_token,
@@ -559,7 +686,7 @@ async def complete_registration(
         user_id=user.id,
         username=payload.username,
         role="participant",
-        avatar_url=flow.provider_avatar_url if flow.source == "yandex" else None,
+        avatar_url=flow.provider_avatar_url if flow.source in {"yandex", "github"} else None,
         onboarding_status="pending",
     )
     rating = UserRating(user_id=user.id)
@@ -578,11 +705,11 @@ async def complete_registration(
     db.add(rating)
     db.add(registration_data)
 
-    if flow.source == "yandex" and flow.provider_user_id:
+    if flow.source in {"yandex", "github"} and flow.provider and flow.provider_user_id:
         db.add(
             UserAuthIdentity(
                 user_id=user.id,
-                provider="yandex",
+                provider=flow.provider,
                 provider_user_id=flow.provider_user_id,
                 provider_email=flow.provider_email or flow.email,
                 provider_login=flow.provider_login,

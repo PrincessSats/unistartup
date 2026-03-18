@@ -21,6 +21,10 @@ from app.config import settings
 YANDEX_AUTHORIZE_URL = "https://oauth.yandex.ru/authorize"
 YANDEX_TOKEN_URL = "https://oauth.yandex.ru/token"
 YANDEX_INFO_URL = "https://login.yandex.ru/info"
+GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token"
+GITHUB_USER_URL = "https://api.github.com/user"
+GITHUB_EMAILS_URL = "https://api.github.com/user/emails"
 
 LOCAL_BACKEND_BASE_URL = "http://127.0.0.1:8000"
 LOCAL_FRONTEND_URL = "http://127.0.0.1:3000"
@@ -64,6 +68,14 @@ INTEREST_OPTIONS = (
 
 
 class YandexProfile(BaseModel):
+    provider_user_id: str
+    email: str
+    login: Optional[str] = None
+    avatar_url: Optional[str] = None
+    raw_profile: dict[str, Any]
+
+
+class GitHubProfile(BaseModel):
     provider_user_id: str
     email: str
     login: Optional[str] = None
@@ -177,6 +189,24 @@ def build_yandex_authorize_url(
     return f"{YANDEX_AUTHORIZE_URL}?{query}"
 
 
+def build_github_authorize_url(
+    *,
+    client_id: str,
+    redirect_uri: str,
+    scope: str,
+    state: str,
+) -> str:
+    query = urlencode(
+        {
+            "client_id": client_id,
+            "redirect_uri": redirect_uri,
+            "scope": scope,
+            "state": state,
+        }
+    )
+    return f"{GITHUB_AUTHORIZE_URL}?{query}"
+
+
 async def exchange_yandex_code_for_token(
     *,
     code: str,
@@ -233,6 +263,84 @@ async def fetch_yandex_profile(access_token: str) -> YandexProfile:
         email=email,
         login=str(payload.get("login") or "").strip() or None,
         avatar_url=avatar_url,
+        raw_profile=payload,
+    )
+
+
+async def exchange_github_code_for_token(
+    *,
+    code: str,
+    redirect_uri: str,
+) -> dict[str, Any]:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            GITHUB_TOKEN_URL,
+            data={
+                "client_id": settings.GITHUB_CLIENT_ID,
+                "client_secret": settings.GITHUB_CLIENT_SECRET,
+                "code": code,
+                "redirect_uri": redirect_uri,
+            },
+            headers={
+                "Accept": "application/json",
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def fetch_github_profile(access_token: str) -> GitHubProfile:
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "hacknet-platform",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        user_response = await client.get(GITHUB_USER_URL, headers=headers)
+        user_response.raise_for_status()
+        payload = user_response.json()
+
+        email = normalize_email(payload.get("email") or "")
+        if not email:
+            emails_response = await client.get(GITHUB_EMAILS_URL, headers=headers)
+            emails_response.raise_for_status()
+            emails_payload = emails_response.json()
+            if isinstance(emails_payload, list):
+                primary_verified = next(
+                    (
+                        item for item in emails_payload
+                        if isinstance(item, dict) and item.get("primary") and item.get("verified") and item.get("email")
+                    ),
+                    None,
+                )
+                verified = next(
+                    (
+                        item for item in emails_payload
+                        if isinstance(item, dict) and item.get("verified") and item.get("email")
+                    ),
+                    None,
+                )
+                fallback = next(
+                    (
+                        item for item in emails_payload
+                        if isinstance(item, dict) and item.get("email")
+                    ),
+                    None,
+                )
+                selected = primary_verified or verified or fallback
+                if isinstance(selected, dict):
+                    email = normalize_email(selected.get("email") or "")
+
+    provider_user_id = str(payload.get("id") or "").strip()
+    if not provider_user_id or not email:
+        raise ValueError("GitHub profile does not contain required id/email")
+
+    return GitHubProfile(
+        provider_user_id=provider_user_id,
+        email=email,
+        login=str(payload.get("login") or "").strip() or None,
+        avatar_url=str(payload.get("avatar_url") or "").strip() or None,
         raw_profile=payload,
     )
 
