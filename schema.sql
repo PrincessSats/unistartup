@@ -71,6 +71,84 @@ CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user
 CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at
     ON auth_refresh_tokens(expires_at);
 
+-- 3.3 OAuth identity bindings
+CREATE TABLE IF NOT EXISTS user_auth_identities (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider            TEXT NOT NULL,
+    provider_user_id    TEXT NOT NULL,
+    provider_email      TEXT,
+    provider_login      TEXT,
+    provider_avatar_url TEXT,
+    raw_profile_json    JSONB,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login_at       TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_auth_identities_provider_subject
+    ON user_auth_identities(provider, provider_user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_auth_identities_user_provider
+    ON user_auth_identities(user_id, provider);
+CREATE INDEX IF NOT EXISTS idx_user_auth_identities_email
+    ON user_auth_identities(provider_email);
+
+-- 3.4 Registration drafts for magic-link and OAuth continuation
+CREATE TABLE IF NOT EXISTS auth_registration_flows (
+    id                        BIGSERIAL PRIMARY KEY,
+    intent                    TEXT NOT NULL DEFAULT 'register',
+    source                    TEXT NOT NULL,
+    email                     TEXT,
+    email_verified_at         TIMESTAMPTZ,
+    terms_accepted_at         TIMESTAMPTZ,
+    marketing_opt_in          BOOLEAN NOT NULL DEFAULT FALSE,
+    marketing_opt_in_at       TIMESTAMPTZ,
+    provider                  TEXT,
+    provider_user_id          TEXT,
+    provider_email            TEXT,
+    provider_login            TEXT,
+    provider_avatar_url       TEXT,
+    provider_raw_profile_json JSONB,
+    oauth_state_hash          TEXT,
+    oauth_code_verifier       TEXT,
+    magic_link_token_hash     TEXT,
+    magic_link_expires_at     TIMESTAMPTZ,
+    magic_link_sent_count     INTEGER NOT NULL DEFAULT 0,
+    last_magic_link_sent_at   TIMESTAMPTZ,
+    magic_link_consumed_at    TIMESTAMPTZ,
+    expires_at                TIMESTAMPTZ NOT NULL,
+    completed_user_id         BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    consumed_at               TIMESTAMPTZ,
+    created_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_state_hash
+    ON auth_registration_flows(oauth_state_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_magic_link_hash
+    ON auth_registration_flows(magic_link_token_hash);
+CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_email
+    ON auth_registration_flows(email);
+CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_expires_at
+    ON auth_registration_flows(expires_at);
+
+-- 3.5 Registration questionnaire answers
+CREATE TABLE IF NOT EXISTS user_registration_data (
+    user_id                      BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    registration_source          TEXT NOT NULL,
+    terms_accepted_at            TIMESTAMPTZ NOT NULL,
+    marketing_opt_in             BOOLEAN NOT NULL DEFAULT FALSE,
+    marketing_opt_in_at          TIMESTAMPTZ,
+    profession_tags              TEXT[] NOT NULL DEFAULT '{}'::text[],
+    grade                        TEXT,
+    interest_tags                TEXT[] NOT NULL DEFAULT '{}'::text[],
+    questionnaire_completed_at   TIMESTAMPTZ,
+    created_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at                   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_registration_data_source
+    ON user_registration_data(registration_source);
+
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
     id                  BIGSERIAL PRIMARY KEY,
@@ -456,6 +534,15 @@ CREATE TABLE submissions (
 );
 
 CREATE INDEX idx_submissions_user_contest ON submissions(user_id, contest_id);
+
+-- 12.1 Старты практических задач
+CREATE TABLE IF NOT EXISTS practice_task_starts (
+    id          BIGSERIAL PRIMARY KEY,
+    user_id     BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    task_id     BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+    started_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT uq_practice_task_starts_user_task UNIQUE (user_id, task_id)
+);
 
 -- 13. Пользовательские оценки задач чемпионата
 CREATE TABLE contest_task_ratings (
