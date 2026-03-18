@@ -138,6 +138,17 @@ function getIconPath(name) {
           <path d="M15.5 13h2.5" />
         </>
       );
+    case 'pipeline':
+      return (
+        <>
+          <circle cx="4" cy="12" r="2.5" />
+          <circle cx="12" cy="12" r="2.5" />
+          <circle cx="20" cy="12" r="2.5" />
+          <path d="M6.5 12h3" />
+          <path d="M14.5 12h3" />
+          <path d="M4 9.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3.5" />
+        </>
+      );
     default:
       return (
         <>
