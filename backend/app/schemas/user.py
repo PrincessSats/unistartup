@@ -65,7 +65,7 @@ class EmailRegistrationResendRequest(BaseModel):
 
 class RegistrationFlowResponse(BaseModel):
     flow_token: str
-    source: Literal["email_magic_link", "yandex"]
+    source: Literal["email_magic_link", "yandex", "github"]
     intent: str
     email: str
     email_verified: bool

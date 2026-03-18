@@ -490,6 +490,10 @@ export const authAPI = {
     window.location.assign(buildApiUrl('/api/auth/yandex/start?intent=login'));
   },
 
+  startGithubLogin: () => {
+    window.location.assign(buildApiUrl('/api/auth/github/start?intent=login'));
+  },
+
   startYandexRegistration: ({ termsAccepted, marketingOptIn = false }) => {
     const params = new URLSearchParams({
       intent: 'register',
@@ -497,6 +501,15 @@ export const authAPI = {
       marketing_opt_in: String(Boolean(marketingOptIn)),
     });
     window.location.assign(buildApiUrl(`/api/auth/yandex/start?${params.toString()}`));
+  },
+
+  startGithubRegistration: ({ termsAccepted, marketingOptIn = false }) => {
+    const params = new URLSearchParams({
+      intent: 'register',
+      terms_accepted: String(Boolean(termsAccepted)),
+      marketing_opt_in: String(Boolean(marketingOptIn)),
+    });
+    window.location.assign(buildApiUrl(`/api/auth/github/start?${params.toString()}`));
   },
 
   refresh: async ({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}) => {
