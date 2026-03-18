@@ -88,6 +88,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(auth_registration.router)
 app.include_router(pages.router)
 app.include_router(profile.router)  # ← новый роутер
 app.include_router(contests.router)
