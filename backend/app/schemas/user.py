@@ -63,13 +63,20 @@ class EmailRegistrationResendRequest(BaseModel):
     flow_token: str
 
 
+class FlowEmailAttachRequest(BaseModel):
+    flow_token: str
+    email: EmailStr
+    terms_accepted: bool
+    marketing_opt_in: bool = False
+
+
 class RegistrationFlowResponse(BaseModel):
     flow_token: str
-    source: Literal["email_magic_link", "yandex", "github"]
+    source: Literal["email_magic_link", "yandex", "github", "telegram"]
     intent: str
-    email: str
+    email: Optional[str] = None
     email_verified: bool
-    step: Literal["email_sent", "details"]
+    step: Literal["email", "email_sent", "details"]
     provider: Optional[str] = None
     username_suggestion: Optional[str] = None
     terms_accepted: bool
@@ -83,3 +90,22 @@ class RegistrationCompleteRequest(BaseModel):
     profession_tags: list[str] = Field(default_factory=list)
     grade: str
     interest_tags: list[str] = Field(default_factory=list)
+
+
+class TelegramAuthVerifyRequest(BaseModel):
+    intent: Literal["login", "register"] = "login"
+    terms_accepted: bool = False
+    marketing_opt_in: bool = False
+    id: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    username: Optional[str] = None
+    photo_url: Optional[str] = None
+    auth_date: int
+    hash: str = Field(..., min_length=16)
+
+
+class TelegramAuthVerifyResponse(BaseModel):
+    status: Literal["authenticated", "registration_required"]
+    provider: Literal["telegram"] = "telegram"
+    flow_token: Optional[str] = None

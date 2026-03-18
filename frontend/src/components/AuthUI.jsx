@@ -140,11 +140,13 @@ export function SocialAuthButtons({
   mode = 'login',
   onGithub,
   onYandex,
+  onTelegram,
   footerLabel,
   footerActionLabel,
   onFooterAction,
   githubDisabled = false,
   yandexDisabled = false,
+  telegramDisabled = false,
 }) {
   const dividerLabel = mode === 'register' ? 'Или зарегистрироваться через' : 'Или войти через';
 
@@ -166,7 +168,9 @@ export function SocialAuthButtons({
           <SocialButton icon={<YandexIcon />} onClick={onYandex} disabled={yandexDisabled}>
             Яндекс
           </SocialButton>
-          <SocialButton icon={<TelegramIcon />}>Телеграм</SocialButton>
+          <SocialButton icon={<TelegramIcon />} onClick={onTelegram} disabled={telegramDisabled}>
+            Телеграм
+          </SocialButton>
         </div>
       </div>
 

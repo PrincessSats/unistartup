@@ -112,6 +112,14 @@ class Settings(BaseSettings):
         ),
     )
     GITHUB_OAUTH_SCOPES: str = "read:user user:email"
+    TELEGRAM_BOT_API_TOKEN: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "TELEGRAM_BOT_API_TOKEN",
+            "TG_BOT_API_TOKEN",
+        ),
+    )
+    TELEGRAM_AUTH_MAX_AGE_SECONDS: int = 86400
     YANDEX_MAIL_LOGIN: str = ""
     YANDEX_MAIL_PASSWORD: str = ""
     SMTP_HOST: str = "smtp.yandex.ru"
@@ -165,6 +173,7 @@ class Settings(BaseSettings):
         "GITHUB_CLIENT_ID",
         "GITHUB_CLIENT_SECRET",
         "GITHUB_OAUTH_SCOPES",
+        "TELEGRAM_BOT_API_TOKEN",
         "YANDEX_MAIL_LOGIN",
         "YANDEX_MAIL_PASSWORD",
         "SMTP_HOST",

@@ -182,8 +182,10 @@ function Login() {
             mode="login"
             onGithub={() => authAPI.startGithubLogin()}
             onYandex={() => authAPI.startYandexLogin()}
+            onTelegram={() => authAPI.startTelegramLogin()}
             githubDisabled={loading}
             yandexDisabled={loading}
+            telegramDisabled={loading}
             footerLabel="Еще не с нами?"
             footerActionLabel="Зарегистрироваться"
             onFooterAction={() => navigate('/register')}

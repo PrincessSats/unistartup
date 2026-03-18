@@ -266,7 +266,13 @@ function Register() {
           terms: Boolean(flow.terms_accepted),
           marketing: Boolean(flow.marketing_opt_in),
         });
-        setStep(flow.step === 'email_sent' ? 'emailSent' : 'details');
+        if (flow.step === 'email_sent') {
+          setStep('emailSent');
+        } else if (flow.step === 'email') {
+          setStep('flowEmail');
+        } else {
+          setStep('details');
+        }
         setError('');
       })
       .catch((err) => {
@@ -411,6 +417,55 @@ function Register() {
     });
   };
 
+  const handleTelegramRegistration = () => {
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед регистрацией через Telegram.');
+      setNotice('');
+      return;
+    }
+    authAPI.startTelegramRegistration({
+      termsAccepted: consents.terms,
+      marketingOptIn: consents.marketing,
+    });
+  };
+
+  const handleAttachEmailToFlow = async (event) => {
+    event.preventDefault();
+    if (!flowToken || !formData.email || loading) {
+      return;
+    }
+    if (!consents.terms) {
+      setError('Нужно принять условия пользования перед продолжением регистрации.');
+      setNotice('');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await authAPI.attachEmailToRegistrationFlow({
+        flowToken,
+        email: formData.email,
+        termsAccepted: consents.terms,
+        marketingOptIn: consents.marketing,
+      });
+      setFlowToken(response.flow_token);
+      setStep('emailSent');
+      navigate(`/register?flow_token=${encodeURIComponent(response.flow_token)}`, { replace: true });
+    } catch (err) {
+      if (err?.message === 'API base URL is not configured') {
+        setError('Не настроен REACT_APP_API_BASE_URL для production-сборки.');
+      } else if (!err?.response) {
+        setError('Не удалось подключиться к серверу. Попробуйте снова.');
+      } else {
+        setError(err.response?.data?.detail || 'Не удалось отправить письмо для подтверждения.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleContinueFromDetails = (event) => {
     event.preventDefault();
     setError('');
@@ -529,8 +584,10 @@ function Register() {
             mode="register"
             onGithub={handleGithubRegistration}
             onYandex={handleYandexRegistration}
+            onTelegram={handleTelegramRegistration}
             githubDisabled={loading}
             yandexDisabled={loading}
+            telegramDisabled={loading}
             footerLabel="Уже с нами?"
             footerActionLabel="Войти"
             onFooterAction={() => navigate('/login')}
@@ -563,6 +620,55 @@ function Register() {
           </div>
         </div>
       </div>
+    </AuthShell>
+  );
+
+  const renderFlowEmail = () => (
+    <AuthShell title="Регистрация">
+      <AuthSurface className="max-w-[520px]">
+        <form onSubmit={handleAttachEmailToFlow} className="space-y-8">
+          {renderStatus()}
+
+          <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-4 text-[14px] leading-6 text-white/74">
+            Telegram аккаунт подключен. Укажи электронную почту, подтверди её по magic-link и после этого продолжишь регистрацию без пароля.
+          </div>
+
+          <div className="space-y-4">
+            <label className="block">
+              <span className="mb-2 block text-[14px] leading-5 text-white/56">Электронная почта</span>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleInputChange}
+                placeholder="Твой адрес электронной почты"
+                autoComplete="email"
+                required
+                className="h-14 w-full rounded-[10px] border border-white/[0.09] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white outline-none transition placeholder:text-white/40 focus:border-[#8C5EFF]"
+              />
+            </label>
+
+            <div className="space-y-2 pt-1 text-[14px] leading-5 tracking-[0.04em] text-white/60">
+              <ConsentCheckbox
+                checked={consents.terms}
+                onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
+              >
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+              </ConsentCheckbox>
+              <ConsentCheckbox
+                checked={consents.marketing}
+                onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
+              >
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+              </ConsentCheckbox>
+            </div>
+          </div>
+
+          <AuthPrimaryButton type="submit" disabled={loading || !formData.email || !consents.terms}>
+            {loading ? 'Отправляем...' : 'Продолжить'}
+          </AuthPrimaryButton>
+        </form>
+      </AuthSurface>
     </AuthShell>
   );
 
@@ -676,8 +782,10 @@ function Register() {
               mode="register"
               onGithub={handleGithubRegistration}
               onYandex={handleYandexRegistration}
+              onTelegram={handleTelegramRegistration}
               githubDisabled={loading}
               yandexDisabled={loading}
+              telegramDisabled={loading}
               footerLabel="Уже с нами?"
               footerActionLabel="Войти"
               onFooterAction={() => navigate('/login')}
@@ -796,6 +904,9 @@ function Register() {
 
   if (step === 'emailSent') {
     return renderEmailSent();
+  }
+  if (step === 'flowEmail') {
+    return renderFlowEmail();
   }
   if (step === 'details') {
     return renderDetails();

@@ -1,6 +1,7 @@
 import base64
 from functools import partial
 import hashlib
+import hmac
 import re
 import secrets
 import smtplib
@@ -78,6 +79,13 @@ class YandexProfile(BaseModel):
 class GitHubProfile(BaseModel):
     provider_user_id: str
     email: str
+    login: Optional[str] = None
+    avatar_url: Optional[str] = None
+    raw_profile: dict[str, Any]
+
+
+class TelegramProfile(BaseModel):
+    provider_user_id: str
     login: Optional[str] = None
     avatar_url: Optional[str] = None
     raw_profile: dict[str, Any]
@@ -342,6 +350,71 @@ async def fetch_github_profile(access_token: str) -> GitHubProfile:
         login=str(payload.get("login") or "").strip() or None,
         avatar_url=str(payload.get("avatar_url") or "").strip() or None,
         raw_profile=payload,
+    )
+
+
+def verify_telegram_auth(
+    *,
+    telegram_user: dict[str, Any],
+    bot_token: str,
+    max_age_seconds: int,
+) -> TelegramProfile:
+    normalized_payload = {
+        "id": str(telegram_user.get("id") or "").strip(),
+        "first_name": str(telegram_user.get("first_name") or "").strip(),
+        "last_name": str(telegram_user.get("last_name") or "").strip(),
+        "username": str(telegram_user.get("username") or "").strip(),
+        "photo_url": str(telegram_user.get("photo_url") or "").strip(),
+        "auth_date": str(telegram_user.get("auth_date") or "").strip(),
+        "hash": str(telegram_user.get("hash") or "").strip().lower(),
+    }
+
+    provider_user_id = normalized_payload["id"]
+    received_hash = normalized_payload["hash"]
+    if not provider_user_id or not received_hash:
+        raise ValueError("Telegram payload does not contain required id/hash")
+
+    try:
+        auth_date = int(normalized_payload["auth_date"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Telegram payload does not contain valid auth_date") from exc
+
+    now_ts = int(utcnow().timestamp())
+    if auth_date > now_ts + 300:
+        raise ValueError("Telegram payload auth_date is from the future")
+    if auth_date < now_ts - int(max_age_seconds):
+        raise ValueError("Telegram payload auth_date has expired")
+
+    signed_fields = {
+        key: value
+        for key, value in normalized_payload.items()
+        if key != "hash" and value not in {"", None}
+    }
+    data_check_string = "\n".join(
+        f"{key}={signed_fields[key]}"
+        for key in sorted(signed_fields.keys())
+    )
+    secret_key = hashlib.sha256(str(bot_token or "").encode("utf-8")).digest()
+    expected_hash = hmac.new(
+        secret_key,
+        data_check_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected_hash, received_hash):
+        raise ValueError("Telegram payload hash mismatch")
+
+    return TelegramProfile(
+        provider_user_id=provider_user_id,
+        login=normalized_payload["username"] or None,
+        avatar_url=normalized_payload["photo_url"] or None,
+        raw_profile={
+            "id": provider_user_id,
+            "first_name": normalized_payload["first_name"] or None,
+            "last_name": normalized_payload["last_name"] or None,
+            "username": normalized_payload["username"] or None,
+            "photo_url": normalized_payload["photo_url"] or None,
+            "auth_date": auth_date,
+        },
     )
 
 
