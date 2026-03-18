@@ -23,8 +23,11 @@ from app.schemas.user import (
     EmailRegistrationActionResponse,
     EmailRegistrationResendRequest,
     EmailRegistrationStartRequest,
+    FlowEmailAttachRequest,
     RegistrationCompleteRequest,
     RegistrationFlowResponse,
+    TelegramAuthVerifyRequest,
+    TelegramAuthVerifyResponse,
     Token,
 )
 from app.security.rate_limit import RateLimit, enforce_rate_limit
@@ -43,6 +46,7 @@ from app.services.registration import (
     exchange_github_code_for_token,
     exchange_yandex_code_for_token,
     fetch_github_profile,
+    verify_telegram_auth,
     fetch_yandex_profile,
     generate_opaque_token,
     generate_pkce_pair,
@@ -136,6 +140,14 @@ def _ensure_github_oauth_configured() -> None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Не настроены GitHub OAuth credentials.",
+        )
+
+
+def _ensure_telegram_auth_configured() -> None:
+    if not settings.TELEGRAM_BOT_API_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Не настроен Telegram bot token.",
         )
 
 
@@ -322,6 +334,61 @@ async def start_email_registration(
     )
 
 
+@router.post("/registration/email/attach", response_model=EmailRegistrationActionResponse)
+async def attach_email_to_social_registration_flow(
+    payload: FlowEmailAttachRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_email_delivery_configured()
+    flow = await _get_flow_or_raise(db, payload.flow_token)
+
+    if flow.email_verified_at is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Почта уже подтверждена.")
+    if flow.source not in {"telegram"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Для этого потока email уже определён.")
+    if not payload.terms_accepted and flow.terms_accepted_at is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно принять условия пользования.")
+
+    normalized_email = normalize_email(payload.email)
+    now = utcnow()
+    magic_link_token = generate_opaque_token()
+
+    flow.email = normalized_email
+    flow.terms_accepted_at = flow.terms_accepted_at or now
+    flow.marketing_opt_in = bool(payload.marketing_opt_in)
+    flow.marketing_opt_in_at = now if payload.marketing_opt_in else None
+    flow.magic_link_token_hash = hash_secret_token(magic_link_token)
+    flow.magic_link_expires_at = now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS)
+    flow.magic_link_sent_count = int(flow.magic_link_sent_count or 0) + 1
+    flow.last_magic_link_sent_at = now
+    flow.magic_link_consumed_at = None
+    flow.expires_at = now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS)
+
+    magic_link_url = build_magic_link_callback_url(
+        request_scheme=_get_request_scheme(request),
+        request_host=_get_request_host(request),
+        token=magic_link_token,
+    )
+    try:
+        await send_magic_link_email(to_email=normalized_email, magic_link_url=magic_link_url)
+    except Exception as exc:  # noqa: BLE001
+        await db.rollback()
+        logger.exception("Failed to send attached registration magic link to %s", normalized_email)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Не удалось отправить письмо. Попробуйте позже.",
+        ) from exc
+
+    await db.commit()
+
+    return EmailRegistrationActionResponse(
+        message="Письмо со ссылкой отправлено.",
+        flow_token=_build_flow_token(flow),
+        email=normalized_email,
+    )
+
+
 @router.post("/registration/email/resend", response_model=EmailRegistrationActionResponse)
 async def resend_email_registration_link(
     payload: EmailRegistrationResendRequest,
@@ -331,10 +398,10 @@ async def resend_email_registration_link(
     _ensure_email_delivery_configured()
     flow = await _get_flow_or_raise(db, payload.flow_token)
 
-    if flow.source != "email_magic_link":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный тип потока регистрации.")
     if flow.email_verified_at is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Почта уже подтверждена.")
+    if not flow.email:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Для потока регистрации ещё не указан email.")
 
     now = utcnow()
     if flow.last_magic_link_sent_at and (now - flow.last_magic_link_sent_at).total_seconds() < MAGIC_LINK_RESEND_COOLDOWN_SECONDS:
@@ -400,6 +467,74 @@ async def complete_email_magic_link(
     flow.email_verified_at = now
     flow.magic_link_consumed_at = now
     flow.magic_link_token_hash = None
+
+    if flow.source == "telegram" and flow.provider == "telegram" and flow.provider_user_id and flow.email:
+        user_result = await db.execute(select(User).where(User.email == flow.email))
+        user = user_result.scalar_one_or_none()
+        if user is not None:
+            if user.is_active is None:
+                user.is_active = True
+            if user.is_active is False:
+                flow.consumed_at = now
+                await db.commit()
+                return _flow_error_redirect(request, route_path="/login", error_code="account_blocked")
+
+            if user.email_verified_at is None:
+                user.email_verified_at = now
+
+            identity_result = await db.execute(
+                select(UserAuthIdentity).where(
+                    UserAuthIdentity.provider == "telegram",
+                    UserAuthIdentity.provider_user_id == flow.provider_user_id,
+                )
+            )
+            identity = identity_result.scalar_one_or_none()
+            if identity is None:
+                db.add(
+                    UserAuthIdentity(
+                        user_id=user.id,
+                        provider="telegram",
+                        provider_user_id=flow.provider_user_id,
+                        provider_email=flow.email,
+                        provider_login=flow.provider_login,
+                        provider_avatar_url=flow.provider_avatar_url,
+                        raw_profile_json=flow.provider_raw_profile_json,
+                        last_login_at=now,
+                    )
+                )
+            else:
+                identity.provider_email = flow.email
+                identity.provider_login = flow.provider_login
+                identity.provider_avatar_url = flow.provider_avatar_url
+                identity.raw_profile_json = flow.provider_raw_profile_json
+                identity.last_login_at = now
+
+            if flow.provider_avatar_url:
+                profile_result = await db.execute(
+                    select(UserProfile).where(UserProfile.user_id == user.id)
+                )
+                profile = profile_result.scalar_one_or_none()
+                if profile is not None and not profile.avatar_url:
+                    profile.avatar_url = flow.provider_avatar_url
+
+            flow.completed_user_id = user.id
+            flow.consumed_at = now
+            refresh_token, _, _, _ = await issue_login_session(
+                request=request,
+                db=db,
+                user=user,
+            )
+            redirect = RedirectResponse(
+                url=build_frontend_hash_url(
+                    request_host=_get_request_host(request),
+                    route_path="/auth/bridge",
+                    params={"provider": "telegram"},
+                ),
+                status_code=status.HTTP_303_SEE_OTHER,
+            )
+            set_refresh_cookie(redirect, refresh_token)
+            return redirect
+
     await db.commit()
 
     redirect_url = build_frontend_hash_url(
@@ -597,17 +732,112 @@ async def github_oauth_callback(
     )
 
 
+@router.post("/telegram/verify", response_model=TelegramAuthVerifyResponse)
+async def verify_telegram_widget_auth(
+    payload: TelegramAuthVerifyRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    _ensure_telegram_auth_configured()
+    normalized_intent = "register" if str(payload.intent).strip().lower() == "register" else "login"
+
+    try:
+        telegram_profile = verify_telegram_auth(
+            telegram_user={
+                "id": payload.id,
+                "first_name": payload.first_name,
+                "last_name": payload.last_name,
+                "username": payload.username,
+                "photo_url": payload.photo_url,
+                "auth_date": payload.auth_date,
+                "hash": payload.hash,
+            },
+            bot_token=settings.TELEGRAM_BOT_API_TOKEN,
+            max_age_seconds=settings.TELEGRAM_AUTH_MAX_AGE_SECONDS,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Не удалось подтвердить вход через Telegram.",
+        ) from exc
+
+    identity_result = await db.execute(
+        select(UserAuthIdentity).where(
+            UserAuthIdentity.provider == "telegram",
+            UserAuthIdentity.provider_user_id == telegram_profile.provider_user_id,
+        )
+    )
+    identity = identity_result.scalar_one_or_none()
+    user = await db.get(User, identity.user_id) if identity is not None else None
+
+    if user is not None:
+        now = utcnow()
+        if user.is_active is None:
+            user.is_active = True
+        if user.is_active is False:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Аккаунт заблокирован.")
+
+        identity.provider_login = telegram_profile.login
+        identity.provider_avatar_url = telegram_profile.avatar_url
+        identity.raw_profile_json = telegram_profile.raw_profile
+        identity.last_login_at = now
+
+        if telegram_profile.avatar_url:
+            profile_result = await db.execute(
+                select(UserProfile).where(UserProfile.user_id == user.id)
+            )
+            profile = profile_result.scalar_one_or_none()
+            if profile is not None and not profile.avatar_url:
+                profile.avatar_url = telegram_profile.avatar_url
+
+        refresh_token, _, _, _ = await issue_login_session(
+            request=request,
+            db=db,
+            user=user,
+        )
+        set_refresh_cookie(response, refresh_token)
+        return TelegramAuthVerifyResponse(status="authenticated")
+
+    if normalized_intent == "register" and not payload.terms_accepted:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Нужно принять условия пользования.")
+
+    now = utcnow()
+    flow = AuthRegistrationFlow(
+        intent="register",
+        source="telegram",
+        provider="telegram",
+        provider_user_id=telegram_profile.provider_user_id,
+        provider_login=telegram_profile.login,
+        provider_avatar_url=telegram_profile.avatar_url,
+        provider_raw_profile_json=telegram_profile.raw_profile,
+        terms_accepted_at=now if normalized_intent == "register" and payload.terms_accepted else None,
+        marketing_opt_in=payload.marketing_opt_in if normalized_intent == "register" else False,
+        marketing_opt_in_at=now if normalized_intent == "register" and payload.marketing_opt_in else None,
+        expires_at=now + timedelta(hours=settings.MAGIC_LINK_TTL_HOURS),
+    )
+    db.add(flow)
+    await db.commit()
+
+    return TelegramAuthVerifyResponse(
+        status="registration_required",
+        flow_token=_build_flow_token(flow),
+    )
+
+
 @router.get("/registration/flow", response_model=RegistrationFlowResponse)
 async def get_registration_flow(
     flow_token: str = Query(..., min_length=16),
     db: AsyncSession = Depends(get_db),
 ):
     flow = await _get_flow_or_raise(db, flow_token)
-    if not flow.email:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email для потока регистрации не найден.")
-
     email_verified = flow.email_verified_at is not None
-    step = "details" if email_verified or flow.source != "email_magic_link" else "email_sent"
+    if not flow.email:
+        step = "email"
+    elif email_verified:
+        step = "details"
+    else:
+        step = "email_sent"
 
     return RegistrationFlowResponse(
         flow_token=flow_token,
@@ -686,7 +916,7 @@ async def complete_registration(
         user_id=user.id,
         username=payload.username,
         role="participant",
-        avatar_url=flow.provider_avatar_url if flow.source in {"yandex", "github"} else None,
+        avatar_url=flow.provider_avatar_url if flow.source in {"yandex", "github", "telegram"} else None,
         onboarding_status="pending",
     )
     rating = UserRating(user_id=user.id)
@@ -705,7 +935,7 @@ async def complete_registration(
     db.add(rating)
     db.add(registration_data)
 
-    if flow.source in {"yandex", "github"} and flow.provider and flow.provider_user_id:
+    if flow.source in {"yandex", "github", "telegram"} and flow.provider and flow.provider_user_id:
         db.add(
             UserAuthIdentity(
                 user_id=user.id,

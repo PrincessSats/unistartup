@@ -15,8 +15,11 @@ jest.mock('../services/api', () => ({
   authAPI: {
     getRegistrationFlow: jest.fn(),
     startEmailRegistration: jest.fn(),
+    attachEmailToRegistrationFlow: jest.fn(),
     resendEmailRegistration: jest.fn(),
     completeRegistration: jest.fn(),
+    startGithubRegistration: jest.fn(),
+    startTelegramRegistration: jest.fn(),
     startYandexRegistration: jest.fn(),
     persistAccessToken: jest.fn(),
   },
@@ -105,5 +108,40 @@ describe('Register page', () => {
     expect(authAPI.persistAccessToken).toHaveBeenCalledWith('issued-token');
     expect(mockNavigate).toHaveBeenCalledWith('/home', { replace: true });
     jest.useRealTimers();
+  });
+
+  it('attaches email for telegram registration flow and sends magic link', async () => {
+    mockSearch = '?flow_token=flow-3';
+    authAPI.getRegistrationFlow.mockResolvedValue({
+      flow_token: 'flow-3',
+      source: 'telegram',
+      intent: 'register',
+      email: null,
+      email_verified: false,
+      step: 'email',
+      provider: 'telegram',
+      username_suggestion: 'telehero',
+      terms_accepted: true,
+      marketing_opt_in: false,
+    });
+    authAPI.attachEmailToRegistrationFlow.mockResolvedValue({
+      flow_token: 'flow-3b',
+      email: 'tele@example.com',
+    });
+
+    render(<Register />);
+
+    expect(await screen.findByText(/Telegram аккаунт подключен/i)).toBeInTheDocument();
+    await userEvent.type(screen.getByPlaceholderText('Твой адрес электронной почты'), 'tele@example.com');
+    await userEvent.click(screen.getByRole('button', { name: 'Продолжить' }));
+
+    expect(authAPI.attachEmailToRegistrationFlow).toHaveBeenCalledWith({
+      flowToken: 'flow-3',
+      email: 'tele@example.com',
+      termsAccepted: true,
+      marketingOptIn: false,
+    });
+    expect(await screen.findByText(/Отправили ссылку для входа на указанную почту/i)).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledWith('/register?flow_token=flow-3b', { replace: true });
   });
 });

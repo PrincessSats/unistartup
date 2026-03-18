@@ -1,5 +1,7 @@
 import unittest
 from datetime import timedelta
+import hashlib
+import hmac
 
 from env_fixtures import apply_test_env_defaults
 
@@ -18,6 +20,7 @@ from app.services.registration import (  # noqa: E402
     resolve_backend_yandex_callback_url,
     utcnow,
     validate_registration_password,
+    verify_telegram_auth,
 )
 
 
@@ -56,6 +59,51 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertIn("state=opaque-state", url)
         self.assertIn("scope=read%3Auser+user%3Aemail", url)
         self.assertIn("redirect_uri=https%3A%2F%2Fapi.example.com%2Fapi%2Fauth%2Fgithub%2Fcallback", url)
+
+    def test_verify_telegram_auth_accepts_valid_signature(self) -> None:
+        bot_token = "telegram-bot-token"
+        auth_date = int(utcnow().timestamp())
+        base_payload = {
+            "id": "123456",
+            "first_name": "Hack",
+            "last_name": "Net",
+            "username": "hacknet_user",
+            "photo_url": "https://t.me/i/userpic/320/demo.jpg",
+            "auth_date": auth_date,
+        }
+        data_check_string = "\n".join(
+            f"{key}={base_payload[key]}"
+            for key in sorted(base_payload.keys())
+        )
+        secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
+        signed_hash = hmac.new(
+            secret_key,
+            data_check_string.encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+
+        profile = verify_telegram_auth(
+            telegram_user={**base_payload, "hash": signed_hash},
+            bot_token=bot_token,
+            max_age_seconds=86400,
+        )
+
+        self.assertEqual(profile.provider_user_id, "123456")
+        self.assertEqual(profile.login, "hacknet_user")
+        self.assertEqual(profile.avatar_url, "https://t.me/i/userpic/320/demo.jpg")
+
+    def test_verify_telegram_auth_rejects_invalid_signature(self) -> None:
+        with self.assertRaises(ValueError):
+            verify_telegram_auth(
+                telegram_user={
+                    "id": "123456",
+                    "first_name": "Hack",
+                    "auth_date": int(utcnow().timestamp()),
+                    "hash": "deadbeef",
+                },
+                bot_token="telegram-bot-token",
+                max_age_seconds=86400,
+            )
 
     def test_magic_link_callback_uses_registration_path(self) -> None:
         callback_url = build_magic_link_callback_url(
