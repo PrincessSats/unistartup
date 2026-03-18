@@ -1,7 +1,5 @@
 import unittest
 from datetime import timedelta
-import hashlib
-import hmac
 
 from env_fixtures import apply_test_env_defaults
 
@@ -13,14 +11,15 @@ from app.services.registration import (  # noqa: E402
     build_github_authorize_url,
     build_magic_link_callback_url,
     build_registration_flow_token,
+    build_telegram_authorize_url,
     build_yandex_authorize_url,
     decode_registration_flow_token,
     ensure_questionnaire_payload,
     generate_pkce_pair,
+    resolve_backend_telegram_callback_url,
     resolve_backend_yandex_callback_url,
     utcnow,
     validate_registration_password,
-    verify_telegram_auth,
 )
 
 
@@ -60,50 +59,27 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertIn("scope=read%3Auser+user%3Aemail", url)
         self.assertIn("redirect_uri=https%3A%2F%2Fapi.example.com%2Fapi%2Fauth%2Fgithub%2Fcallback", url)
 
-    def test_verify_telegram_auth_accepts_valid_signature(self) -> None:
-        bot_token = "telegram-bot-token"
-        auth_date = int(utcnow().timestamp())
-        base_payload = {
-            "id": "123456",
-            "first_name": "Hack",
-            "last_name": "Net",
-            "username": "hacknet_user",
-            "photo_url": "https://t.me/i/userpic/320/demo.jpg",
-            "auth_date": auth_date,
-        }
-        data_check_string = "\n".join(
-            f"{key}={base_payload[key]}"
-            for key in sorted(base_payload.keys())
+    def test_build_telegram_authorize_url_includes_required_params(self) -> None:
+        url = build_telegram_authorize_url(
+            client_id="tg-client-id",
+            redirect_uri="https://api.example.com/api/auth/telegram/callback",
+            scope="openid profile",
+            state="opaque-state",
+            code_challenge="challenge",
         )
-        secret_key = hashlib.sha256(bot_token.encode("utf-8")).digest()
-        signed_hash = hmac.new(
-            secret_key,
-            data_check_string.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
+        self.assertIn("client_id=tg-client-id", url)
+        self.assertIn("state=opaque-state", url)
+        self.assertIn("response_type=code", url)
+        self.assertIn("code_challenge=challenge", url)
+        self.assertIn("code_challenge_method=S256", url)
+        self.assertIn("oauth.telegram.org/auth", url)
 
-        profile = verify_telegram_auth(
-            telegram_user={**base_payload, "hash": signed_hash},
-            bot_token=bot_token,
-            max_age_seconds=86400,
+    def test_telegram_callback_url_uses_correct_path(self) -> None:
+        url = resolve_backend_telegram_callback_url(
+            request_scheme="https",
+            request_host="api.example.com",
         )
-
-        self.assertEqual(profile.provider_user_id, "123456")
-        self.assertEqual(profile.login, "hacknet_user")
-        self.assertEqual(profile.avatar_url, "https://t.me/i/userpic/320/demo.jpg")
-
-    def test_verify_telegram_auth_rejects_invalid_signature(self) -> None:
-        with self.assertRaises(ValueError):
-            verify_telegram_auth(
-                telegram_user={
-                    "id": "123456",
-                    "first_name": "Hack",
-                    "auth_date": int(utcnow().timestamp()),
-                    "hash": "deadbeef",
-                },
-                bot_token="telegram-bot-token",
-                max_age_seconds=86400,
-            )
+        self.assertEqual(url, "https://api.example.com/api/auth/telegram/callback")
 
     def test_magic_link_callback_uses_registration_path(self) -> None:
         callback_url = build_magic_link_callback_url(

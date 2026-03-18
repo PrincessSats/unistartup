@@ -197,15 +197,6 @@ function buildLoginHash(reason = '') {
   return `#/login?reason=${encodeURIComponent(encodedReason)}`;
 }
 
-function buildFrontendHashPath(routePath, params = {}) {
-  const search = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (value === undefined || value === null || String(value) === '') return;
-    search.set(key, String(value));
-  });
-  const suffix = search.toString() ? `?${search.toString()}` : '';
-  return `${window.location.origin}${window.location.pathname}#${routePath}${suffix}`;
-}
 
 function redirectToLogin(reason = '') {
   const target = buildLoginHash(reason);
