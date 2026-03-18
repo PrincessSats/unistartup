@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import Login from './pages/Login';
 import Register from './pages/Register';
 import AuthBridge from './pages/AuthBridge';
+import TelegramAuth from './pages/TelegramAuth';
 import Profile from './pages/Profile';
 import Championship from './pages/Championship';
 import Knowledge from './pages/Knowledge';
@@ -122,6 +123,7 @@ function App() {
 
         <Route path="/login" element={<PublicRoute authReady={authReady}><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute authReady={authReady}><Register /></PublicRoute>} />
+        <Route path="/auth/telegram" element={<PublicRoute authReady={authReady}><TelegramAuth /></PublicRoute>} />
         <Route path="/auth/bridge" element={<AuthBridge />} />
 
         {/* Layout доступен всем; отдельные маршруты защищены через ProtectedRoute. */}

@@ -17,6 +17,7 @@ jest.mock('../services/api', () => ({
     login: jest.fn(),
     logout: jest.fn(),
     startGithubLogin: jest.fn(),
+    startTelegramLogin: jest.fn(),
     startYandexLogin: jest.fn(),
   },
   profileAPI: {
@@ -54,6 +55,13 @@ describe('Login page', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'GitHub' }));
     expect(authAPI.startGithubLogin).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts Telegram login from the social button', async () => {
+    render(<Login />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Телеграм' }));
+    expect(authAPI.startTelegramLogin).toHaveBeenCalledTimes(1);
   });
 
   it('submits email/password login and navigates to home', async () => {
