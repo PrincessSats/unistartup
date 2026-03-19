@@ -6,6 +6,7 @@ Each check returns a RewardCheck with score 0.0 (fail) or 1.0 (pass).
 from __future__ import annotations
 
 import base64
+import io
 import math
 import re
 import logging
@@ -138,6 +139,8 @@ async def validate(
 
     if task_type == "crypto_text_web":
         checks = _validate_crypto(spec, artifact, weights)
+    elif task_type == "forensics_image_metadata":
+        checks = await _validate_forensics(spec, artifact, weights)
     else:
         checks = [RewardCheck(
             type=RewardType.FUNCTIONAL,
@@ -254,6 +257,147 @@ def _validate_crypto(
         score=0.0 if trivial else 1.0,
         weight=_w(weights, RewardType.NON_TRIVIALITY),
         detail=trivial_reason if trivial else "Flag not trivially recoverable",
+    ))
+
+    return checks
+
+
+async def _validate_forensics(
+    spec: dict[str, Any],
+    artifact: ArtifactResult,
+    weights: dict,
+) -> list[RewardCheck]:
+    from app.services.ai_generator.forensics_utils import (
+        VALID_HIDE_IN, download_image, extract_metadata_field,
+    )
+    import asyncio
+
+    checks: list[RewardCheck] = []
+
+    # ── FORMAT check ─────────────────────────────────────────────────────────
+    required_keys = {"title", "description", "flag", "hide_in", "decoy_metadata", "writeup", "hints"}
+    missing = required_keys - set(spec.keys())
+    flag = (spec.get("flag") or "").strip()
+    flag_valid = bool(_FLAG_PATTERN.match(flag))
+    hide_in = (spec.get("hide_in") or "").strip()
+    hide_in_valid = hide_in in VALID_HIDE_IN
+    decoy = spec.get("decoy_metadata") or {}
+    decoy_valid = isinstance(decoy, dict) and len(decoy) >= 3
+
+    format_ok = (not missing) and flag_valid and hide_in_valid and decoy_valid
+    checks.append(RewardCheck(
+        type=RewardType.FORMAT,
+        score=1.0 if format_ok else 0.0,
+        weight=_w(weights, RewardType.FORMAT),
+        detail=(
+            "All required fields present" if format_ok
+            else (
+                f"Missing fields: {missing or set()}; "
+                f"flag_valid={flag_valid}, hide_in_valid={hide_in_valid} ({hide_in!r}), "
+                f"decoy_valid={decoy_valid} ({len(decoy)} entries)"
+            )
+        ),
+    ))
+
+    # ── FUNCTIONAL check ─────────────────────────────────────────────────────
+    s3_key = artifact.file_url if artifact else None
+    image_bytes: Optional[bytes] = None
+
+    if artifact and artifact.error:
+        checks.append(RewardCheck(
+            type=RewardType.FUNCTIONAL,
+            score=0.0,
+            weight=_w(weights, RewardType.FUNCTIONAL),
+            detail="Artifact creation failed",
+            error=artifact.error,
+        ))
+    elif not s3_key:
+        checks.append(RewardCheck(
+            type=RewardType.FUNCTIONAL,
+            score=0.0,
+            weight=_w(weights, RewardType.FUNCTIONAL),
+            detail="No artifact file_url in artifact result",
+        ))
+    else:
+        try:
+            image_bytes = await asyncio.to_thread(download_image, s3_key)
+            from PIL import Image
+            img = Image.open(io.BytesIO(image_bytes))
+            img.verify()
+            size_kb = len(image_bytes) / 1024
+            checks.append(RewardCheck(
+                type=RewardType.FUNCTIONAL,
+                score=1.0,
+                weight=_w(weights, RewardType.FUNCTIONAL),
+                detail=f"Valid JPEG image, {size_kb:.1f}KB",
+            ))
+            # Re-open for further use (verify() closes the file)
+            image_bytes = await asyncio.to_thread(download_image, s3_key)
+        except Exception as exc:
+            checks.append(RewardCheck(
+                type=RewardType.FUNCTIONAL,
+                score=0.0,
+                weight=_w(weights, RewardType.FUNCTIONAL),
+                detail=f"Image validation failed: {exc}",
+                error=str(exc),
+            ))
+            image_bytes = None
+
+    # ── SOLVABILITY check ────────────────────────────────────────────────────
+    if image_bytes is None or not flag or not hide_in_valid:
+        checks.append(RewardCheck(
+            type=RewardType.SOLVABILITY,
+            score=0.0,
+            weight=_w(weights, RewardType.SOLVABILITY),
+            detail="No artifact" if image_bytes is None else "Invalid spec — skipping solvability",
+        ))
+    else:
+        try:
+            extracted = await asyncio.to_thread(extract_metadata_field, image_bytes, hide_in)
+            if extracted is not None and flag in extracted:
+                checks.append(RewardCheck(
+                    type=RewardType.SOLVABILITY,
+                    score=1.0,
+                    weight=_w(weights, RewardType.SOLVABILITY),
+                    detail=f"Flag found in {hide_in}",
+                ))
+            else:
+                checks.append(RewardCheck(
+                    type=RewardType.SOLVABILITY,
+                    score=0.0,
+                    weight=_w(weights, RewardType.SOLVABILITY),
+                    detail=f"Flag NOT found in {hide_in}; extracted={extracted!r}",
+                ))
+        except Exception as exc:
+            checks.append(RewardCheck(
+                type=RewardType.SOLVABILITY,
+                score=0.0,
+                weight=_w(weights, RewardType.SOLVABILITY),
+                detail=f"extract_metadata_field error: {exc}",
+                error=str(exc),
+            ))
+
+    # ── NON_TRIVIALITY check ─────────────────────────────────────────────────
+    description = (spec.get("description") or "").lower()
+    title = (spec.get("title") or "").lower()
+    trivial = False
+    trivial_reason = ""
+
+    if flag and flag.lower() in description:
+        trivial = True
+        trivial_reason = "flag appears in description"
+    elif flag and flag.lower() in title:
+        trivial = True
+        trivial_reason = "flag appears in title"
+    elif hide_in and hide_in.replace("_", " ") in description:
+        trivial = True
+        trivial_reason = f"hide_in field name {hide_in!r} mentioned in description"
+
+    checks.append(RewardCheck(
+        type=RewardType.NON_TRIVIALITY,
+        score=0.0 if trivial else 1.0,
+        weight=_w(weights, RewardType.NON_TRIVIALITY),
+        detail=trivial_reason if trivial else "Flag location not disclosed in description",
     ))
 
     return checks

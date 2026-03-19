@@ -47,9 +47,17 @@ class AdminArticle(BaseModel):
 
 
 class AdminNvdSync(BaseModel):
+    log_id: Optional[int] = None
     last_fetch_at: Optional[datetime] = None
+    window_start: Optional[datetime] = None
+    window_end: Optional[datetime] = None
+    fetched_count: Optional[int] = None
     last_inserted: Optional[int] = None
+    embedding_total: int = 0
+    embedding_completed: int = 0
+    embedding_failed: int = 0
     status: Optional[str] = None
+    error: Optional[str] = None
 
 
 class AdminDashboardResponse(BaseModel):

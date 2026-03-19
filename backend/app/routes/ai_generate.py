@@ -396,7 +396,7 @@ async def publish_variant(
     # Store artifact as TaskMaterial so it's always retrievable
     if ciphertext or file_url:
         crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
-        db.add(TaskMaterial(
+        mat_kwargs: dict = dict(
             task_id=task.id,
             type="artifact",
             name="Generated artifact",
@@ -407,7 +407,12 @@ async def publish_variant(
                 "crypto_chain": crypto_chain,
                 "task_type": batch.task_type,
             },
-        ))
+        )
+        # For file-based artifacts, set storage_key so presigned-URL download works
+        if file_url and batch.task_type == "forensics_image_metadata":
+            mat_kwargs["name"] = "Forensics image"
+            mat_kwargs["storage_key"] = file_url
+        db.add(TaskMaterial(**mat_kwargs))
 
     # Store author solution (crypto chain reversal steps)
     crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
@@ -426,6 +431,16 @@ async def publish_variant(
             summary=f"Reverse the encryption chain: {chain_summary}",
             creation_solution=f"Flag was encrypted with: {chain_summary}\nTo solve: apply inverse operations in reverse order.",
             steps={"encrypt": forward_steps, "decrypt": reversed_steps},
+        ))
+
+    # Store forensics author solution
+    if batch.task_type == "forensics_image_metadata":
+        hide_in = spec.get("hide_in", "unknown")
+        db.add(TaskAuthorSolution(
+            task_id=task.id,
+            summary=f"Flag hidden in: {hide_in}",
+            creation_solution=spec.get("writeup", ""),
+            steps={"hide_in": hide_in, "decoy_metadata": spec.get("decoy_metadata", {})},
         ))
 
     # Mark variant as published

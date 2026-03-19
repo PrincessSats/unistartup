@@ -8,7 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, settings
 from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
 from app.routes import ai_generate
-from app.database import ensure_auth_schema_compatibility, ensure_performance_indexes
+from app.database import (
+    ensure_auth_schema_compatibility,
+    ensure_nvd_sync_schema_compatibility,
+    ensure_performance_indexes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,5 +147,6 @@ async def startup_tasks():
         return
 
     await ensure_auth_schema_compatibility()
+    await ensure_nvd_sync_schema_compatibility()
     # На старте дополнительно гарантируем индексы для быстрых пользовательских сценариев.
     await ensure_performance_indexes()

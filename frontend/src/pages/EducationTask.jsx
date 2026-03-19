@@ -247,7 +247,7 @@ export default function EducationTask() {
   const [submitMessage, setSubmitMessage] = useState('');
   const [submitLoading, setSubmitLoading] = useState(false);
   const [downloadLoadingId, setDownloadLoadingId] = useState(null);
-  const [activeHint, setActiveHint] = useState(0);
+  const [activeHint, setActiveHint] = useState(null);
   const [chatSession, setChatSession] = useState(null);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState('');
@@ -269,7 +269,6 @@ export default function EducationTask() {
         const data = await educationAPI.getPracticeTask(id);
         if (!isMounted) return;
         setTask(data);
-        setActiveHint(0);
       } catch (err) {
         console.error('Не удалось загрузить практическую задачу', err);
         if (!isMounted) return;
@@ -550,7 +549,7 @@ export default function EducationTask() {
   }
 
   const hintButtons = Array.from({ length: task.hints_count || 0 }, (_, index) => index + 1);
-  const activeHintText = task.hints?.[activeHint] || '';
+  const activeHintText = activeHint !== null ? (task.hints?.[activeHint] || '') : '';
   const linkActionLabel = String(linkMaterial?.name || 'Перейти к заданию').trim() || 'Перейти к заданию';
   const fileDownloadEnabled = Boolean(fileMaterial?.id);
   const fileDownloadLoadingKey = fileMaterial?.id ?? 'fallback-file';
@@ -567,7 +566,7 @@ export default function EducationTask() {
 
   return (
     <div className="font-sans-figma text-white">
-      <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_560px]">
+      <div className={`grid grid-cols-1 gap-4 transition-all duration-300 2xl:grid-cols-[minmax(0,1fr)_560px] ${activeHint !== null ? 'blur-sm' : ''}`}>
         <section>
           <div className="overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.03]">
             <div
@@ -628,11 +627,7 @@ export default function EducationTask() {
                           key={number}
                           type="button"
                           onClick={() => setActiveHint(index)}
-                          className={`rounded-[6px] border px-2.5 py-1 text-[13px] ${
-                            activeHint === index
-                              ? 'border-[#9B6BFF]/70 bg-[#9B6BFF]/25 text-white'
-                              : 'border-white/10 bg-white/[0.03] text-white/70'
-                          }`}
+                          className="rounded-[6px] border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[13px] text-white/70 transition hover:border-[#9B6BFF]/50 hover:bg-[#9B6BFF]/15 hover:text-white"
                         >
                           {number}
                         </button>
@@ -644,11 +639,6 @@ export default function EducationTask() {
                 </div>
               </div>
 
-              {activeHintText && (
-                <p className="mt-4 whitespace-pre-line rounded-[10px] border border-white/10 bg-white/[0.03] px-4 py-3 text-[14px] text-white/70">
-                  {activeHintText}
-                </p>
-              )}
 
               {accessType === 'vm' && (
                 <button
@@ -938,6 +928,47 @@ export default function EducationTask() {
           )}
         </aside>
       </div>
+
+      {activeHint !== null && activeHintText && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="relative w-full max-w-[470px] overflow-hidden rounded-[20px] bg-gradient-to-b from-[#563BA6] to-[#2a1f5c]">
+            <button
+              type="button"
+              onClick={() => setActiveHint(null)}
+              className="absolute right-6 top-6 z-10 text-white/70 transition hover:text-white"
+            >
+              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="aspect-video overflow-hidden bg-gradient-to-br from-[#9B6BFF] to-[#6B4BA8]">
+              <div className="flex h-full items-center justify-center">
+                <svg className="h-32 w-32 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5a4 4 0 100-8 4 4 0 000 8z" />
+                </svg>
+              </div>
+            </div>
+
+            <div className="px-6 py-6">
+              <h3 className="text-[20px] font-semibold leading-[28px] text-white">
+                Подсказка {activeHint + 1}
+              </h3>
+              <p className="mt-4 whitespace-pre-line text-[16px] leading-[24px] text-white/85">
+                {activeHintText}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setActiveHint(null)}
+                className="mt-6 w-full rounded-[10px] bg-[#9B6BFF] px-4 py-3 text-[16px] font-medium text-white transition hover:bg-[#A97CFF]"
+              >
+                Понятно
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
