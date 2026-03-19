@@ -31,7 +31,8 @@ def get_client_ip(request: Request) -> str:
 
 def set_refresh_cookie(response: Response, token: str) -> None:
     secure_cookie = bool(settings.REFRESH_TOKEN_COOKIE_SECURE)
-    if settings.REFRESH_TOKEN_COOKIE_SAMESITE == "none":
+    cross_site = settings.REFRESH_TOKEN_COOKIE_SAMESITE == "none"
+    if cross_site:
         secure_cookie = True
 
     response.set_cookie(
@@ -45,6 +46,13 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         httponly=True,
         samesite=settings.REFRESH_TOKEN_COOKIE_SAMESITE,
     )
+    # Add Partitioned attribute for cross-site (SameSite=None) cookies to satisfy
+    # Chrome CHIPS requirement and suppress "foreign cookie" warnings.
+    if cross_site:
+        for i, (name, value) in enumerate(response.raw_headers):
+            if name == b"set-cookie" and b"refresh_token=" in value:
+                response.raw_headers[i] = (name, value + b"; Partitioned")
+                break
 
 
 def clear_refresh_cookie(response: Response) -> None:

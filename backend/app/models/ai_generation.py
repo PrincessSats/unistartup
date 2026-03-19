@@ -1,5 +1,6 @@
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import Column, Integer, Float, Text, Boolean, ForeignKey, Date
 from sqlalchemy.dialects.postgresql import TIMESTAMP, JSONB, UUID, ARRAY
 from sqlalchemy.orm import relationship
@@ -73,6 +74,8 @@ class AIGenerationVariant(Base):
     # Failure tracking
     failure_reason = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    # Embedding of generated spec (title + description) for feedback similarity search
+    embedding = Column(Vector(256), nullable=True)
 
     batch = relationship("AIGenerationBatch", back_populates="variants")
 

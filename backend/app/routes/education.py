@@ -621,14 +621,14 @@ async def list_practice_tasks(
         categories_rows = (
             await db.execute(
                 select(Task.category)
-                .where(Task.task_kind == "practice", Task.state == "ready")
+                .where(Task.task_kind == "practice", Task.state == "published")
                 .distinct()
                 .order_by(Task.category.asc())
             )
         ).scalars().all()
         categories = [row for row in categories_rows if row]
 
-    filters = [Task.task_kind == "practice", Task.state == "ready"]
+    filters = [Task.task_kind == "practice", Task.state == "published"]
 
     if difficulty:
         min_diff, max_diff = difficulty_bounds(difficulty)
@@ -738,7 +738,7 @@ async def get_practice_task(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -860,7 +860,7 @@ async def get_practice_task_chat_session(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -931,7 +931,7 @@ async def send_practice_task_chat_message(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -1021,7 +1021,7 @@ async def abort_practice_task_chat_session(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -1059,7 +1059,7 @@ async def restart_practice_task_chat_session(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -1115,7 +1115,7 @@ async def get_practice_task_material_download(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -1195,7 +1195,7 @@ async def download_practice_task_material_content(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()
@@ -1275,7 +1275,7 @@ async def start_practice_task(
 
     task = (
         await db.execute(
-            select(Task).where(Task.id == task_id, Task.task_kind == "practice", Task.state == "ready")
+            select(Task).where(Task.id == task_id, Task.task_kind == "practice", Task.state == "published")
         )
     ).scalar_one_or_none()
     if task is None:
@@ -1310,7 +1310,7 @@ async def submit_practice_flag(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind == "practice",
-                Task.state == "ready",
+                Task.state == "published",
             )
         )
     ).scalar_one_or_none()

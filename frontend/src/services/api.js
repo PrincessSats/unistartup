@@ -35,6 +35,10 @@ const ACCESS_TOKEN_STORAGE_KEY = 'token';
 const PROFILE_CACHE_STORAGE_KEY = 'layout:profile:v1';
 const parsedTimeout = Number(process.env.REACT_APP_API_TIMEOUT_MS || 15000);
 const REQUEST_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout >= 3000 ? parsedTimeout : 15000;
+const parsedAdminNvdTimeout = Number(process.env.REACT_APP_ADMIN_NVD_TIMEOUT_MS || 120000);
+const ADMIN_NVD_TIMEOUT_MS = Number.isFinite(parsedAdminNvdTimeout) && parsedAdminNvdTimeout >= REQUEST_TIMEOUT_MS
+  ? parsedAdminNvdTimeout
+  : Math.max(REQUEST_TIMEOUT_MS, 120000);
 const parsedLoginTimeout = Number(process.env.REACT_APP_AUTH_LOGIN_TIMEOUT_MS || 10000);
 const AUTH_LOGIN_TIMEOUT_MS = Number.isFinite(parsedLoginTimeout) && parsedLoginTimeout >= 4000
   ? parsedLoginTimeout
@@ -699,7 +703,13 @@ export const adminAPI = {
     return response.data;
   },
   fetchNvd24h: async () => {
-    const response = await api.post('/admin/nvd_sync');
+    const response = await api.post('/admin/nvd_sync', null, {
+      timeout: ADMIN_NVD_TIMEOUT_MS,
+    });
+    return response.data;
+  },
+  getNvdSyncStatus: async () => {
+    const response = await api.get('/admin/nvd_sync');
     return response.data;
   },
   resolveFeedback: async (feedbackId) => {
