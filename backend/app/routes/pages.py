@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import text, select, func, delete, update
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
-from app.database import get_db
+from app.database import get_db, ensure_nvd_sync_schema_compatibility
 from app.models.user import User, UserProfile
 from app.models.contest import (
     Contest,
@@ -47,7 +47,12 @@ from app.schemas.admin import (
     AdminPromptTemplate,
     AdminPromptUpdateRequest,
 )
-from app.services.nvd_sync import run_sync
+from app.services.nvd_sync import (
+    create_sync_log,
+    get_latest_sync_log,
+    run_sync_background,
+    sync_log_to_admin_payload,
+)
 from app.services.task_generation import (
     generate_task_payload_with_prompt,
     TaskGenerationError,
@@ -67,6 +72,11 @@ from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 router = APIRouter(tags=["Тестовые страницы"])
 logger = logging.getLogger(__name__)
+
+
+def _admin_nvd_sync_from_row(row: Optional[dict]) -> Optional[AdminNvdSync]:
+    payload = sync_log_to_admin_payload(row)
+    return AdminNvdSync(**payload) if payload else None
 
 @router.get("/welcome")
 async def welcome_page(
@@ -98,6 +108,7 @@ async def admin_panel(
     Возвращает метрики и данные для дашборда.
     """
     _user, _profile = current_user_data
+    await ensure_nvd_sync_schema_compatibility()
 
     total_users = (await db.execute(text("SELECT COUNT(*) FROM users"))).scalar_one() or 0
     active_users = (
@@ -214,18 +225,7 @@ async def admin_panel(
 
     nvd_row = None
     try:
-        nvd_row = (
-            await db.execute(
-                text(
-                    """
-                    SELECT fetched_at, inserted_count, status
-                    FROM nvd_sync_log
-                    ORDER BY fetched_at DESC NULLS LAST
-                    LIMIT 1
-                    """
-                )
-            )
-        ).mappings().first()
+        nvd_row = await get_latest_sync_log(db)
     except ProgrammingError as exc:
         error_text = str(exc)
         if "nvd_sync_log" not in error_text:
@@ -241,15 +241,7 @@ async def admin_panel(
         latest_feedbacks=latest_feedbacks,
         current_championship=AdminChampionship(**contest_row) if contest_row else None,
         last_article=AdminArticle(**article_row) if article_row else None,
-        nvd_sync=(
-            AdminNvdSync(
-                last_fetch_at=nvd_row.get("fetched_at"),
-                last_inserted=nvd_row.get("inserted_count"),
-                status=nvd_row.get("status"),
-            )
-            if nvd_row
-            else None
-        ),
+        nvd_sync=_admin_nvd_sync_from_row(nvd_row),
     )
 
 
@@ -743,50 +735,18 @@ async def generate_kb_entry_fields(
     )
 
 
-@router.post("/admin/nvd_sync", response_model=AdminNvdSync)
-async def sync_nvd_last_24h(
+@router.get("/admin/nvd_sync", response_model=Optional[AdminNvdSync])
+async def get_nvd_sync_status(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Запустить синхронизацию NVD за последние 24 часа.
+    Вернуть статус последней синхронизации NVD, включая прогресс embeddings.
     """
     _user, _profile = current_user_data
 
-    fetched_at = datetime.now(timezone.utc)
-    status_value = "success"
-    inserted_count = None
-    window_start = None
-    window_end = None
-    error_text = None
-
     try:
-        result = await run_sync(hours=24)
-        inserted_count = result.get("inserted")
-        window_start = result.get("window_start")
-        window_end = result.get("window_end")
-    except Exception as exc:  # noqa: BLE001 - surface error to log table
-        status_value = "failed"
-        error_text = str(exc)[:500]
-
-    try:
-        await db.execute(
-            text(
-                """
-                INSERT INTO nvd_sync_log (fetched_at, window_start, window_end, inserted_count, status, error)
-                VALUES (:fetched_at, :window_start, :window_end, :inserted_count, :status, :error)
-                """
-            ),
-            {
-                "fetched_at": fetched_at,
-                "window_start": window_start,
-                "window_end": window_end,
-                "inserted_count": inserted_count,
-                "status": status_value,
-                "error": error_text,
-            },
-        )
-        await db.commit()
+        row = await get_latest_sync_log(db)
     except ProgrammingError as exc:
         error_text = str(exc)
         if "nvd_sync_log" in error_text:
@@ -796,17 +756,40 @@ async def sync_nvd_last_24h(
             ) from exc
         raise
 
-    if status_value != "success":
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Не удалось синхронизировать NVD",
-        )
+    return _admin_nvd_sync_from_row(row)
 
-    return AdminNvdSync(
-        last_fetch_at=fetched_at,
-        last_inserted=inserted_count,
-        status=status_value,
-    )
+
+@router.post("/admin/nvd_sync", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
+async def sync_nvd_last_24h(
+    background_tasks: BackgroundTasks,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Запустить фоновую синхронизацию NVD за последние 24 часа.
+    """
+    _user, _profile = current_user_data
+    await ensure_nvd_sync_schema_compatibility()
+
+    try:
+        active_row = await get_latest_sync_log(db, active_only=True)
+        if active_row:
+            active_payload = sync_log_to_admin_payload(active_row)
+            return AdminNvdSync(**active_payload)
+
+        created_row = await create_sync_log(db)
+    except ProgrammingError as exc:
+        error_text = str(exc)
+        if "nvd_sync_log" in error_text:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="nvd_sync_log table missing. Apply schema.sql changes.",
+            ) from exc
+        raise
+
+    background_tasks.add_task(run_sync_background, created_row["id"], hours=24)
+    created_payload = sync_log_to_admin_payload(created_row)
+    return AdminNvdSync(**created_payload)
 
 
 @router.get("/admin/tasks", response_model=list[AdminTaskResponse])
