@@ -275,12 +275,17 @@ CREATE TABLE nvd_sync_log (
     fetched_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     window_start    TIMESTAMPTZ,
     window_end      TIMESTAMPTZ,
+    fetched_count   INTEGER,
     inserted_count  INTEGER,
-    status          TEXT NOT NULL DEFAULT 'success', -- статус: success|failed
+    embedding_total INTEGER NOT NULL DEFAULT 0,
+    embedding_completed INTEGER NOT NULL DEFAULT 0,
+    embedding_failed INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'success', -- статус: fetching|embedding|success|failed
     error           TEXT
 );
 
 CREATE INDEX idx_nvd_sync_log_fetched_at ON nvd_sync_log(fetched_at DESC);
+CREATE INDEX idx_nvd_sync_log_status_fetched_at ON nvd_sync_log(status, fetched_at DESC);
 
 -- 6. Задачи
 CREATE TABLE tasks (
