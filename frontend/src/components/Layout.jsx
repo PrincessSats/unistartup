@@ -79,9 +79,7 @@ function Layout() {
         writeProfileCache(data);
       } catch (err) {
         const status = Number(err?.response?.status || 0);
-        const code = String(err?.code || '').toUpperCase();
-        const isTimeout = code === 'ECONNABORTED' || String(err?.message || '').toLowerCase().includes('timeout');
-        if (status === 401 || isTimeout) {
+        if (status === 401) {
           // Сессия истекла — очищаем токен и остаёмся на странице как гость.
           writeProfileCache(null);
           authAPI.logout({ remote: false, redirect: false });
