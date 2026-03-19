@@ -58,6 +58,8 @@ const FileIcon = ({ className }) => (
   </svg>
 );
 
+const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding']);
+
 function formatNumber(value) {
   if (value === null || value === undefined) return '—';
   if (Number.isNaN(Number(value))) return '—';
@@ -128,6 +130,21 @@ function getApiErrorMessage(err, fallback) {
   }
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
   return fallback;
+}
+
+function getNvdProgress(sync) {
+  const total = Number(sync?.embedding_total || 0);
+  const completed = Number(sync?.embedding_completed || 0);
+  const failed = Number(sync?.embedding_failed || 0);
+  const processed = total > 0 ? Math.min(total, completed + failed) : 0;
+  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+  return {
+    total,
+    completed,
+    failed,
+    processed,
+    percent,
+  };
 }
 
 function StatCard({ label, value, hint, icon, tone }) {
@@ -1802,7 +1819,7 @@ function ContestPlanningModal({ open, onClose }) {
     try {
       const [contestList, taskList] = await Promise.all([
         adminAPI.listContests(),
-        adminAPI.listTasks({ task_kind: 'contest' }),
+        adminAPI.listTasks({ task_kind: 'contest', state: 'ready' }),
       ]);
       setContests(contestList);
       setTasks(taskList);
@@ -2612,6 +2629,19 @@ function Admin() {
     }
   }, [navigate]);
 
+  const loadNvdStatus = useCallback(async () => {
+    try {
+      const data = await adminAPI.getNvdSyncStatus();
+      setDashboard((prev) => (
+        prev
+          ? { ...prev, nvd_sync: data || null }
+          : { nvd_sync: data || null }
+      ));
+    } catch {
+      // Progress polling is best-effort.
+    }
+  }, []);
+
   useEffect(() => {
     loadDashboard();
   }, [loadDashboard]);
@@ -2621,6 +2651,51 @@ function Admin() {
   const lastArticle = dashboard?.last_article || null;
   const feedbacks = dashboard?.latest_feedbacks || [];
   const nvdSync = dashboard?.nvd_sync || null;
+  const nvdStatus = nvdSync?.status || null;
+  const nvdProgress = useMemo(() => getNvdProgress(nvdSync), [nvdSync]);
+  const isNvdBackgroundRunning = NVD_ACTIVE_STATUSES.has(nvdStatus);
+  const isNvdBusy = isNvdRunning || isNvdBackgroundRunning;
+
+  useEffect(() => {
+    if (!isNvdBackgroundRunning) return undefined;
+    const interval = setInterval(() => {
+      loadNvdStatus();
+    }, 2500);
+    return () => clearInterval(interval);
+  }, [isNvdBackgroundRunning, loadNvdStatus]);
+
+  const nvdStatusLabel = useMemo(() => {
+    if (nvdStatus === 'fetching') return 'Получаем CVE из NVD';
+    if (nvdStatus === 'embedding') return 'Считаем embeddings';
+    if (nvdStatus === 'failed') return 'Синхронизация завершилась ошибкой';
+    if (nvdStatus === 'success' && nvdProgress.total > 0) return 'Embeddings готовы';
+    if (nvdStatus === 'success') return 'Синхронизация завершена';
+    return 'Нет активной синхронизации';
+  }, [nvdProgress.total, nvdStatus]);
+
+  const nvdStatusDetail = useMemo(() => {
+    const fetched = Number(nvdSync?.fetched_count || 0);
+    const inserted = Number(nvdSync?.last_inserted || 0);
+    if (nvdStatus === 'fetching') {
+      return 'Читаем страницы NVD и собираем новые CVE за последние 24 часа';
+    }
+    if (nvdStatus === 'embedding') {
+      return `Обработано ${formatNumber(nvdProgress.processed)} из ${formatNumber(nvdProgress.total)} новых статей`;
+    }
+    if (nvdStatus === 'failed') {
+      return nvdSync?.error || 'Фоновая задача синхронизации упала';
+    }
+    if (nvdStatus === 'success' && inserted === 0) {
+      return fetched > 0
+        ? `NVD вернул ${formatNumber(fetched)} записей, новых статей не появилось`
+        : 'Новых статей для embeddings не было';
+    }
+    if (nvdStatus === 'success') {
+      const failedPart = nvdProgress.failed > 0 ? `, ошибок: ${formatNumber(nvdProgress.failed)}` : '';
+      return `Новых статей: ${formatNumber(inserted)}. Embeddings готовы: ${formatNumber(nvdProgress.completed)}${failedPart}`;
+    }
+    return 'Нажмите Fetch NVD 24h, чтобы запустить новую синхронизацию';
+  }, [nvdProgress.completed, nvdProgress.failed, nvdProgress.processed, nvdProgress.total, nvdStatus, nvdSync]);
 
   const contestStatus = useMemo(() => {
     if (!contest) {
@@ -2650,7 +2725,7 @@ function Admin() {
   }
 
   const handleFetchNvd = async () => {
-    if (isNvdRunning) return;
+    if (isNvdBusy) return;
     setIsNvdRunning(true);
     setNvdError('');
     try {
@@ -2715,14 +2790,53 @@ function Admin() {
               <button
                 type="button"
                 onClick={handleFetchNvd}
-                disabled={isNvdRunning}
+                disabled={isNvdBusy}
                 className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {isNvdRunning ? 'Fetching...' : 'Fetch NVD 24h'}
+                {isNvdRunning
+                  ? 'Starting...'
+                  : nvdStatus === 'fetching'
+                    ? 'Fetching NVD...'
+                    : nvdStatus === 'embedding'
+                      ? 'Embedding...'
+                      : 'Fetch NVD 24h'}
               </button>
               <span className="text-[12px] text-white/40">
-                Last fetch: {formatDateTime(nvdSync?.last_fetch_at)}
+                Last run: {formatDateTime(nvdSync?.last_fetch_at)}
               </span>
+              <div className="w-[260px] mt-2 rounded-[14px] border border-white/10 bg-white/[0.04] px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[12px] uppercase tracking-[0.18em] text-white/45">
+                    {nvdStatusLabel}
+                  </span>
+                  <span className="text-[12px] text-white/60 font-mono-figma">
+                    {nvdStatus === 'embedding' && nvdProgress.total > 0
+                      ? `${formatNumber(nvdProgress.processed)} / ${formatNumber(nvdProgress.total)}`
+                      : nvdStatus === 'success' && nvdProgress.total > 0
+                        ? `${formatNumber(nvdProgress.processed)} / ${formatNumber(nvdProgress.total)}`
+                        : '—'}
+                  </span>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
+                  {nvdStatus === 'fetching' ? (
+                    <div className="h-full w-1/3 rounded-full bg-[#9B6BFF]/80 animate-pulse" />
+                  ) : (
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        nvdStatus === 'failed'
+                          ? 'bg-rose-400/80'
+                          : nvdProgress.failed > 0
+                            ? 'bg-amber-300/80'
+                            : 'bg-emerald-400/80'
+                      }`}
+                      style={{ width: `${nvdProgress.percent}%` }}
+                    />
+                  )}
+                </div>
+                <div className="mt-2 text-[12px] leading-[16px] text-white/55">
+                  {nvdStatusDetail}
+                </div>
+              </div>
             </div>
             <button
               type="button"

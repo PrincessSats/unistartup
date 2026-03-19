@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.ai_generation import AIGenerationBatch, AIGenerationVariant
 from app.services.ai_generator.artifact_creator import create_artifact, ArtifactResult
+from app.services.ai_generator.feedback import FeedbackContext, compute_feedback_context
 from app.services.ai_generator.rag_context import RAGContextBuilder, RAGContext
 from app.services.ai_generator.reward import (
     RewardCheck, VariantReward, compute_group_advantages, REWARD_WEIGHTS,
@@ -44,6 +45,7 @@ GENERATOR_MODEL_VERSION = "latest"
 
 _PROMPT_FILE_MAP: dict[str, str] = {
     "crypto_text_web": "crypto_generator.txt",
+    "forensics_image_metadata": "forensics_generator.txt",
 }
 
 _generator_client: Optional[OpenAI] = None
@@ -98,6 +100,7 @@ def _build_user_message(
     difficulty: str,
     failure_context: list[str],
     rag_context_text: str = "",
+    feedback_text: str = "",
 ) -> str:
     difficulty_ru = {
         "beginner": "начального",
@@ -105,6 +108,9 @@ def _build_user_message(
         "advanced": "продвинутого",
     }.get(difficulty, difficulty)
     parts = [f'Создай задание уровня сложности {difficulty_ru}.']
+    if feedback_text:
+        parts.append("")
+        parts.append(feedback_text)
     if rag_context_text:
         parts.append("")
         parts.append(rag_context_text)
@@ -121,6 +127,7 @@ def _run_one_spec(
     temperature: float,
     failure_context: list[str],
     rag_context_text: str = "",
+    feedback_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
     """Sync LLM call — runs in a thread via asyncio.to_thread."""
     client = _build_generator_client()
@@ -128,7 +135,7 @@ def _run_one_spec(
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
     system_prompt = _load_system_prompt(task_type)
-    user_message = _build_user_message(difficulty, failure_context, rag_context_text)
+    user_message = _build_user_message(difficulty, failure_context, rag_context_text, feedback_text)
 
     start = time.monotonic()
     try:
@@ -169,6 +176,7 @@ async def _generate_one_spec(
     temperature: float,
     failure_context: list[str],
     rag_context_text: str = "",
+    feedback_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
     """Async wrapper — runs sync LLM call in a thread."""
     return await asyncio.to_thread(
@@ -178,6 +186,7 @@ async def _generate_one_spec(
         temperature=temperature,
         failure_context=failure_context,
         rag_context_text=rag_context_text,
+        feedback_text=feedback_text,
     )
 
 
@@ -238,6 +247,21 @@ async def run_pipeline(
         len(rag_context.cve_entries), rag_context.query_text,
     )
 
+    # Build feedback context from historical generations (few-shot examples)
+    feedback_ctx = FeedbackContext()
+    try:
+        async with AsyncSessionLocal() as fb_session:
+            feedback_ctx = await compute_feedback_context(task_type, difficulty, fb_session)
+        logger.info(
+            "Feedback context: %d positive examples, %d negative patterns, pass_rate=%s",
+            len(feedback_ctx.positive_examples),
+            len(feedback_ctx.negative_patterns),
+            f"{feedback_ctx.recent_pass_rate:.1%}" if feedback_ctx.recent_pass_rate is not None else "n/a",
+        )
+    except Exception as exc:
+        logger.warning("Feedback context failed, continuing without: %s", exc)
+    feedback_text = feedback_ctx.format_for_prompt()
+
     failure_context: list[str] = []
     variant_counter = 0
 
@@ -269,6 +293,7 @@ async def run_pipeline(
                 temperature=temp,
                 failure_context=failure_context,
                 rag_context_text=rag_context_text,
+                feedback_text=feedback_text,
             )
             for temp in temperatures
         ]
@@ -284,9 +309,11 @@ async def run_pipeline(
                 specs_and_meta.append((spec, err, temperatures[i], tok_in, tok_out, ms))
 
         await _update_stage(db, batch_id, "artifact_creation")
+        variant_uuids = [uuid.uuid4() for _ in specs_and_meta]
         artifact_tasks = [
-            create_artifact(task_type, spec) if spec is not None else _failed_artifact(err)
-            for spec, err, *_ in specs_and_meta
+            create_artifact(task_type, spec, batch_id=str(batch_id), variant_id=str(variant_uuids[i]))
+            if spec is not None else _failed_artifact(err)
+            for i, (spec, err, *_) in enumerate(specs_and_meta)
         ]
         artifacts: list[ArtifactResult] = await asyncio.gather(*artifact_tasks, return_exceptions=True)
 
@@ -364,7 +391,7 @@ async def run_pipeline(
         stored_variants: list[AIGenerationVariant] = []
         for i, (vr, vdata) in enumerate(zip(variant_rewards, variant_data)):
             artifact = vdata["artifact"]
-            artifact_dict = {
+            artifact_dict = {  # type: ignore[assignment]
                 "content": artifact.content,
                 "file_url": artifact.file_url,
                 "verification_data": artifact.verification_data,
@@ -388,7 +415,7 @@ async def run_pipeline(
                 failure = "; ".join(f"{c.type.value}: {c.detail}" for c in failed_checks)
 
             variant = AIGenerationVariant(
-                id=uuid.uuid4(),
+                id=variant_uuids[i],
                 batch_id=batch_id,
                 variant_number=vr.variant_number,
                 model_used=model_name,
@@ -413,6 +440,9 @@ async def run_pipeline(
             stored_variants.append(variant)
 
         await db.commit()
+
+        # Embed variant specs for future feedback similarity retrieval (non-blocking)
+        asyncio.create_task(_embed_variants_background(stored_variants))
 
         # ── Step 9: Select best variant ───────────────────────────────────────
         await _update_stage(db, batch_id, "selection", {"pass_rate": len(passed) / max(len(variant_rewards), 1)})
@@ -471,3 +501,43 @@ async def run_pipeline(
 async def _failed_artifact(error: Optional[str]) -> ArtifactResult:
     from app.services.ai_generator.artifact_creator import ArtifactResult
     return ArtifactResult(error=error or "generation failed")
+
+
+async def _embed_variants_background(variants: list[AIGenerationVariant]) -> None:
+    """
+    Embed variant specs and save to DB for future feedback similarity search.
+    Runs as a background task — errors are logged but never raised.
+    Opens its own DB session to avoid interfering with the main pipeline session.
+    """
+    from app.database import AsyncSessionLocal
+    from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
+
+    svc = EmbeddingService()
+    try:
+        async with AsyncSessionLocal() as db:
+            for variant in variants:
+                spec = variant.generated_spec
+                if not spec:
+                    continue
+                text = " ".join(filter(None, [
+                    spec.get("title", ""),
+                    spec.get("description", ""),
+                ]))
+                if not text.strip():
+                    continue
+                try:
+                    embedding = await svc.embed_document(text)
+                    # Re-fetch variant in this session to avoid cross-session state
+                    result = await db.execute(
+                        select(AIGenerationVariant).where(AIGenerationVariant.id == variant.id)
+                    )
+                    v = result.scalar_one_or_none()
+                    if v:
+                        v.embedding = embedding
+                except EmbeddingError as exc:
+                    logger.debug("Embedding skipped for variant %s: %s", variant.id, exc)
+            await db.commit()
+    except Exception as exc:
+        logger.warning("_embed_variants_background failed: %s", exc)
+    finally:
+        await svc.close()
