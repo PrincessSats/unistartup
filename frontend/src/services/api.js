@@ -32,6 +32,7 @@ const API_URL = normalizeLocalApiBaseUrl(
   process.env.REACT_APP_API_BASE_URL || (isLocalhost ? `http://${window.location.hostname}:8000` : '')
 );
 const ACCESS_TOKEN_STORAGE_KEY = 'token';
+const AUTH_SESSION_HINT_STORAGE_KEY = 'auth_session_hint';
 const PROFILE_CACHE_STORAGE_KEY = 'layout:profile:v1';
 const parsedTimeout = Number(process.env.REACT_APP_API_TIMEOUT_MS || 15000);
 const REQUEST_TIMEOUT_MS = Number.isFinite(parsedTimeout) && parsedTimeout >= 3000 ? parsedTimeout : 15000;
@@ -39,7 +40,10 @@ const parsedLoginTimeout = Number(process.env.REACT_APP_AUTH_LOGIN_TIMEOUT_MS ||
 const AUTH_LOGIN_TIMEOUT_MS = Number.isFinite(parsedLoginTimeout) && parsedLoginTimeout >= 4000
   ? parsedLoginTimeout
   : 10000;
-export const AUTH_BOOTSTRAP_TIMEOUT_MS = 3000;
+const parsedRefreshTimeout = Number(process.env.REACT_APP_AUTH_REFRESH_TIMEOUT_MS || REQUEST_TIMEOUT_MS);
+export const AUTH_BOOTSTRAP_TIMEOUT_MS = Number.isFinite(parsedRefreshTimeout) && parsedRefreshTimeout >= 4000
+  ? parsedRefreshTimeout
+  : REQUEST_TIMEOUT_MS;
 const ACCESS_TOKEN_CLOCK_SKEW_SECONDS = 30;
 
 if (!API_URL) {
@@ -96,9 +100,22 @@ function getStoredAccessToken() {
   return localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
 }
 
+function hasSessionHint() {
+  return localStorage.getItem(AUTH_SESSION_HINT_STORAGE_KEY) === '1';
+}
+
+function setSessionHint() {
+  localStorage.setItem(AUTH_SESSION_HINT_STORAGE_KEY, '1');
+}
+
+function clearSessionHint() {
+  localStorage.removeItem(AUTH_SESSION_HINT_STORAGE_KEY);
+}
+
 function setStoredAccessToken(token) {
   if (!token) return;
   localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, token);
+  setSessionHint();
 }
 
 function clearStoredAccessToken() {
@@ -177,6 +194,10 @@ function isTimeoutError(error) {
   const code = String(error?.code || '').toUpperCase();
   const message = String(error?.message || '').toLowerCase();
   return code === 'ECONNABORTED' || message.includes('timeout');
+}
+
+function isSessionExpiredError(error) {
+  return Number(error?.response?.status || 0) === 401;
 }
 
 function extractErrorDetail(error) {
@@ -265,8 +286,11 @@ function clearAllRequestCache() {
   getResponseCache.clear();
 }
 
-function clearClientAuthState() {
+function clearClientAuthState({ clearHint = true } = {}) {
   clearStoredAccessToken();
+  if (clearHint) {
+    clearSessionHint();
+  }
   clearProfileSessionCache();
   clearAllRequestCache();
 }
@@ -388,10 +412,15 @@ api.interceptors.response.use(
       }
       return api(originalConfig);
     } catch (refreshErr) {
-      const reason = isTimeoutError(refreshErr) ? 'network_timeout' : 'session_expired';
+      const sessionExpired = isSessionExpiredError(refreshErr);
+      const reason = sessionExpired
+        ? 'session_expired'
+        : (isTimeoutError(refreshErr) ? 'network_timeout' : 'session_unavailable');
       // eslint-disable-next-line no-console
       console.warn('Auth refresh failed after 401', { reason });
-      authAPI.logout({ remote: false, redirect: false, reason });
+      if (sessionExpired) {
+        authAPI.logout({ remote: false, redirect: true, reason });
+      }
       return Promise.reject(refreshErr);
     }
   }
@@ -564,15 +593,31 @@ export const authAPI = {
       return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
     }
 
+    if (!existingToken && !hasSessionHint()) {
+      return { authenticated: false, reason: null, elapsedMs: performance.now() - startedAt };
+    }
+
     try {
       await refreshAccessToken({ timeoutMs });
       return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
     } catch (err) {
-      const reason = isTimeoutError(err) ? 'network_timeout' : 'session_expired';
-      clearClientAuthState();
+      const sessionExpired = isSessionExpiredError(err);
+      const reason = sessionExpired
+        ? 'session_expired'
+        : (isTimeoutError(err) ? 'network_timeout' : 'session_unavailable');
+      if (sessionExpired) {
+        clearClientAuthState();
+      }
       // eslint-disable-next-line no-console
       console.warn('Auth bootstrap failed', { reason, elapsedMs: performance.now() - startedAt });
-      return { authenticated: false, reason, elapsedMs: performance.now() - startedAt };
+      if (!sessionExpired && existingToken) {
+        return { authenticated: true, reason: null, elapsedMs: performance.now() - startedAt };
+      }
+      return {
+        authenticated: false,
+        reason: sessionExpired ? reason : null,
+        elapsedMs: performance.now() - startedAt,
+      };
     }
   },
 
@@ -596,6 +641,10 @@ export const authAPI = {
 
   hasFreshAccessToken: () => {
     return isAccessTokenFresh(getStoredAccessToken());
+  },
+
+  hasSessionHint: () => {
+    return !!getStoredAccessToken() || hasSessionHint();
   },
 
   persistAccessToken: (token) => {

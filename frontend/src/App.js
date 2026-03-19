@@ -83,14 +83,14 @@ function App() {
     authAPI.warmup();
 
     const bootstrap = async () => {
-      if (!authAPI.isAuthenticated()) {
+      if (!authAPI.hasSessionHint()) {
         // Not authenticated — no need to verify session, just let them browse.
         setAuthReason('');
         setAuthReady(true);
         return;
       }
 
-      const result = await authAPI.bootstrapAuth({ timeoutMs: 1500 });
+      const result = await authAPI.bootstrapAuth();
       if (cancelled) return;
 
       setAuthReason(result?.reason || '');
