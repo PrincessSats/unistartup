@@ -953,9 +953,11 @@ export const contestAPI = {
 };
 
 export const ratingsAPI = {
-  getLeaderboard: async (kind = 'contest') => {
+  getLeaderboard: async (kind = 'contest', { includeAdmins = false } = {}) => {
+    const params = { kind };
+    if (includeAdmins) params.include_admins = true;
     return cachedGet('/ratings/leaderboard', {
-      params: { kind },
+      params,
       ttlMs: CACHE_TTLS_MS.ratingLeaderboard,
     });
   },

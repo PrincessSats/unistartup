@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { ratingsAPI, authAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
 import { PageLoader } from '../components/LoadingState';
@@ -141,8 +142,13 @@ function LeaderboardRow({ entry, className = '', attachRef }) {
 }
 
 function Rating() {
+  const outletContext = useOutletContext();
+  const currentUser = outletContext?.currentUser;
+  const isAdmin = currentUser?.role === 'admin';
+
   const [kind, setKind] = useState('contest');
   const [period, setPeriod] = useState('all');
+  const [includeAdmins, setIncludeAdmins] = useState(false);
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -155,7 +161,7 @@ function Rating() {
       try {
         setError('');
         setLoading(true);
-        const data = await ratingsAPI.getLeaderboard(kind);
+        const data = await ratingsAPI.getLeaderboard(kind, { includeAdmins });
         setEntries(Array.isArray(data?.entries) ? data.entries : []);
       } catch (_err) {
         if (_err?.response?.status === 401 && !authAPI.isAuthenticated()) {
@@ -169,7 +175,7 @@ function Rating() {
     };
 
     fetchLeaderboard();
-  }, [kind]);
+  }, [kind, includeAdmins]);
 
   const sortedEntries = useMemo(() => {
     return [...entries].sort((left, right) => {
@@ -269,28 +275,50 @@ function Rating() {
               </span>
             </div>
 
-            <div className="flex items-center gap-1 rounded-[16px]">
-              <button
-                onClick={() => setKind('contest')}
-                className={`rounded-[10px] px-6 py-4 text-[18px] leading-[24px] tracking-[0.04em] transition-colors ${
-                  kind === 'contest'
-                    ? 'bg-white/[0.03] text-[#9B6BFF]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                Чемпионат
-              </button>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 rounded-[16px]">
+                <button
+                  onClick={() => setKind('contest')}
+                  className={`rounded-[10px] px-6 py-4 text-[18px] leading-[24px] tracking-[0.04em] transition-colors ${
+                    kind === 'contest'
+                      ? 'bg-white/[0.03] text-[#9B6BFF]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Чемпионат
+                </button>
 
-              <button
-                onClick={() => setKind('practice')}
-                className={`rounded-[10px] px-6 py-4 text-[18px] leading-[24px] tracking-[0.04em] transition-colors ${
-                  kind === 'practice'
-                    ? 'bg-white/[0.03] text-[#9B6BFF]'
-                    : 'text-white/60 hover:text-white'
-                }`}
-              >
-                Обучение
-              </button>
+                <button
+                  onClick={() => setKind('practice')}
+                  className={`rounded-[10px] px-6 py-4 text-[18px] leading-[24px] tracking-[0.04em] transition-colors ${
+                    kind === 'practice'
+                      ? 'bg-white/[0.03] text-[#9B6BFF]'
+                      : 'text-white/60 hover:text-white'
+                  }`}
+                >
+                  Обучение
+                </button>
+              </div>
+
+              {isAdmin && (
+                <label className="flex cursor-pointer select-none items-center gap-3">
+                  <span className="text-[16px] leading-[20px] tracking-[0.04em] text-white/60">
+                    Показать админов
+                  </span>
+                  <span
+                    onClick={() => setIncludeAdmins((v) => !v)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                      includeAdmins ? 'bg-[#9B6BFF]' : 'bg-white/[0.12]'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+                        includeAdmins ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </span>
+                </label>
+              )}
             </div>
           </div>
         </div>

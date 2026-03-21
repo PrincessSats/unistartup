@@ -93,7 +93,7 @@ def _run_review(spec: dict, task_type: str, difficulty: str) -> tuple[float, dic
     client = _build_reviewer_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{REVIEWER_MODEL_ID}/{REVIEWER_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
 
     user_content = json.dumps({
         "task_type": task_type,
