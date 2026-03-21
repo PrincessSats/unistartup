@@ -57,7 +57,7 @@ def _run_generation(
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     model_name = f"gpt://{folder}/deepseek-v32/latest"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
     user_payload = {
         "difficulty": difficulty,
         "tags": tags,

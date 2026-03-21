@@ -87,7 +87,7 @@ class Settings(BaseSettings):
         ),
     )
     YANDEX_REASONING_EFFORT: str = Field(
-        default="medium",
+        default="high",
         validation_alias=AliasChoices(
             "YANDEX_REASONING_EFFORT",
             "YANDEX_GPT_REASONING_EFFORT",
@@ -221,9 +221,9 @@ class Settings(BaseSettings):
     @field_validator("YANDEX_REASONING_EFFORT", mode="before")
     @classmethod
     def normalize_reasoning_effort(cls, value: Any) -> str:
-        normalized = "medium" if value is None else str(value).strip().lower()
+        normalized = "high" if value is None else str(value).strip().lower()
         if not normalized:
-            normalized = "medium"
+            normalized = "high"
         allowed = {"disabled", "low", "medium", "high"}
         if normalized not in allowed:
             raise ValueError(
