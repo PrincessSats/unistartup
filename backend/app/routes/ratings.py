@@ -83,18 +83,21 @@ async def _load_my_stats_bundle_from_db(db: AsyncSession, user_id: int) -> Dict[
                 FROM user_profiles up2
                 JOIN user_ratings ur2 ON ur2.user_id = up2.user_id
                 WHERE
-                    ur2.contest_rating > me.contest_rating
-                    OR (
-                        ur2.contest_rating = me.contest_rating
-                        AND (
-                            ur2.first_blood > me.first_blood
-                            OR (
-                                ur2.first_blood = me.first_blood
-                                AND (
-                                    lower(up2.username) < me.username_key
-                                    OR (
-                                        lower(up2.username) = me.username_key
-                                        AND up2.user_id < me.user_id
+                    up2.role != 'admin'
+                    AND (
+                        ur2.contest_rating > me.contest_rating
+                        OR (
+                            ur2.contest_rating = me.contest_rating
+                            AND (
+                                ur2.first_blood > me.first_blood
+                                OR (
+                                    ur2.first_blood = me.first_blood
+                                    AND (
+                                        lower(up2.username) < me.username_key
+                                        OR (
+                                            lower(up2.username) = me.username_key
+                                            AND up2.user_id < me.user_id
+                                        )
                                     )
                                 )
                             )
@@ -106,18 +109,21 @@ async def _load_my_stats_bundle_from_db(db: AsyncSession, user_id: int) -> Dict[
                 FROM user_profiles up2
                 JOIN user_ratings ur2 ON ur2.user_id = up2.user_id
                 WHERE
-                    ur2.practice_rating > me.practice_rating
-                    OR (
-                        ur2.practice_rating = me.practice_rating
-                        AND (
-                            ur2.first_blood > me.first_blood
-                            OR (
-                                ur2.first_blood = me.first_blood
-                                AND (
-                                    lower(up2.username) < me.username_key
-                                    OR (
-                                        lower(up2.username) = me.username_key
-                                        AND up2.user_id < me.user_id
+                    up2.role != 'admin'
+                    AND (
+                        ur2.practice_rating > me.practice_rating
+                        OR (
+                            ur2.practice_rating = me.practice_rating
+                            AND (
+                                ur2.first_blood > me.first_blood
+                                OR (
+                                    ur2.first_blood = me.first_blood
+                                    AND (
+                                        lower(up2.username) < me.username_key
+                                        OR (
+                                            lower(up2.username) = me.username_key
+                                            AND up2.user_id < me.user_id
+                                        )
                                     )
                                 )
                             )
@@ -150,6 +156,7 @@ async def _load_my_stats_bundle_from_db(db: AsyncSession, user_id: int) -> Dict[
 @router.get("/leaderboard", response_model=LeaderboardResponse)
 async def get_leaderboard(
     kind: str = Query("contest", pattern="^(contest|practice)$"),
+    include_admins: bool = Query(False),
     current_user_data: Optional[tuple] = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db)
 ):
@@ -161,6 +168,8 @@ async def get_leaderboard(
       - practice: практический рейтинг
     """
     user = current_user_data[0] if current_user_data else None
+    profile = current_user_data[1] if current_user_data else None
+    show_admins = include_admins and profile is not None and profile.role == "admin"
 
     if kind not in {"contest", "practice"}:
         raise HTTPException(status_code=400, detail="kind должен быть contest или practice")
@@ -182,7 +191,7 @@ async def get_leaderboard(
 
     solved_subq = solved_query.group_by(Submission.user_id).subquery()
 
-    result = await db.execute(
+    leaderboard_query = (
         select(
             UserProfile.user_id,
             UserProfile.username,
@@ -195,6 +204,11 @@ async def get_leaderboard(
         .outerjoin(solved_subq, solved_subq.c.user_id == UserProfile.user_id)
         .order_by(desc(rating_col), desc(UserRating.first_blood), UserProfile.username.asc())
     )
+
+    if not show_admins:
+        leaderboard_query = leaderboard_query.where(UserProfile.role != "admin")
+
+    result = await db.execute(leaderboard_query)
 
     rows: List[tuple] = result.all()
     entries: List[LeaderboardEntry] = []

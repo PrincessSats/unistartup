@@ -610,7 +610,7 @@ async def _run_llm_chat_completion(
     client = _build_async_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     model_name = f"gpt://{folder}/{YANDEX_CHAT_MODEL_ID}/{YANDEX_CHAT_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
     last_error: Optional[Exception] = None
     for attempt in range(LLM_COMPLETION_MAX_ATTEMPTS):
         try:

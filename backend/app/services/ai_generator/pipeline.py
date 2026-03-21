@@ -133,7 +133,7 @@ def _run_one_spec(
     client = _build_generator_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "medium"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
     system_prompt = _load_system_prompt(task_type)
     user_message = _build_user_message(difficulty, failure_context, rag_context_text, feedback_text)
 
