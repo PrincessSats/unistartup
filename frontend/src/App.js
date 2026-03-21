@@ -12,7 +12,7 @@ import Education from './pages/Education';
 import EducationTask from './pages/EducationTask';
 import Home from './pages/Home';
 import Rating from './pages/Rating';
-import Admin from './pages/Admin';
+import Admin from './pages/Admin/index.jsx';
 import Pipeline from './pages/Pipeline';
 import Layout from './components/Layout';
 import { FullScreenLoader } from './components/LoadingState';
