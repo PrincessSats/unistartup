@@ -56,6 +56,9 @@ class AdminNvdSync(BaseModel):
     embedding_total: int = 0
     embedding_completed: int = 0
     embedding_failed: int = 0
+    translation_total: int = 0
+    translation_completed: int = 0
+    translation_failed: int = 0
     status: Optional[str] = None
     error: Optional[str] = None
 

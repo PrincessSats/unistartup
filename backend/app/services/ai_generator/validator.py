@@ -38,7 +38,12 @@ async def check_rag_grounding(
     rag_context: Any,  # RAGContext — avoid circular import
     weight: float,
 ) -> RewardCheck:
-    """Compute semantic similarity between generated spec and RAG context entries."""
+    """
+    Compute semantic similarity between generated spec and RAG context entries.
+
+    Uses pre-computed embeddings from kb_entries.embedding column when available,
+    falling back to on-the-fly embedding only for entries without stored vectors.
+    """
     from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
     from app.services.ai_generator.rag_context import RAGContext
 
@@ -73,20 +78,15 @@ async def check_rag_grounding(
             detail=f"Embedding error: {exc}",
             error=str(exc),
         )
-    finally:
-        await svc.close()
 
-    # Collect embeddings from RAG entries (they were pre-embedded)
-    best_similarity = 0.0
+    # Use pre-computed embeddings from RAG context entries
+    # CVEEntry now includes the embedding vector from the database
+    similarities: list[float] = []
     for entry in rag_context.cve_entries:
-        # We don't have the stored vector here — embed the text inline
-        pass
-
-    # Simple approach: embed each entry's text and compare
-    svc2 = EmbeddingService()
-    try:
-        similarities: list[float] = []
-        for entry in rag_context.cve_entries:
+        # Prefer pre-computed embedding if available
+        entry_vec = getattr(entry, 'stored_embedding', None)
+        if entry_vec is None:
+            # Fallback: embed on the fly (shouldn't happen for kb_entries with embeddings)
             entry_text = " ".join(filter(None, [
                 entry.cve_id or "",
                 entry.ru_title or "",
@@ -96,35 +96,42 @@ async def check_rag_grounding(
             if not entry_text.strip():
                 continue
             try:
-                entry_vec = await svc2.embed_document(entry_text)
-                dist = cosine_distance(spec_vec, entry_vec)
-                similarity = 1.0 - dist
-                similarities.append(similarity)
+                entry_vec = await svc.embed_document(entry_text)
             except EmbeddingError:
-                pass
+                continue
 
-        if not similarities:
-            score = 0.5
-            detail = "Could not compute similarity — neutral score"
-        else:
-            best_similarity = max(similarities)
-            if best_similarity >= 0.8:
-                score = 1.0
-            elif best_similarity >= 0.6:
-                score = 0.7
-            elif best_similarity >= 0.4:
-                score = 0.4
-            else:
-                score = 0.1
-            detail = f"Best cosine similarity to RAG context: {best_similarity:.3f}"
-    finally:
-        await svc2.close()
+        dist = cosine_distance(spec_vec, entry_vec)
+        similarity = 1.0 - dist
+        similarities.append(similarity)
+
+    await svc.close()
+
+    if not similarities:
+        return RewardCheck(
+            type=RewardType.RAG_GROUNDING,
+            score=0.5,
+            weight=weight,
+            detail="Could not compute similarity — neutral score",
+        )
+
+    best_similarity = max(similarities)
+    # Adjusted thresholds for spec-to-CVE similarity
+    # Note: spec is a creative scenario, CVE is technical description
+    # So we expect lower similarity than document-to-document comparison
+    if best_similarity >= 0.7:
+        score = 1.0
+    elif best_similarity >= 0.5:
+        score = 0.7
+    elif best_similarity >= 0.3:
+        score = 0.4
+    else:
+        score = 0.1
 
     return RewardCheck(
         type=RewardType.RAG_GROUNDING,
         score=score,
         weight=weight,
-        detail=detail,
+        detail=f"Best cosine similarity to RAG context: {best_similarity:.3f}",
     )
 
 
