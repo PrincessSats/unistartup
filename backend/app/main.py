@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import Settings, settings
 from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
 from app.routes import ai_generate
+from app.services.nvd_sync import cleanup_stale_sync_logs
 from app.database import (
     ensure_auth_schema_compatibility,
     ensure_nvd_sync_schema_compatibility,
@@ -139,6 +140,9 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_tasks():
+    # Всегда сбрасываем зависшие синхронизации NVD, независимо от флага DB maintenance
+    await cleanup_stale_sync_logs()
+
     if not settings.RUN_STARTUP_DB_MAINTENANCE:
         logger.info(
             "Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false "
