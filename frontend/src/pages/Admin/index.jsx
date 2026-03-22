@@ -30,7 +30,7 @@ function formatNumber(value) {
 
 function Admin() {
   const navigate = useNavigate();
-  const { loading, dashboard, error, refresh, setDashboard } = useAdminDashboard(navigate);
+  const { loading, dashboard, error, refresh, refreshQuiet, setDashboard } = useAdminDashboard(navigate);
 
   // Drawer states
   const [isKbOpen, setIsKbOpen] = useState(false);
@@ -67,10 +67,10 @@ function Admin() {
   useEffect(() => {
     if (!isNvdBackgroundRunning) return undefined;
     const interval = setInterval(() => {
-      refresh();
+      refreshQuiet();
     }, 2500);
     return () => clearInterval(interval);
-  }, [isNvdBackgroundRunning, refresh]);
+  }, [isNvdBackgroundRunning, refreshQuiet]);
 
   const handleFetchNvd = useCallback(async () => {
     const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding']);

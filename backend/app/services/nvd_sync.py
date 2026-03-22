@@ -18,7 +18,9 @@ DEFAULT_HOURS = 24
 logger = logging.getLogger(__name__)
 SYNC_LOG_COLUMNS = (
     "id, fetched_at, window_start, window_end, fetched_count, inserted_count, "
-    "embedding_total, embedding_completed, embedding_failed, status, error"
+    "embedding_total, embedding_completed, embedding_failed, "
+    "translation_total, translation_completed, translation_failed, "
+    "status, error"
 )
 
 
@@ -35,6 +37,9 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
         "embedding_total": row.get("embedding_total") or 0,
         "embedding_completed": row.get("embedding_completed") or 0,
         "embedding_failed": row.get("embedding_failed") or 0,
+        "translation_total": row.get("translation_total") or 0,
+        "translation_completed": row.get("translation_completed") or 0,
+        "translation_failed": row.get("translation_failed") or 0,
         "status": row.get("status"),
         "error": row.get("error"),
     }
@@ -135,6 +140,7 @@ async def store_kb_entries(
     *,
     dry_run: bool,
     embed_new_entries: bool = True,
+    translate_new_entries: bool = True,
     include_inserted_rows: bool = False,
 ) -> Dict[str, Any]:
     to_insert: List[Dict[str, Any]] = []
@@ -196,7 +202,7 @@ async def store_kb_entries(
         await session.commit()
 
         inserted_rows: List[Dict[str, Any]] = []
-        if include_inserted_rows or embed_new_entries:
+        if include_inserted_rows or embed_new_entries or translate_new_entries:
             inserted_key_map = {
                 (row["cve_id"], row.get("raw_en_text")): row
                 for row in new_rows
@@ -221,6 +227,73 @@ async def store_kb_entries(
                             "raw_en_text": row_dict.get("raw_en_text"),
                         }
                     )
+
+        # Translation hook — translate ru_title, ru_summary, ru_explainer for new entries
+        if translate_new_entries:
+            try:
+                from app.services.ai_generator.translation_service import TranslationService, TranslationError, FullTranslationResult
+
+                svc = TranslationService()
+                try:
+                    translation_count = 0
+                    translation_completed = 0
+                    translation_failed = 0
+
+                    for row in inserted_rows:
+                        translation_count += 1
+                        try:
+                            result: FullTranslationResult = await svc.translate_full_cve(
+                                row["cve_id"],
+                                row["raw_en_text"] or "",
+                            )
+                            if result.ru_title or result.ru_summary or result.ru_explainer:
+                                await session.execute(
+                                    text(
+                                        "UPDATE kb_entries SET "
+                                        "ru_title = :ru_title, "
+                                        "ru_summary = :ru_summary, "
+                                        "ru_explainer = :ru_explainer "
+                                        "WHERE id = :entry_id"
+                                    ),
+                                    {
+                                        "ru_title": result.ru_title or None,
+                                        "ru_summary": result.ru_summary or None,
+                                        "ru_explainer": result.ru_explainer or None,
+                                        "entry_id": row["id"],
+                                    },
+                                )
+                                translation_completed += 1
+                            else:
+                                translation_failed += 1
+                        except Exception as exc:
+                            logger.warning("Translation failed for entry %s: %s", row["id"], exc)
+                            translation_failed += 1
+
+                    # Update sync log with translation stats
+                    await session.execute(
+                        text(
+                            "UPDATE nvd_sync_log SET "
+                            "translation_total = :total, "
+                            "translation_completed = :completed, "
+                            "translation_failed = :failed "
+                            "WHERE id = (SELECT MAX(id) FROM nvd_sync_log)"
+                        ),
+                        {
+                            "total": translation_count,
+                            "completed": translation_completed,
+                            "failed": translation_failed,
+                        },
+                    )
+                    await session.commit()
+                    logger.info(
+                        "NVD translation: %d total, %d completed, %d failed",
+                        translation_count, translation_completed, translation_failed,
+                    )
+                finally:
+                    await svc.close()
+
+            except Exception as exc:
+                logger.warning("NVD translation hook failed: %s", exc)
 
         # Embeddings are optional here. The admin-triggered sync should not block
         # on external embedding calls because the UI request has a hard timeout.
@@ -300,6 +373,33 @@ async def run_sync(
     }
 
 
+async def cleanup_stale_sync_logs() -> None:
+    """
+    Сбрасывает записи nvd_sync_log, зависшие в статусе 'fetching' или 'embedding'
+    после перезапуска сервера. Вызывается при старте приложения.
+    """
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text(
+                """
+                UPDATE nvd_sync_log
+                SET status = 'failed',
+                    error = 'Прервано: сервер был перезапущен во время синхронизации'
+                WHERE status IN ('fetching', 'embedding', 'translating')
+                RETURNING id
+                """
+            )
+        )
+        stale = result.fetchall()
+        await session.commit()
+    if stale:
+        logger.warning(
+            "Cleaned up %d stale NVD sync log(s) after restart: ids=%s",
+            len(stale),
+            [r[0] for r in stale],
+        )
+
+
 async def get_latest_sync_log(
     session: AsyncSession,
     *,
@@ -327,10 +427,13 @@ async def create_sync_log(session: AsyncSession) -> Dict[str, Any]:
                     embedding_total,
                     embedding_completed,
                     embedding_failed,
+                    translation_total,
+                    translation_completed,
+                    translation_failed,
                     status,
                     error
                 )
-                VALUES (now(), 0, 0, 0, 0, 0, 'fetching', NULL)
+                VALUES (now(), 0, 0, 0, 0, 0, 0, 0, 0, 'fetching', NULL)
                 RETURNING id, fetched_at
                 """
             )
@@ -347,6 +450,9 @@ async def create_sync_log(session: AsyncSession) -> Dict[str, Any]:
         "embedding_total": 0,
         "embedding_completed": 0,
         "embedding_failed": 0,
+        "translation_total": 0,
+        "translation_completed": 0,
+        "translation_failed": 0,
         "status": "fetching",
         "error": None,
     }

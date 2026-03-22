@@ -6,6 +6,11 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Флаги для кэширования проверок схемы (выполняются один раз при старте)
+_auth_schema_checked = False
+_nvd_sync_schema_checked = False
+_performance_indexes_checked = False
+
 # Движок для подключения к БД
 # SQL echo включается только через env (SQL_ECHO=true) для безопасного prod-default.
 engine = create_async_engine(
@@ -261,7 +266,12 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
     """
     Приводит лог синхронизации NVD к виду, достаточному для фонового fetch+embedding
     с прогрессом в админке.
+    Выполняется только один раз при старте приложения (кэшируется через флаг).
     """
+    global _nvd_sync_schema_checked
+    if _nvd_sync_schema_checked:
+        return
+
     statements = [
         """
         CREATE TABLE IF NOT EXISTS nvd_sync_log (
@@ -298,6 +308,7 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
     async with engine.begin() as conn:
         for stmt in statements:
             await conn.execute(text(stmt))
+    _nvd_sync_schema_checked = True
     logger.info("NVD sync schema compatibility check completed")
 
 
