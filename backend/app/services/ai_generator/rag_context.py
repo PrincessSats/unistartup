@@ -20,12 +20,108 @@ from app.services.ai_generator.embedding_service import EmbeddingService, Embedd
 
 logger = logging.getLogger(__name__)
 
-# Natural-language query templates per task type
+# Natural-language query templates per task type — expanded with domain context
 _QUERY_TEMPLATES: dict[str, str] = {
-    "crypto_text_web": "cryptographic cipher encoding decryption challenge web vulnerability",
-    "forensics_image_metadata": "image metadata forensics file analysis hidden data steganography",
-    "web_static_xss": "cross-site scripting XSS injection web vulnerability DOM HTML",
-    "chat_llm": "prompt injection LLM manipulation AI security jailbreak",
+    "crypto_text_web": (
+        "cryptographic cipher encryption decryption weak algorithm key exchange "
+        "authentication session token cookie network traffic interception man-in-the-middle "
+        "TLS SSL HTTPS certificate RSA AES XOR base64 encoding web application API"
+    ),
+    "forensics_image_metadata": (
+        "image metadata forensics EXIF JPEG PNG file analysis hidden data steganography "
+        "digital evidence photo camera GPS location timestamp author copyright "
+        "XMP IPTC file carving data recovery investigation crime scene"
+    ),
+    "web_static_xss": (
+        "cross-site scripting XSS injection web vulnerability DOM manipulation "
+        "innerHTML document.write eval script tag event handler onerror onclick "
+        "reflected stored DOM-based CSP bypass filter evasion input validation "
+        "web application form search comment user input sanitization"
+    ),
+    "chat_llm": (
+        "prompt injection LLM manipulation AI security jailbreak system prompt "
+        "social engineering token extraction data leakage conversation hijacking "
+        "role play bypass instruction override chatbot assistant AI model "
+        "natural language processing text generation response manipulation"
+    ),
+}
+
+# Scenario templates: how to transform a CVE into a CTF challenge scenario per task type
+_SCENARIO_TEMPLATES: dict[str, list[str]] = {
+    "crypto_text_web": [
+        (
+            "Злоумышленник перехватил зашифрованное сообщение между двумя серверами. "
+            "Используя уязвимость в криптографической реализации (описана в CVE), "
+            "расшифруй сообщение и найди секретный флаг."
+        ),
+        (
+            "Веб-приложение использует слабый алгоритм шифрования для сессионных токенов. "
+            "CVE описывает эту уязвимость. Проанализируй перехваченные данные и восстанови оригинальный токен."
+        ),
+        (
+            "В системе аутентификации обнаружена уязвимость в реализации ключевого обмена. "
+            "Используя описание из CVE, атакуй протокол и получи доступ к защищённым данным."
+        ),
+        (
+            "Злоумышленник внедрил backdoor в криптографическую библиотеку. "
+            "CVE описывает механизм компрометации. Расшифруй перехваченное сообщение, используя известную уязвимость."
+        ),
+    ],
+    "forensics_image_metadata": [
+        (
+            "При расследовании инцидента была найдена фотография, сделанная злоумышленником. "
+            "CVE описывает уязвимость в обработке метаданных изображений. "
+            "Извлеки скрытую информацию из файла."
+        ),
+        (
+            "В ходе цифровой криминалистики обнаружено изображение с аномальными метаданными. "
+            "Используя уязвимость из CVE, найди спрятанный флаг в служебных полях файла."
+        ),
+        (
+            "Фотография с места утечки данных содержит скрытое сообщение в метаданных. "
+            "CVE описывает метод сокрытия информации. Проанализируй файл и извлеки флаг."
+        ),
+        (
+            "Подозрительное изображение было загружено на корпоративный портал. "
+            "CVE указывает на возможность внедрения данных в метаданные. Исследуй файл."
+        ),
+    ],
+    "web_static_xss": [
+        (
+            "Веб-приложение содержит уязвимость XSS, описанную в CVE. "
+            "Используй её для выполнения JavaScript-кода и получения флага из cookie/localStorage."
+        ),
+        (
+            "На странице поиска обнаружена reflected XSS уязвимость (CVE). "
+            "Создай payload для выполнения кода и извлечения секретного токена."
+        ),
+        (
+            "Форма комментариев на сайте уязвима к stored XSS (CVE). "
+            "Внедри скрипт, который отправит флаг злоумышленнику."
+        ),
+        (
+            "DOM-based XSS в обработке URL-параметров (CVE). "
+            "Обойди фильтр и выполни код для получения флага из document.cookie."
+        ),
+    ],
+    "chat_llm": [
+        (
+            "Чат-бот использует LLM с уязвимостью к prompt injection (CVE). "
+            "Сформулируй запрос так, чтобы модель раскрыла системный промпт или секретный флаг."
+        ),
+        (
+            "AI-ассистент содержит уязвимость jailbreak (CVE). "
+            "Используй социальную инженерию для обхода ограничений и получения конфиденциальной информации."
+        ),
+        (
+            "В обработке запросов LLM обнаружена уязвимость (CVE). "
+            "Манипулируй входными данными для извлечения флага из контекста модели."
+        ),
+        (
+            "Чат-бот хранит флаг в системном промпте. CVE описывает метод инъекции. "
+            "Извлеки секретную информацию через серию запросов."
+        ),
+    ],
 }
 
 
@@ -38,6 +134,7 @@ class CVEEntry:
     raw_en_text: Optional[str]
     tags: list[str] = field(default_factory=list)
     difficulty: Optional[str] = None
+    stored_embedding: Optional[list[float]] = None  # Pre-computed embedding vector from DB
 
 
 @dataclass
@@ -47,6 +144,7 @@ class RAGContext:
     last_nvd_sync: Optional[datetime] = None
     entry_ids: list[int] = field(default_factory=list)
     query_text: str = ""
+    task_type: str = ""
 
     @property
     def is_empty(self) -> bool:
@@ -57,25 +155,38 @@ class RAGContext:
             return ""
 
         lines: list[str] = [
-            "## Контекст CVE (используй для обоснования задания)",
+            "## Контекст CVE — используй эти уязвимости как основу для сценария задания",
+            "",
+            "**ВАЖНО:** Не дублируй описание CVE один в один. Создай УНИКАЛЬНЫЙ сценарий,",
+            "вдохновлённый этими уязвимостями. Используй примеры сценариев ниже.",
             "",
         ]
+
+        # Add scenario templates for this task type
+        scenario_templates = _SCENARIO_TEMPLATES.get(self.task_type, [])
+        if scenario_templates:
+            lines.append("### Примеры сценариев (используй как вдохновение)")
+            for i, template in enumerate(scenario_templates, 1):
+                lines.append(f"{i}. {template}")
+            lines.append("")
+
+        lines.append("### Найденные CVE (для технической конкретики)")
         for entry in self.cve_entries:
             title = entry.ru_title or entry.cve_id or "Неизвестно"
-            lines.append(f"### {title}")
+            lines.append(f"#### {title}")
             if entry.cve_id:
-                lines.append(f"- CVE: {entry.cve_id}")
+                lines.append(f"- **CVE ID:** {entry.cve_id}")
             if entry.ru_summary:
-                lines.append(f"- Описание: {entry.ru_summary}")
+                lines.append(f"- **Описание:** {entry.ru_summary}")
             elif entry.raw_en_text:
                 snippet = entry.raw_en_text[:300].rstrip()
-                lines.append(f"- Описание (EN): {snippet}...")
+                lines.append(f"- **Описание (EN):** {snippet}...")
             if entry.tags:
-                lines.append(f"- Теги: {', '.join(entry.tags)}")
+                lines.append(f"- **Теги:** {', '.join(entry.tags)}")
             lines.append("")
 
         if self.existing_task_titles:
-            lines.append("## Уже существующие задания (не дублируй их):")
+            lines.append("## Уже существующие задания (НЕ дублируй их)")
             for title in self.existing_task_titles[:10]:
                 lines.append(f"- {title}")
             lines.append("")
@@ -129,6 +240,7 @@ class RAGContextBuilder:
                 last_nvd_sync=last_sync,
                 entry_ids=[e.id for e in cve_entries],
                 query_text=query_text,
+                task_type=task_type,
             )
         except Exception as exc:
             logger.warning("RAG context build failed: %s", exc)
@@ -150,7 +262,7 @@ class RAGContextBuilder:
         try:
             result = await self._db.execute(
                 text(
-                    "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty "
+                    "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, embedding "
                     "FROM kb_entries "
                     "WHERE embedding IS NOT NULL "
                     "ORDER BY embedding <=> CAST(:vec AS vector) "
@@ -172,6 +284,7 @@ class RAGContextBuilder:
                 raw_en_text=row.raw_en_text,
                 tags=row.tags or [],
                 difficulty=row.difficulty,
+                stored_embedding=list(row.embedding) if row.embedding else None,
             )
             for row in rows
         ]
@@ -193,6 +306,7 @@ class RAGContextBuilder:
                 raw_en_text=entry.raw_en_text,
                 tags=entry.tags or [],
                 difficulty=entry.difficulty,
+                stored_embedding=list(entry.embedding) if entry.embedding else None,
             )
         ]
 
