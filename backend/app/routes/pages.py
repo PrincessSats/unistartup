@@ -108,7 +108,6 @@ async def admin_panel(
     Возвращает метрики и данные для дашборда.
     """
     _user, _profile = current_user_data
-    await ensure_nvd_sync_schema_compatibility()
 
     total_users = (await db.execute(text("SELECT COUNT(*) FROM users"))).scalar_one() or 0
     active_users = (

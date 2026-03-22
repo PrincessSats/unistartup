@@ -36,11 +36,16 @@ export function useAdminDashboard(navigate) {
     loadDashboard();
   }, [loadDashboard]);
 
+  const refreshQuiet = useCallback(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
   return {
     loading,
     dashboard,
     error,
     refresh,
+    refreshQuiet,
     setDashboard,
     setError,
   };
