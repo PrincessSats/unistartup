@@ -46,6 +46,8 @@ GENERATOR_MODEL_VERSION = "latest"
 _PROMPT_FILE_MAP: dict[str, str] = {
     "crypto_text_web": "crypto_generator.txt",
     "forensics_image_metadata": "forensics_generator.txt",
+    "web_static_xss": "xss_generator.txt",
+    "chat_llm": "chat_llm_generator.txt",
 }
 
 _generator_client: Optional[OpenAI] = None

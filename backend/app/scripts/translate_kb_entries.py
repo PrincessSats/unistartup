@@ -36,6 +36,7 @@ Progress is displayed as a progress bar and logged to nvd_sync_log table for adm
 import argparse
 import asyncio
 import logging
+import sys
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -249,19 +250,40 @@ async def translate_existing_entries(
                 async with AsyncSessionLocal() as session:
                     await update_translation_progress(session, log_id, translated, failed)
 
-        # Process entries with progress bar
-        with tqdm(
-            total=total_entries,
-            desc="Translating",
-            unit="entry",
-            bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
-        ) as progress_bar:
-            for entry in entries:
-                await translate_single_entry(entry)
-                progress_bar.update(1)
-                # Delay between entries (for rate limiting)
-                if delay_seconds > 0:
-                    await asyncio.sleep(delay_seconds)
+        # Process entries with progress bar (suppress all console logging to keep single line)
+        root_logger = logging.getLogger()
+        original_handlers = root_logger.handlers[:]
+        root_logger.handlers = []  # Remove all handlers temporarily
+
+        # Open /dev/tty for clean progress bar output
+        tty_file = None
+        try:
+            tty_file = open("/dev/tty", "w")
+        except OSError:
+            pass
+
+        try:
+            with tqdm(
+                total=total_entries,
+                desc="Translating",
+                unit="entry",
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]",
+                file=tty_file or sys.stdout,
+                dynamic_ncols=True,
+                mininterval=0.1,
+                leave=True,
+            ) as progress_bar:
+                for entry in entries:
+                    await translate_single_entry(entry)
+                    progress_bar.update(1)
+                    # Delay between entries (for rate limiting)
+                    if delay_seconds > 0:
+                        await asyncio.sleep(delay_seconds)
+        finally:
+            if tty_file:
+                tty_file.close()
+            # Restore logging handlers
+            root_logger.handlers = original_handlers
 
         # Final DB progress update
         async with AsyncSessionLocal() as session:

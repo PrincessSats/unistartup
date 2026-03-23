@@ -22,6 +22,7 @@ class RewardType(str, Enum):
     NON_TRIVIALITY = "NON_TRIVIALITY"
     QUALITY = "QUALITY"
     RAG_GROUNDING = "RAG_GROUNDING"
+    CVE_RELEVANCE = "CVE_RELEVANCE"
 
 
 @dataclass
@@ -33,7 +34,7 @@ class RewardCheck:
     error: Optional[str] = None
 
     def is_binary(self) -> bool:
-        return self.type not in (RewardType.QUALITY, RewardType.RAG_GROUNDING)
+        return self.type not in (RewardType.QUALITY, RewardType.RAG_GROUNDING, RewardType.CVE_RELEVANCE)
 
 
 @dataclass
@@ -76,6 +77,7 @@ REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
         RewardType.NON_TRIVIALITY: 1.5,
         RewardType.QUALITY: 2.0,
         RewardType.RAG_GROUNDING: 1.5,
+        RewardType.CVE_RELEVANCE: 1.0,
     },
     "forensics_image_metadata": {
         RewardType.FORMAT: 1.0,
@@ -84,6 +86,7 @@ REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
         RewardType.NON_TRIVIALITY: 1.0,
         RewardType.QUALITY: 2.0,
         RewardType.RAG_GROUNDING: 1.5,
+        RewardType.CVE_RELEVANCE: 1.0,
     },
     "web_static_xss": {
         RewardType.FORMAT: 1.0,
@@ -92,6 +95,7 @@ REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
         RewardType.NON_TRIVIALITY: 1.5,
         RewardType.QUALITY: 2.0,
         RewardType.RAG_GROUNDING: 1.5,
+        RewardType.CVE_RELEVANCE: 1.0,
     },
     "chat_llm": {
         RewardType.FORMAT: 1.0,
@@ -100,6 +104,7 @@ REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
         RewardType.NON_TRIVIALITY: 2.0,
         RewardType.QUALITY: 2.0,
         RewardType.RAG_GROUNDING: 1.5,
+        RewardType.CVE_RELEVANCE: 1.0,
     },
 }
 
