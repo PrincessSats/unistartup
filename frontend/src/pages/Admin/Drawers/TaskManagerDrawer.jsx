@@ -26,7 +26,7 @@ const initialTaskState = {
   flag: '',
 };
 
-function TaskManagerDrawer({ open, onClose, onCreated }) {
+function TaskManagerDrawer({ open, onClose, onCreated, onEditTask }) {
   const [tab, setTab] = useState('create');
   const [form, setForm] = useState(initialTaskState);
   const [status, setStatus] = useState('idle');
@@ -307,7 +307,8 @@ function TaskManagerDrawer({ open, onClose, onCreated }) {
               {tasks.map((task) => (
                 <div
                   key={task.id}
-                  className="flex items-center justify-between p-3 rounded-[12px] border border-white/10 bg-white/[0.02] hover:border-[#9B6BFF]/40 transition"
+                  onClick={() => onEditTask?.(task.id)}
+                  className="flex items-center justify-between p-3 rounded-[12px] border border-white/10 bg-white/[0.02] hover:border-[#9B6BFF]/40 transition cursor-pointer"
                 >
                   <div className="flex-1">
                     <div className="text-white text-[14px] font-medium">{task.title}</div>
