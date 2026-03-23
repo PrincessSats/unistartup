@@ -13,6 +13,7 @@ import FeedbackResolver from './Widgets/FeedbackResolver';
 // Drawers
 import KnowledgeBaseDrawer from './Drawers/KnowledgeBaseDrawer';
 import TaskManagerDrawer from './Drawers/TaskManagerDrawer';
+import TaskEditDrawer from './Drawers/TaskEditDrawer';
 import ContestPlannerDrawer from './Drawers/ContestPlannerDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
@@ -35,6 +36,8 @@ function Admin() {
   // Drawer states
   const [isKbOpen, setIsKbOpen] = useState(false);
   const [isTaskOpen, setIsTaskOpen] = useState(false);
+  const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
+  const [taskEditId, setTaskEditId] = useState(null);
   const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
 
@@ -97,6 +100,11 @@ function Admin() {
       setIsNvdRunning(false);
     }
   }, [isNvdRunning, nvdSync, setDashboard]);
+
+  const handleEditTask = useCallback((taskId) => {
+    setTaskEditId(taskId);
+    setIsTaskEditOpen(true);
+  }, []);
 
   const handleStartResolveFeedback = useCallback((feedback) => {
     setFeedbackResolveError('');
@@ -266,6 +274,16 @@ function Admin() {
         open={isTaskOpen}
         onClose={() => setIsTaskOpen(false)}
         onCreated={refresh}
+        onEditTask={handleEditTask}
+      />
+      <TaskEditDrawer
+        open={isTaskEditOpen}
+        taskId={taskEditId}
+        onClose={() => {
+          setIsTaskEditOpen(false);
+          setTaskEditId(null);
+        }}
+        onUpdated={refresh}
       />
       <ContestPlannerDrawer
         open={isContestPlanningOpen}

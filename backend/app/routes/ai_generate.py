@@ -151,11 +151,27 @@ async def start_generation(
     user, profile = current_user_data
     _require_admin_or_pro(user, profile)
 
+    # Infer task_type from CVE CWE data when not explicitly provided
+    task_type = request.task_type
+    if task_type is None:
+        if request.cve_id:
+            from app.services.ai_generator.cwe_mapping import infer_task_type
+            from sqlalchemy import text as sa_text
+            cwe_result = await db.execute(sa_text(
+                "SELECT cwe_ids, attack_vector FROM kb_entries WHERE cve_id = :cve_id LIMIT 1"
+            ), {"cve_id": request.cve_id})
+            cwe_row = cwe_result.fetchone()
+            cwe_ids = list(cwe_row[0] or []) if cwe_row else []
+            attack_vector = cwe_row[1] if cwe_row else None
+            task_type = infer_task_type(cwe_ids, attack_vector)
+        else:
+            task_type = "crypto_text_web"  # default fallback
+
     batch_id = uuid.uuid4()
     batch = AIGenerationBatch(
         id=batch_id,
         requested_by=user.id,
-        task_type=request.task_type,
+        task_type=task_type,
         difficulty=request.difficulty,
         num_variants=request.num_variants,
         status="pending",
@@ -165,7 +181,7 @@ async def start_generation(
 
     background_tasks.add_task(
         _run_pipeline_bg,
-        request.task_type,
+        task_type,
         request.difficulty,
         request.num_variants,
         user.id,
@@ -174,8 +190,8 @@ async def start_generation(
         request.topic,
     )
 
-    logger.info("Started generation batch=%s type=%s difficulty=%s", batch_id, request.task_type, request.difficulty)
-    return GenerateResponse(batch_id=str(batch_id), status="generating")
+    logger.info("Started generation batch=%s type=%s difficulty=%s", batch_id, task_type, request.difficulty)
+    return GenerateResponse(batch_id=str(batch_id), status="generating", task_type=task_type)
 
 
 @router.get("/ai-generate/batch/{batch_id}", response_model=BatchStatusResponse)
@@ -441,6 +457,43 @@ async def publish_variant(
             summary=f"Flag hidden in: {hide_in}",
             creation_solution=spec.get("writeup", ""),
             steps={"hide_in": hide_in, "decoy_metadata": spec.get("decoy_metadata", {})},
+        ))
+
+    # Store XSS author solution
+    if batch.task_type == "web_static_xss":
+        # Also store file_url as TaskMaterial storage_key for download
+        if file_url:
+            # Update the already-added TaskMaterial with storage_key
+            mat_kwargs["name"] = "XSS challenge page"
+            mat_kwargs["storage_key"] = file_url
+        xss_type = spec.get("xss_type", "reflected")
+        param = spec.get("vulnerable_param", "")
+        db.add(TaskAuthorSolution(
+            task_id=task.id,
+            summary=f"XSS ({xss_type}) via parameter: {param}",
+            creation_solution=spec.get("writeup", ""),
+            steps={
+                "xss_type": xss_type,
+                "vulnerable_param": param,
+                "payload_solution": spec.get("payload_solution", ""),
+                "filter_bypass": spec.get("filter_bypass", ""),
+            },
+        ))
+
+    # Configure chat_llm task
+    if batch.task_type == "chat_llm":
+        system_prompt_template = artifact.get("content") or spec.get("system_prompt_template", "")
+        if system_prompt_template:
+            task.chat_system_prompt_template = system_prompt_template
+        db.add(TaskAuthorSolution(
+            task_id=task.id,
+            summary=f"Prompt injection: {spec.get('attack_hint', 'jailbreak')}",
+            creation_solution=spec.get("writeup", ""),
+            steps={
+                "defense_type": spec.get("defense_type", ""),
+                "attack_hint": spec.get("attack_hint", ""),
+                "system_prompt_template": system_prompt_template,
+            },
         ))
 
     # Mark variant as published

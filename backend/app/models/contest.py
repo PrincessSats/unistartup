@@ -1,4 +1,4 @@
-from sqlalchemy import Column, BigInteger, Integer, SmallInteger, Text, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, BigInteger, Integer, Float, SmallInteger, Text, Boolean, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB
 from sqlalchemy.orm import relationship
@@ -33,6 +33,14 @@ class KBEntry(Base):
     ru_explainer = Column(Text)
     tags = Column(ARRAY(Text), default=list)
     difficulty = Column(Text)
+    # Structured metadata extracted from NVD API
+    cwe_ids = Column(ARRAY(Text), default=list)
+    cvss_base_score = Column(Float)
+    cvss_vector = Column(Text)
+    attack_vector = Column(Text)
+    attack_complexity = Column(Text)
+    affected_products = Column(ARRAY(Text), default=list)
+    cve_metadata = Column(JSONB)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     embedding = Column(Vector(256))

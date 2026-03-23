@@ -46,8 +46,69 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
 
 
 def _build_embedding_text(row: Dict[str, Any]) -> str:
-    parts = [row.get("cve_id") or "", row.get("raw_en_text") or ""]
+    parts = [
+        row.get("cve_id") or "",
+        row.get("raw_en_text") or "",
+        " ".join(row.get("cwe_ids") or []),
+        row.get("attack_vector") or "",
+    ]
     return " ".join(filter(None, parts)).strip()
+
+
+def _extract_cwe_ids(cve: Dict[str, Any]) -> List[str]:
+    """Extract CWE IDs from NVD CVE record, e.g. ['CWE-79', 'CWE-80']."""
+    cwe_ids: List[str] = []
+    for weakness in cve.get("weaknesses") or []:
+        for desc in weakness.get("description") or []:
+            value = desc.get("value") or ""
+            # Skip NVD catch-all placeholders
+            if value.startswith("CWE-") and value not in ("CWE-noinfo", "CWE-other"):
+                if value not in cwe_ids:
+                    cwe_ids.append(value)
+    return cwe_ids
+
+
+def _extract_cvss_data(cve: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract CVSS base score, vector string, attack vector and complexity.
+
+    Tries CVSSv3.1, then v3.0, then v2.0.
+    """
+    metrics = cve.get("metrics") or {}
+    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+        entries = metrics.get(key) or []
+        for entry in entries:
+            data = entry.get("cvssData") or {}
+            score = data.get("baseScore")
+            if score is not None:
+                return {
+                    "cvss_base_score": float(score),
+                    "cvss_vector": data.get("vectorString"),
+                    "attack_vector": data.get("attackVector"),
+                    "attack_complexity": data.get("attackComplexity"),
+                }
+    return {}
+
+
+def _extract_affected_products(cve: Dict[str, Any]) -> List[str]:
+    """Extract vendor:product pairs from CPE match strings (capped at 10)."""
+    products: List[str] = []
+    seen: set = set()
+    for config in cve.get("configurations") or []:
+        for node in config.get("nodes") or []:
+            for match in node.get("cpeMatch") or []:
+                criteria = match.get("criteria") or ""
+                # CPE 2.3 format: cpe:2.3:a:vendor:product:version:...
+                parts = criteria.split(":")
+                if len(parts) >= 5:
+                    vendor, product = parts[3], parts[4]
+                    if vendor and product and vendor != "*" and product != "*":
+                        pair = f"{vendor}:{product}"
+                        if pair not in seen:
+                            seen.add(pair)
+                            products.append(pair)
+                            if len(products) >= 10:
+                                return products
+    return products
 
 
 def _utc_now() -> datetime:
@@ -151,13 +212,27 @@ async def store_kb_entries(
             continue
         descriptions = cve.get("descriptions", []) or []
         raw_en_text = _pick_en_description(descriptions)
+
+        cwe_ids = _extract_cwe_ids(cve)
+        cvss_data = _extract_cvss_data(cve)
+        affected_products = _extract_affected_products(cve)
+
+        # Tags include CWE IDs for GIN-indexed filtering
+        tags = ["nvd", cve_id.lower()] + [c.lower() for c in cwe_ids]
+
         to_insert.append(
             {
                 "source": "nvd",
                 "source_id": cve_id,
                 "cve_id": cve_id,
                 "raw_en_text": raw_en_text,
-                "tags": ["nvd", cve_id.lower()],
+                "tags": tags,
+                "cwe_ids": cwe_ids,
+                "cvss_base_score": cvss_data.get("cvss_base_score"),
+                "cvss_vector": cvss_data.get("cvss_vector"),
+                "attack_vector": cvss_data.get("attack_vector"),
+                "attack_complexity": cvss_data.get("attack_complexity"),
+                "affected_products": affected_products,
             }
         )
 
@@ -194,8 +269,12 @@ async def store_kb_entries(
 
         await session.execute(
             text(
-                "INSERT INTO kb_entries (source, source_id, cve_id, raw_en_text, tags) "
-                "VALUES (:source, :source_id, :cve_id, :raw_en_text, :tags)"
+                "INSERT INTO kb_entries "
+                "(source, source_id, cve_id, raw_en_text, tags, "
+                "cwe_ids, cvss_base_score, cvss_vector, attack_vector, attack_complexity, affected_products) "
+                "VALUES "
+                "(:source, :source_id, :cve_id, :raw_en_text, :tags, "
+                ":cwe_ids, :cvss_base_score, :cvss_vector, :attack_vector, :attack_complexity, :affected_products)"
             ),
             new_rows,
         )
@@ -209,7 +288,7 @@ async def store_kb_entries(
             }
             inserted_result = await session.execute(
                 text(
-                    "SELECT id, source, cve_id, raw_en_text "
+                    "SELECT id, source, cve_id, raw_en_text, cwe_ids, attack_vector "
                     "FROM kb_entries "
                     "WHERE source = :source AND cve_id = ANY(:cve_ids)"
                 ),
@@ -225,6 +304,8 @@ async def store_kb_entries(
                             "source": row_dict.get("source"),
                             "cve_id": row_dict.get("cve_id"),
                             "raw_en_text": row_dict.get("raw_en_text"),
+                            "cwe_ids": row_dict.get("cwe_ids") or [],
+                            "attack_vector": row_dict.get("attack_vector"),
                         }
                     )
 

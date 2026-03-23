@@ -214,7 +214,6 @@ async def _load_used_flags(
         .where(AIGenerationBatch.task_type == task_type)
         .where(AIGenerationVariant.generated_spec["flag"].astext.isnot(None))
         .distinct()
-        .order_by(AIGenerationVariant.created_at.desc())
         .limit(_MAX_USED_FLAGS)
     )
     result = await db.execute(query)
@@ -237,7 +236,6 @@ async def _load_used_scenario_titles(
         .where(AIGenerationVariant.passed_all_binary == True)  # noqa: E712
         .where(AIGenerationVariant.generated_spec["title"].astext.isnot(None))
         .distinct()
-        .order_by(AIGenerationVariant.created_at.desc())
         .limit(_MAX_USED_SCENARIOS)
     )
     result = await db.execute(query)

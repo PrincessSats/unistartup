@@ -1,7 +1,7 @@
 """
 Artifact creator: converts a generated spec into a concrete CTF artifact.
 
-Currently supports: crypto_text_web, forensics_image_metadata
+Currently supports: crypto_text_web, forensics_image_metadata, web_static_xss, chat_llm
 """
 from __future__ import annotations
 
@@ -38,6 +38,10 @@ async def create_artifact(task_type: str, spec: dict[str, Any], **kwargs: Any) -
         return _create_crypto_text(spec)
     if task_type == "forensics_image_metadata":
         return await _create_forensics_image(spec, **kwargs)
+    if task_type == "web_static_xss":
+        return await _create_xss_page(spec, **kwargs)
+    if task_type == "chat_llm":
+        return _create_chat_task(spec)
     return ArtifactResult(error=f"Unsupported task_type for artifact creation: {task_type!r}")
 
 
@@ -124,5 +128,74 @@ async def _create_forensics_image(
             "hide_in": hide_in,
             "stock_image_key": stock_key,
             "decoy_fields": list(decoy_metadata.keys()),
+        },
+    )
+
+
+async def _create_xss_page(
+    spec: dict[str, Any],
+    batch_id: Optional[str] = None,
+    variant_id: Optional[str] = None,
+) -> ArtifactResult:
+    """
+    Generate a self-contained XSS challenge HTML page and upload to S3.
+    """
+    from app.services.ai_generator.xss_utils import render_xss_page, upload_xss_page, XSSError
+
+    flag = (spec.get("flag") or "").strip()
+    xss_type = (spec.get("xss_type") or "").strip()
+
+    if not flag:
+        return ArtifactResult(error="spec missing 'flag'")
+    if xss_type not in ("reflected", "stored", "dom"):
+        return ArtifactResult(error=f"invalid xss_type: {xss_type!r}")
+    if not batch_id or not variant_id:
+        return ArtifactResult(error="XSS: missing batch_id or variant_id for upload path")
+
+    try:
+        html_content = render_xss_page(spec)
+    except Exception as exc:
+        return ArtifactResult(error=f"render_xss_page failed: {exc}")
+
+    try:
+        s3_key = await asyncio.to_thread(upload_xss_page, html_content, batch_id, variant_id)
+    except XSSError as exc:
+        return ArtifactResult(error=str(exc))
+    except Exception as exc:
+        logger.exception("Unexpected error uploading XSS page")
+        return ArtifactResult(error=f"upload_xss_page unexpected error: {exc}")
+
+    return ArtifactResult(
+        file_url=s3_key,
+        verification_data={
+            "flag": flag,
+            "xss_type": xss_type,
+            "vulnerable_param": spec.get("vulnerable_param", ""),
+            "payload_solution": spec.get("payload_solution", ""),
+        },
+    )
+
+
+def _create_chat_task(spec: dict[str, Any]) -> ArtifactResult:
+    """
+    Validate the chat_llm spec and return the system prompt template as content.
+    No S3 upload needed — the template is stored in task.chat_system_prompt_template.
+    """
+    flag = (spec.get("flag") or "").strip()
+    system_prompt = (spec.get("system_prompt_template") or "").strip()
+
+    if not flag:
+        return ArtifactResult(error="spec missing 'flag'")
+    if not system_prompt:
+        return ArtifactResult(error="spec missing 'system_prompt_template'")
+    if "{{FLAG}}" not in system_prompt:
+        return ArtifactResult(error="system_prompt_template must contain {{FLAG}} placeholder")
+
+    return ArtifactResult(
+        content=system_prompt,
+        verification_data={
+            "flag": flag,
+            "defense_type": spec.get("defense_type", ""),
+            "attack_hint": spec.get("attack_hint", ""),
         },
     )
