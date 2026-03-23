@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 
 
 class GenerateRequest(BaseModel):
-    task_type: Literal["forensics_image_metadata", "crypto_text_web", "web_static_xss", "chat_llm"]
+    # task_type is optional: if omitted and cve_id is provided, the pipeline
+    # infers the best task type from CVE CWE data via cwe_mapping.infer_task_type().
+    task_type: Optional[Literal["forensics_image_metadata", "crypto_text_web", "web_static_xss", "chat_llm"]] = None
     difficulty: Literal["beginner", "intermediate", "advanced"]
     num_variants: int = Field(default=5, ge=3, le=7)
     cve_id: Optional[str] = None
@@ -14,6 +16,7 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     batch_id: str
     status: str  # "generating"
+    task_type: Optional[str] = None  # resolved task type (useful when inferred from CVE)
     rag_context_used: int = 0
 
 
