@@ -20,29 +20,37 @@ from app.services.ai_generator.embedding_service import EmbeddingService, Embedd
 
 logger = logging.getLogger(__name__)
 
-# Natural-language query templates per task type — expanded with domain context
+# Minimum cosine similarity to include a CVE in the context.
+# Below this threshold the CVE is considered irrelevant and skipped.
+MIN_SIMILARITY = 0.35
+
+# Natural-language query templates per task type — used for semantic search
 _QUERY_TEMPLATES: dict[str, str] = {
     "crypto_text_web": (
         "cryptographic cipher encryption decryption weak algorithm key exchange "
         "authentication session token cookie network traffic interception man-in-the-middle "
-        "TLS SSL HTTPS certificate RSA AES XOR base64 encoding web application API"
+        "TLS SSL HTTPS certificate RSA AES XOR base64 encoding web application API "
+        "CWE-327 CWE-326 CWE-330 broken cryptographic algorithm insufficient entropy"
     ),
     "forensics_image_metadata": (
         "image metadata forensics EXIF JPEG PNG file analysis hidden data steganography "
         "digital evidence photo camera GPS location timestamp author copyright "
-        "XMP IPTC file carving data recovery investigation crime scene"
+        "XMP IPTC file carving data recovery investigation crime scene "
+        "CWE-200 CWE-212 CWE-538 information disclosure sensitive data exposure"
     ),
     "web_static_xss": (
         "cross-site scripting XSS injection web vulnerability DOM manipulation "
         "innerHTML document.write eval script tag event handler onerror onclick "
         "reflected stored DOM-based CSP bypass filter evasion input validation "
-        "web application form search comment user input sanitization"
+        "web application form search comment user input sanitization "
+        "CWE-79 CWE-80 CWE-87 CWE-116 improper neutralization script"
     ),
     "chat_llm": (
         "prompt injection LLM manipulation AI security jailbreak system prompt "
         "social engineering token extraction data leakage conversation hijacking "
         "role play bypass instruction override chatbot assistant AI model "
-        "natural language processing text generation response manipulation"
+        "natural language processing text generation response manipulation "
+        "CWE-74 CWE-94 CWE-1336 injection template control"
     ),
 }
 
@@ -135,6 +143,12 @@ class CVEEntry:
     tags: list[str] = field(default_factory=list)
     difficulty: Optional[str] = None
     stored_embedding: Optional[list[float]] = None  # Pre-computed embedding vector from DB
+    # Structured metadata (populated after Phase 1 migration)
+    cwe_ids: list[str] = field(default_factory=list)
+    cvss_base_score: Optional[float] = None
+    attack_vector: Optional[str] = None
+    # Internal composite retrieval score (not exposed to prompts)
+    _retrieval_score: float = field(default=0.0, compare=False, repr=False)
 
 
 @dataclass
@@ -154,11 +168,16 @@ class RAGContext:
         if self.is_empty:
             return ""
 
+        from app.services.ai_generator.cwe_mapping import (
+            CWE_DESCRIPTIONS, get_cwe_hint_for_task,
+        )
+
         lines: list[str] = [
-            "## Контекст CVE — используй эти уязвимости как основу для сценария задания",
+            "## Контекст CVE — используй эти уязвимости как МЕХАНИЧЕСКУЮ ОСНОВУ задания",
             "",
-            "**ВАЖНО:** Не дублируй описание CVE один в один. Создай УНИКАЛЬНЫЙ сценарий,",
-            "вдохновлённый этими уязвимостями. Используй примеры сценариев ниже.",
+            "**КРИТИЧЕСКИ ВАЖНО:** Не просто упоминай CVE ID в описании.",
+            "Техническая суть уязвимости ОБЯЗАНА отражаться в механике задания.",
+            "Создай УНИКАЛЬНЫЙ сценарий, вдохновлённый этими CVE. Используй примеры ниже.",
             "",
         ]
 
@@ -176,13 +195,36 @@ class RAGContext:
             lines.append(f"#### {title}")
             if entry.cve_id:
                 lines.append(f"- **CVE ID:** {entry.cve_id}")
+
+            # CWE context — structured, drives task mechanics
+            if entry.cwe_ids:
+                cwe_descs = []
+                for cwe in entry.cwe_ids[:3]:
+                    desc = CWE_DESCRIPTIONS.get(cwe)
+                    cwe_descs.append(f"{cwe}" + (f" ({desc})" if desc else ""))
+                lines.append(f"- **CWE:** {', '.join(cwe_descs)}")
+
+                hint = get_cwe_hint_for_task(self.task_type, entry.cwe_ids)
+                if hint:
+                    lines.append(f"- **Практическое значение:** {hint}")
+
+            # CVSS severity
+            if entry.cvss_base_score is not None:
+                severity = _cvss_severity_label(entry.cvss_base_score)
+                av_label = f" | Вектор: {entry.attack_vector}" if entry.attack_vector else ""
+                lines.append(f"- **CVSS:** {entry.cvss_base_score:.1f} ({severity}){av_label}")
+
             if entry.ru_summary:
                 lines.append(f"- **Описание:** {entry.ru_summary}")
             elif entry.raw_en_text:
                 snippet = entry.raw_en_text[:300].rstrip()
                 lines.append(f"- **Описание (EN):** {snippet}...")
+
             if entry.tags:
-                lines.append(f"- **Теги:** {', '.join(entry.tags)}")
+                # Filter out redundant tags for cleaner output
+                display_tags = [t for t in entry.tags if not t.startswith("cve-") and t != "nvd"]
+                if display_tags:
+                    lines.append(f"- **Теги:** {', '.join(display_tags[:5])}")
             lines.append("")
 
         if self.existing_task_titles:
@@ -196,6 +238,16 @@ class RAGContext:
             lines.append("")
 
         return "\n".join(lines)
+
+
+def _cvss_severity_label(score: float) -> str:
+    if score >= 9.0:
+        return "CRITICAL"
+    if score >= 7.0:
+        return "HIGH"
+    if score >= 4.0:
+        return "MEDIUM"
+    return "LOW"
 
 
 class RAGContextBuilder:
@@ -226,7 +278,7 @@ class RAGContextBuilder:
                 query_text = self._build_query(task_type, difficulty, specific_topic)
                 try:
                     query_vector = await self._svc.embed_query(query_text)
-                    cve_entries = await self._semantic_search_cves(query_vector)
+                    cve_entries = await self._two_stage_search(query_vector, task_type)
                 except EmbeddingError as exc:
                     logger.warning("Embedding failed, RAG context will be empty: %s", exc)
                     cve_entries = []
@@ -257,37 +309,130 @@ class RAGContextBuilder:
             parts.append(topic)
         return " ".join(parts)
 
-    async def _semantic_search_cves(self, query_vector: list[float]) -> list[CVEEntry]:
-        """Find closest kb_entries by cosine distance (requires pgvector)."""
-        try:
-            result = await self._db.execute(
-                text(
-                    "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, embedding "
-                    "FROM kb_entries "
-                    "WHERE embedding IS NOT NULL "
-                    "ORDER BY embedding <=> CAST(:vec AS vector) "
-                    "LIMIT :lim"
-                ),
-                {"vec": str(query_vector), "lim": self._limit},
-            )
-            rows = result.fetchall()
-        except Exception as exc:
-            logger.warning("pgvector search failed: %s", exc)
-            return []
+    async def _two_stage_search(
+        self,
+        query_vector: list[float],
+        task_type: str,
+    ) -> list[CVEEntry]:
+        """Two-stage CVE retrieval:
 
-        return [
-            CVEEntry(
-                id=row.id,
-                cve_id=row.cve_id,
-                ru_title=row.ru_title,
-                ru_summary=row.ru_summary,
-                raw_en_text=row.raw_en_text,
-                tags=row.tags or [],
-                difficulty=row.difficulty,
-                stored_embedding=list(row.embedding) if row.embedding else None,
-            )
-            for row in rows
-        ]
+        Stage 1 — CWE-filtered: entries whose cwe_ids overlap with the task type's relevant CWEs.
+        Stage 2 — Semantic fallback: fills remaining slots from general semantic search.
+
+        Both stages apply MIN_SIMILARITY threshold.
+        Composite score: 0.6 * similarity + 0.4 * cwe_match_bonus.
+        """
+        from app.services.ai_generator.cwe_mapping import get_relevant_cwes_for_task_type
+
+        relevant_cwes = get_relevant_cwes_for_task_type(task_type)
+        seen_ids: set[int] = set()
+        results: list[CVEEntry] = []
+
+        # ── Stage 1: CWE-filtered semantic search ────────────────────────────
+        if relevant_cwes:
+            try:
+                stage1_result = await self._db.execute(
+                    text(
+                        "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, "
+                        "embedding, cwe_ids, cvss_base_score, attack_vector, "
+                        "1 - (embedding <=> CAST(:vec AS vector)) AS similarity "
+                        "FROM kb_entries "
+                        "WHERE embedding IS NOT NULL "
+                        "  AND cwe_ids IS NOT NULL "
+                        "  AND cwe_ids && CAST(:cwes AS text[]) "
+                        "ORDER BY embedding <=> CAST(:vec AS vector) "
+                        "LIMIT :lim"
+                    ),
+                    {
+                        "vec": str(query_vector),
+                        "cwes": list(relevant_cwes),
+                        "lim": self._limit * 2,
+                    },
+                )
+                for row in stage1_result.fetchall():
+                    similarity = float(row.similarity) if row.similarity is not None else 0.0
+                    if similarity < MIN_SIMILARITY:
+                        continue
+                    score = 0.6 * similarity + 0.4
+                    entry = self._row_to_cve_entry(row, retrieval_score=score)
+                    seen_ids.add(entry.id)
+                    results.append(entry)
+                    if len(results) >= self._limit:
+                        break
+            except Exception as exc:
+                logger.warning("Stage 1 CWE-filtered search failed: %s", exc)
+
+        # ── Stage 2: General semantic fallback ───────────────────────────────
+        if len(results) < self._limit:
+            remaining = self._limit - len(results)
+            try:
+                if seen_ids:
+                    stage2_result = await self._db.execute(
+                        text(
+                            "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, "
+                            "embedding, cwe_ids, cvss_base_score, attack_vector, "
+                            "1 - (embedding <=> CAST(:vec AS vector)) AS similarity "
+                            "FROM kb_entries "
+                            "WHERE embedding IS NOT NULL "
+                            "  AND id != ALL(CAST(:exclude_ids AS bigint[])) "
+                            "ORDER BY embedding <=> CAST(:vec AS vector) "
+                            "LIMIT :lim"
+                        ),
+                        {
+                            "vec": str(query_vector),
+                            "exclude_ids": list(seen_ids),
+                            "lim": remaining * 2,
+                        },
+                    )
+                else:
+                    stage2_result = await self._db.execute(
+                        text(
+                            "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, "
+                            "embedding, cwe_ids, cvss_base_score, attack_vector, "
+                            "1 - (embedding <=> CAST(:vec AS vector)) AS similarity "
+                            "FROM kb_entries "
+                            "WHERE embedding IS NOT NULL "
+                            "ORDER BY embedding <=> CAST(:vec AS vector) "
+                            "LIMIT :lim"
+                        ),
+                        {"vec": str(query_vector), "lim": remaining * 2},
+                    )
+
+                for row in stage2_result.fetchall():
+                    similarity = float(row.similarity) if row.similarity is not None else 0.0
+                    if similarity < MIN_SIMILARITY:
+                        break  # ordered by distance, all remaining are worse
+                    if row.id in seen_ids:
+                        continue
+                    score = 0.6 * similarity
+                    entry = self._row_to_cve_entry(row, retrieval_score=score)
+                    seen_ids.add(entry.id)
+                    results.append(entry)
+                    if len(results) >= self._limit:
+                        break
+            except Exception as exc:
+                logger.warning("Stage 2 semantic fallback search failed: %s", exc)
+
+        # Sort by composite retrieval score descending
+        results.sort(key=lambda e: e._retrieval_score, reverse=True)
+        return results[: self._limit]
+
+    def _row_to_cve_entry(self, row: Any, retrieval_score: float = 0.0) -> CVEEntry:
+        entry = CVEEntry(
+            id=row.id,
+            cve_id=row.cve_id,
+            ru_title=row.ru_title,
+            ru_summary=row.ru_summary,
+            raw_en_text=row.raw_en_text,
+            tags=row.tags or [],
+            difficulty=row.difficulty,
+            stored_embedding=list(row.embedding) if row.embedding else None,
+            cwe_ids=list(row.cwe_ids) if row.cwe_ids else [],
+            cvss_base_score=float(row.cvss_base_score) if row.cvss_base_score is not None else None,
+            attack_vector=row.attack_vector,
+        )
+        entry._retrieval_score = retrieval_score
+        return entry
 
     async def _fetch_specific_cve(self, cve_id: str) -> list[CVEEntry]:
         result = await self._db.execute(
@@ -307,6 +452,9 @@ class RAGContextBuilder:
                 tags=entry.tags or [],
                 difficulty=entry.difficulty,
                 stored_embedding=list(entry.embedding) if entry.embedding else None,
+                cwe_ids=list(entry.cwe_ids) if getattr(entry, "cwe_ids", None) else [],
+                cvss_base_score=getattr(entry, "cvss_base_score", None),
+                attack_vector=getattr(entry, "attack_vector", None),
             )
         ]
 
