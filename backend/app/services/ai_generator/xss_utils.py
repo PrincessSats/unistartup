@@ -245,11 +245,14 @@ def upload_xss_page(html_content: str, batch_id: str, variant_id: str) -> str:
     from app.services.storage import get_s3_client
     from app.config import settings
 
-    bucket = settings.S3_BUCKET_NAME
+    bucket = settings.s3_task_bucket_name
     key = f"ctf_xss/{batch_id}/{variant_id}/challenge.html"
 
     try:
-        client = get_s3_client()
+        client = get_s3_client(
+            access_key=settings.s3_task_access_key,
+            secret_key=settings.s3_task_secret_key,
+        )
         client.put_object(
             Bucket=bucket,
             Key=key,
