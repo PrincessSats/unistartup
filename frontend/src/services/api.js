@@ -1008,4 +1008,38 @@ export const pipelineAPI = {
   },
 };
 
+export const userVariantsAPI = {
+  /**
+   * Start variant generation for a task
+   */
+  startGeneration: async (taskId, payload) => {
+    const response = await api.post(`/user-variants/tasks/${taskId}/generate`, payload);
+    return response.data;
+  },
+  
+  /**
+   * Get generation request status
+   */
+  getRequestStatus: async (requestId) => {
+    const response = await api.get(`/user-variants/requests/${requestId}/status`);
+    return response.data;
+  },
+  
+  /**
+   * Get all variants for a task
+   */
+  getTaskVariants: async (taskId) => {
+    const response = await api.get(`/user-variants/tasks/${taskId}/variants`);
+    return response.data;
+  },
+  
+  /**
+   * Vote on a variant
+   */
+  voteVariant: async (variantId, payload) => {
+    const response = await api.post(`/user-variants/variants/${variantId}/vote`, payload);
+    return response.data;
+  },
+};
+
 export default api;

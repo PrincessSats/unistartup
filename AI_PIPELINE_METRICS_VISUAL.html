@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HackNet AI Pipeline - Справочник Метрик</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .metrics-section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .section-title em {
+            font-size: 1.3em;
+            margin-right: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        thead {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-weight: 600;
+        }
+
+        th {
+            padding: 16px;
+            text-align: left;
+            font-size: 0.95em;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 14px 16px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.95em;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: #f8f9ff;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .metric-name {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .purpose {
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .where {
+            color: #777;
+            font-size: 0.9em;
+        }
+
+        .target {
+            background: #f0f4ff;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-weight: 500;
+            color: #667eea;
+            font-size: 0.9em;
+        }
+
+        .hierarchy {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 30px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            color: #555;
+            overflow-x: auto;
+        }
+
+        .sql-example {
+            background: #1e1e1e;
+            color: #00ff00;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.85em;
+            line-height: 1.5;
+            overflow-x: auto;
+        }
+
+        .sql-comment {
+            color: #6a9955;
+        }
+
+        .sql-keyword {
+            color: #569cd6;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #e8eaf6;
+            color: #667eea;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        .grpo {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 600;
+        }
+
+        .rag {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 600;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 HackNet AI Pipeline</h1>
+        <p class="subtitle">Полный справочник метрик и их назначения</p>
+
+        <!-- EFFICIENCY METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>📊</em>
+                Метрики Эффективности Генерации
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Целевое значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Avg Generation Time (ms)</td>
+                        <td class="purpose">Измеряет скорость генерации одного варианта</td>
+                        <td class="where">Оптимизация задержек API</td>
+                        <td class="target">&lt; 3000ms</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Tokens/Task</td>
+                        <td class="purpose">Средний расход токенов на генерацию</td>
+                        <td class="where">Контроль стоимости LLM</td>
+                        <td class="target">Зависит от типа</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Total Variants Generated</td>
+                        <td class="purpose">Общее количество сгенерированных вариантов</td>
+                        <td class="where">Мониторинг объемов</td>
+                        <td class="target">&gt; 0</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Completion Rate (%)</td>
+                        <td class="purpose">% батчей, успешно завершивших генерацию</td>
+                        <td class="where">Надежность пайплайна</td>
+                        <td class="target">&gt; 95%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- QUALITY METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>✅</em>
+                Метрики Качества
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Целевое значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Pass Rate (Binary) %</td>
+                        <td class="purpose">% вариантов, прошедших все бинарные проверки</td>
+                        <td class="where">Оценка пригодности к продакшену</td>
+                        <td class="target">&gt; 70%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Quality Score /10</td>
+                        <td class="purpose">Среднее качество сгенерированных задач</td>
+                        <td class="where">Обратная связь в GRPO</td>
+                        <td class="target">&gt; 7.5</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Selection Rate</td>
+                        <td class="purpose">Кол-во вариантов, отобранных для публикации</td>
+                        <td class="where">Контроль выхода в продакшн</td>
+                        <td class="target">1 из N лучших</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Total Batches</td>
+                        <td class="purpose">Всего запросов на генерацию</td>
+                        <td class="where">Статистика использования</td>
+                        <td class="target">Растет &gt; 0</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- GRPO METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em class="grpo">🎯</em>
+                Метрики GRPO (Group Relative Policy Optimization)
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Целевое значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Group Mean Reward</td>
+                        <td class="purpose">Средняя награда по группе вариантов</td>
+                        <td class="where">Оптимизация сравнительного обучения</td>
+                        <td class="target">Растет со временем</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Group Std Reward</td>
+                        <td class="purpose">Стандартное отклонение награды в группе</td>
+                        <td class="where">Измеряет разнообразие качества</td>
+                        <td class="target">Оптимальное &gt; 0</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Advantage</td>
+                        <td class="purpose">Относительное преимущество vs среднее</td>
+                        <td class="where">Выбор лучшего варианта</td>
+                        <td class="target">&gt; 0</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Rank in Group</td>
+                        <td class="purpose">Ранг варианта внутри батча</td>
+                        <td class="where">Сортировка для выбора</td>
+                        <td class="target">1 (лучший)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TASK TYPE DISTRIBUTION -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>📈</em>
+                Метрики по Типам Задач
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Примеры</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Count</td>
+                        <td class="purpose">Количество вариантов по типу</td>
+                        <td class="where">Балансировка датасета</td>
+                        <td class="target">50, 100, 200</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Percentage (%)</td>
+                        <td class="purpose">Доля от всех вариантов</td>
+                        <td class="where">Распределение работы</td>
+                        <td class="target">25%, 35%, 40%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Pass Rate по типу (%)</td>
+                        <td class="purpose">Качество для каждого типа</td>
+                        <td class="where">Определение проблемных типов</td>
+                        <td class="target">&gt; 70%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Quality по типу</td>
+                        <td class="purpose">Среднее качество по типу</td>
+                        <td class="where">Тюнинг промптов</td>
+                        <td class="target">&gt; 7.5</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- DIFFICULTY METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>🎪</em>
+                Метрики по Сложности
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Диапазоны</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Generated Count</td>
+                        <td class="purpose">Кол-во сгенерированных на уровне</td>
+                        <td class="where">Контроль баланса сложности</td>
+                        <td class="target">Easy, Medium, Hard</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Pass Rate по сложности (%)</td>
+                        <td class="purpose">% прошедших на каждом уровне</td>
+                        <td class="where">Оценка адекватности</td>
+                        <td class="target">80%, 60%, 40%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Quality по сложности</td>
+                        <td class="purpose">Качество на каждом уровне</td>
+                        <td class="where">Исправление недостатков</td>
+                        <td class="target">&gt; 7 для всех</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- TEMPERATURE METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>🌡️</em>
+                Метрики Температуры
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Оптимум</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Temperature</td>
+                        <td class="purpose">Параметр творчества LLM (0-2)</td>
+                        <td class="where">Контроль разнообразия</td>
+                        <td class="target">0.7 - 1.2</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Variants при T</td>
+                        <td class="purpose">Кол-во попыток при T</td>
+                        <td class="where">Статистика экспериментов</td>
+                        <td class="target">&gt; 50</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Pass Rate при T (%)</td>
+                        <td class="purpose">Успешность при T</td>
+                        <td class="where">Выбор оптимальной T</td>
+                        <td class="target">70-80%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Tokens при T</td>
+                        <td class="purpose">Расход токенов при T</td>
+                        <td class="where">Оптимизация стоимости</td>
+                        <td class="target">Минимум</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- RAG METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em class="rag">🧠</em>
+                Метрики RAG (Knowledge Base Integration)
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Целевое значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">RAG Enabled Count</td>
+                        <td class="purpose">Батчей, использующих KB контекст</td>
+                        <td class="where">Оценка эффективности RAG</td>
+                        <td class="target">&gt; 50%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">RAG Percentage (%)</td>
+                        <td class="purpose">% батчей с RAG контекстом</td>
+                        <td class="where">Интеграция Knowledge Base</td>
+                        <td class="target">&gt; 40%</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">RAG Context IDs</td>
+                        <td class="purpose">Какие KB статьи использовались</td>
+                        <td class="where">Отслеживание источников</td>
+                        <td class="target">Логирование для аудита</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">RAG Context Summary</td>
+                        <td class="purpose">Краткое описание контекста</td>
+                        <td class="where">Объяснение влияния KB</td>
+                        <td class="target">Для отладки</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- FAILURE METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>❌</em>
+                Метрики Отказов
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Целевое значение</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Failure Reason</td>
+                        <td class="purpose">Причина, почему задача не прошла</td>
+                        <td class="where">Улучшение пайплайна</td>
+                        <td class="target">Минимум причин</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Count</td>
+                        <td class="purpose">Кол-во отказов по причине</td>
+                        <td class="where">Приоритизация исправлений</td>
+                        <td class="target">&lt; 5% батча</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Percentage (%)</td>
+                        <td class="purpose">Доля от всех отказов</td>
+                        <td class="where">Анализ частотности</td>
+                        <td class="target">Top 3 = 80%</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- HISTORICAL METRICS -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>📅</em>
+                Метрики Истории
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 25%">Метрика</th>
+                        <th style="width: 30%">Назначение</th>
+                        <th style="width: 25%">Где используется</th>
+                        <th style="width: 20%">Тренд</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="metric-name">Month</td>
+                        <td class="purpose">Месяц анализа</td>
+                        <td class="where">Отслеживание trends</td>
+                        <td class="target">Последние 3 месяца</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Task Count</td>
+                        <td class="purpose">Задач в месяц</td>
+                        <td class="where">Оценка нагрузки</td>
+                        <td class="target">Растет</td>
+                    </tr>
+                    <tr>
+                        <td class="metric-name">Avg Tokens/Task</td>
+                        <td class="purpose">Средний расход на задачу</td>
+                        <td class="where">Оптимизация затрат</td>
+                        <td class="target">Снижается</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- HIERARCHY -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>📊</em>
+                Иерархия Метрик
+            </div>
+            <div class="hierarchy">
+AI Generation Batch (запрос)
+├── Generation Efficiency Metrics
+│   ├── Completion Rate
+│   ├── Avg Generation Time
+│   └── RAG Usage %
+│
+└── N Variants (варианты)
+    ├── Quality Metrics
+    │   ├── Pass Rate (Binary)
+    │   ├── Quality Score
+    │   └── Artifact Result
+    │
+    ├── Reward Metrics (GRPO)
+    │   ├── Reward Total
+    │   ├── Reward Binary
+    │   ├── Advantage
+    │   └── Rank in Group
+    │
+    └── Selection & Publishing
+        ├── Is Selected
+        ├── Published Task ID
+        └── Failure Reason
+            </div>
+        </div>
+
+        <!-- LLM JUDGE SYSTEM -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>⚖️</em>
+                Система LLM Судьи — Как это работает
+            </div>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.2em;">
+                🔄 Двухэтапный процесс оценки качества
+            </h3>
+
+            <div style="background: #f8f9ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                <p style="color: #333; line-height: 1.8; margin-bottom: 15px;">
+                    <strong>Этап 1: Бинарные проверки (Validator)</strong><br>
+                    Быстрая валидация структуры и функциональности. Если вариант не прошел — он отбрасывается и не идет дальше.
+                </p>
+                <p style="color: #333; line-height: 1.8;">
+                    <strong>Этап 2: LLM-as-Judge (Reviewer)</strong><br>
+                    Глубокая оценка качества по 5 измерениям. Запускается только для вариантов, прошедших все бинарные проверки.
+                </p>
+            </div>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.1em;">
+                ✅ Этап 1: Бинарные Проверки (5 критериев)
+            </h3>
+
+            <table style="margin-bottom: 25px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <th style="padding: 16px; text-align: left; color: white; width: 20%">Проверка</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 35%">Что проверяет</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 25%">Критерий прохождения</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 20%">Вес</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">FORMAT</td>
+                        <td style="padding: 14px 16px; color: #555;">JSON валидность, наличие всех обязательных полей</td>
+                        <td style="padding: 14px 16px;"><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✓ Все поля</span></td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">1.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee; background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">FUNCTIONAL</td>
+                        <td style="padding: 14px 16px; color: #555;">Артефакт создан? Флаг валидный? Решение работает?</td>
+                        <td style="padding: 14px 16px;"><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✓ Работает</span></td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">1.5-2.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">SOLVABILITY</td>
+                        <td style="padding: 14px 16px; color: #555;">Решаема ли задача? Можно ли найти флаг с подсказками?</td>
+                        <td style="padding: 14px 16px;"><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✓ Решаема</span></td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee; background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">NON_TRIVIALITY</td>
+                        <td style="padding: 14px 16px; color: #555;">Задача интересна? Не слишком ли проста?</td>
+                        <td style="padding: 14px 16px;"><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✓ Интересна</span></td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">1.0-2.0x</td>
+                    </tr>
+                    <tr style="background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">RAG_GROUNDING</td>
+                        <td style="padding: 14px 16px; color: #555;">Если используется RAG, задача соответствует контексту KB?</td>
+                        <td style="padding: 14px 16px;"><span style="background: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-weight: 500;">✓ Соответствует</span></td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">1.5x</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="background: #fff3cd; border-left: 4px solid #ff9800; padding: 15px; border-radius: 8px; margin-bottom: 25px; color: #856404;">
+                <strong>⚠️ Важно:</strong> Если вариант НЕ прошел хотя бы одну бинарную проверку, он немедленно отбрасывается и <strong>не подвергается LLM оценке</strong>.
+            </div>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.1em;">
+                🧠 Этап 2: LLM-as-Judge — 5 Измерений Качества
+            </h3>
+
+            <p style="color: #666; margin-bottom: 15px; line-height: 1.6;">
+                После прохождения бинарных проверок, вариант отправляется в <strong>LLM Reviewer</strong> (Yandex GPT), который оценивает качество по 5 независимым критериям. Каждый критерий оценивается от <strong>0.0 до 1.0</strong>.
+            </p>
+
+            <table style="margin-bottom: 25px;">
+                <thead>
+                    <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        <th style="padding: 16px; text-align: left; color: white; width: 22%">Измерение</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 40%">Что оценивает</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 25%">Примеры отличного (1.0)</th>
+                        <th style="padding: 16px; text-align: left; color: white; width: 13%">Вес</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">educational_value</td>
+                        <td style="padding: 14px 16px; color: #555;">Учит ли задача реальным навыкам безопасности?</td>
+                        <td style="padding: 14px 16px; color: #555; font-size: 0.9em;">Задача демонстрирует реальную уязвимость, учит защите</td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee; background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">scenario_realism</td>
+                        <td style="padding: 14px 16px; color: #555;">Реалистичен ли сценарий? Встречается ли в реальности?</td>
+                        <td style="padding: 14px 16px; color: #555; font-size: 0.9em;">Сценарий соответствует реальным инцидентам</td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">hint_quality</td>
+                        <td style="padding: 14px 16px; color: #555;">Подсказки дозированы? Помогают ли найти путь?</td>
+                        <td style="padding: 14px 16px; color: #555; font-size: 0.9em;">Подсказки направляют, не раскрывая ответ</td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee; background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">writeup_clarity</td>
+                        <td style="padding: 14px 16px; color: #555;">Writeup понятен? Объясняет ли решение?</td>
+                        <td style="padding: 14px 16px; color: #555; font-size: 0.9em;">Writeup ясный, с пояснениями каждого шага</td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                    <tr style="background: #fafbfc;">
+                        <td style="padding: 14px 16px; font-weight: 600; color: #667eea;">difficulty_calibration</td>
+                        <td style="padding: 14px 16px; color: #555;">Соответствует ли сложность заявленному уровню?</td>
+                        <td style="padding: 14px 16px; color: #555; font-size: 0.9em;">Easy = 5 мин, Medium = 20 мин, Hard = 60+ мин</td>
+                        <td style="padding: 14px 16px; color: #667eea; font-weight: 500;">2.0x</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.1em;">
+                📊 Как рассчитывается итоговая оценка
+            </h3>
+
+            <div style="background: #f0f4ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 8px; margin-bottom: 25px; font-family: 'Monaco', monospace; color: #333;">
+                <p style="margin-bottom: 10px;"><strong>Quality Score</strong> = (sum всех 5 измерений) / 5</p>
+                <p style="margin-bottom: 10px;">Например: (0.9 + 0.8 + 0.85 + 0.9 + 0.8) / 5 = <strong>0.85</strong> (или 8.5/10)</p>
+                <p style="color: #667eea; font-weight: 500;">Пороги:</p>
+                <ul style="margin-left: 20px; color: #555; margin-top: 8px;">
+                    <li><strong>&gt; 0.75 (7.5/10)</strong> — очень хорошее качество</li>
+                    <li><strong>0.65 - 0.75</strong> — приемлемое качество</li>
+                    <li><strong>&lt; 0.65</strong> — нужно улучшение</li>
+                </ul>
+            </div>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.1em;">
+                🎯 GRPO: Сравнительный рейтинг вариантов
+            </h3>
+
+            <div style="background: #f8f9ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 8px; margin-bottom: 25px;">
+                <p style="color: #333; line-height: 1.8; margin-bottom: 15px;">
+                    После оценки <strong>всех N вариантов в батче</strong>, система рассчитывает <strong>GRPO (Group Relative Policy Optimization)</strong> метрики:
+                </p>
+
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr style="background: #e8eaf6; border-bottom: 1px solid #667eea;">
+                        <td style="padding: 12px; font-weight: 600; color: #667eea; width: 30%;">Метрика</td>
+                        <td style="padding: 12px; color: #333;">Формула / Описание</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px; color: #667eea; font-weight: 500;">Group Mean Reward</td>
+                        <td style="padding: 12px; color: #555;">Средняя награда всех вариантов = Σ reward_total / N</td>
+                    </tr>
+                    <tr style="background: #fafbfc; border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px; color: #667eea; font-weight: 500;">Group Std Reward</td>
+                        <td style="padding: 12px; color: #555;">Стд. отклонение = √(Σ(reward - mean)² / N)</td>
+                    </tr>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px; color: #667eea; font-weight: 500;">Advantage</td>
+                        <td style="padding: 12px; color: #555;">Насколько вариант выше среднего = (reward - mean) / std</td>
+                    </tr>
+                    <tr style="background: #fafbfc;">
+                        <td style="padding: 12px; color: #667eea; font-weight: 500;">Rank in Group</td>
+                        <td style="padding: 12px; color: #555;">Позиция варианта в отсортированном списке (1 = лучший)</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 20px; border-radius: 8px; margin-bottom: 25px; color: #1565c0;">
+                <strong>💡 Результат:</strong> Лучший вариант (Rank = 1) автоматически выбирается и отправляется на публикацию в Tasks.
+            </div>
+
+            <h3 style="color: #667eea; margin-top: 25px; margin-bottom: 15px; font-size: 1.1em;">
+                🔄 Полный цикл: От генерации к публикации
+            </h3>
+
+            <div style="background: #f8f9ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 8px; margin-bottom: 25px; font-family: 'Monaco', monospace; font-size: 0.9em; line-height: 1.8; color: #555;">
+                <strong style="color: #333;">1️⃣ Генерация</strong><br>
+                User запросил N вариантов → LLM генерирует N различных spec<br>
+                <br>
+                <strong style="color: #333;">2️⃣ Артефакты</strong><br>
+                Для каждого spec создается артефакт (файл, VM, HTML и т.п.)<br>
+                <br>
+                <strong style="color: #333;">3️⃣ Бинарные проверки</strong><br>
+                Validator проверяет FORMAT, FUNCTIONAL, SOLVABILITY, NON_TRIVIALITY<br>
+                ❌ Не прошел → выбросить, перейти к следующему<br>
+                <br>
+                <strong style="color: #333;">4️⃣ LLM Оценка</strong><br>
+                Reviewer оценивает только прошедших вариантов по 5 измерениям<br>
+                Результат: quality_score (0.0-1.0)<br>
+                <br>
+                <strong style="color: #333;">5️⃣ GRPO Ранжирование</strong><br>
+                Сравнить все варианты, вычислить Advantage и Rank<br>
+                <br>
+                <strong style="color: #333;">6️⃣ Выбор лучшего</strong><br>
+                Variant с Rank = 1 → selected = True<br>
+                <br>
+                <strong style="color: #333;">7️⃣ Публикация</strong><br>
+                Лучший вариант → Task в базе, готов для пользователей ✅
+            </div>
+
+        </div>
+
+        <!-- SQL EXAMPLES -->
+        <div class="metrics-section">
+            <div class="section-title">
+                <em>🔧</em>
+                SQL Примеры
+            </div>
+            <p style="margin-bottom: 15px; color: #666;">
+                <strong>Для аналитики качества:</strong>
+            </p>
+            <div class="sql-example">
+<span class="sql-keyword">SELECT</span> task_type, difficulty, pass_rate, avg_quality
+<span class="sql-keyword">FROM</span> ai_generation_variants
+<span class="sql-keyword">WHERE</span> created_at > NOW() - <span class="sql-keyword">INTERVAL</span> '7 days'
+<span class="sql-keyword">ORDER BY</span> pass_rate <span class="sql-keyword">DESC</span>;
+            </div>
+
+            <p style="margin: 20px 0 15px; color: #666;">
+                <strong>Для оптимизации стоимости:</strong>
+            </p>
+            <div class="sql-example">
+<span class="sql-keyword">SELECT</span> temperature, <span class="sql-keyword">COUNT</span>(*), avg(tokens_input + tokens_output) <span class="sql-keyword">AS</span> avg_tokens
+<span class="sql-keyword">FROM</span> ai_generation_variants
+<span class="sql-keyword">GROUP BY</span> temperature
+<span class="sql-keyword">ORDER BY</span> avg_tokens;
+            </div>
+
+            <p style="margin: 20px 0 15px; color: #666;">
+                <strong>Для отладки отказов:</strong>
+            </p>
+            <div class="sql-example">
+<span class="sql-keyword">SELECT</span> failure_reason, <span class="sql-keyword">COUNT</span>(*) <span class="sql-keyword">AS</span> count
+<span class="sql-keyword">FROM</span> ai_generation_variants
+<span class="sql-keyword">WHERE</span> failure_reason <span class="sql-keyword">IS NOT NULL</span>
+<span class="sql-keyword">GROUP BY</span> failure_reason
+<span class="sql-keyword">ORDER BY</span> count <span class="sql-keyword">DESC</span>;
+            </div>
+
+            <p style="margin: 20px 0 15px; color: #666;">
+                <strong>Запуск полного отчета:</strong>
+            </p>
+            <div class="sql-example">
+python scripts/generate_metrics_report.py
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>🔄 <strong>Feedback Loop цикл:</strong> Генерация → Вознаграждение (GRPO) → Аналитика (Метрики) → Улучшение промптов → Генерация</p>
+            <p style="margin-top: 10px; color: #bbb;">Метрики питают GRPO оптимизацию для лучших результатов ✨</p>
+        </div>
+    </div>
+</body>
+</html>

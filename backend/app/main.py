@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
 from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
-from app.routes import ai_generate
+from app.routes import ai_generate, user_variants
 from app.services.nvd_sync import cleanup_stale_sync_logs
 from app.database import (
     ensure_auth_schema_compatibility,
@@ -102,8 +102,9 @@ app.include_router(feedback.router)
 app.include_router(knowledge.router)
 app.include_router(education.router)
 app.include_router(ai_generate.router)
+app.include_router(user_variants.router)
 
-logger.info("Routers loaded: auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education, ai_generate")
+logger.info("Routers loaded: auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education, ai_generate, user_variants")
 
 
 @app.middleware("http")

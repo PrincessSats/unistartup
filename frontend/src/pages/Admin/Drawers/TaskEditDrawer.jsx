@@ -22,6 +22,7 @@ const createEmptyTaskForm = () => ({
   participant_description: '',
   state: 'draft',
   task_kind: 'contest',
+  parent_id: '',
   access_type: 'just_flag',
   chat_system_prompt_template: '',
   chat_user_message_max_chars: 150,
@@ -167,6 +168,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
       participant_description: taskData?.participant_description || '',
       state: taskData?.state || 'draft',
       task_kind: taskData?.task_kind || 'contest',
+      parent_id: taskData?.parent_id ?? '',
       access_type: resolvedAccessType,
       chat_system_prompt_template: taskData?.chat_system_prompt_template || '',
       chat_user_message_max_chars: Number(taskData?.chat_user_message_max_chars ?? 150),
@@ -309,6 +311,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
     participant_description: taskForm.participant_description || null,
     state: taskForm.state || 'draft',
     task_kind: taskForm.task_kind || 'contest',
+    parent_id: taskForm.parent_id !== '' ? Number(taskForm.parent_id) : null,
     access_type: taskForm.access_type || 'just_flag',
     chat_system_prompt_template: taskForm.chat_system_prompt_template || null,
     chat_user_message_max_chars: Number(taskForm.chat_user_message_max_chars || 150),
@@ -492,7 +495,18 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
                 >
                   <option value="contest">Contest</option>
                   <option value="practice">Practice</option>
+                  <option value="ugc">UGC (Variant)</option>
                 </select>
+              </div>
+              <div>
+                <label className="text-white text-sm mb-2 block">ID Родительской задачи</label>
+                <input
+                  type="number"
+                  value={taskForm.parent_id}
+                  onChange={(e) => setTaskForm((prev) => ({ ...prev, parent_id: e.target.value }))}
+                  placeholder="Оставьте пустым для базовой задачи"
+                  className="w-full h-12 bg-white/[0.03] border border-white/[0.09] rounded-[10px] px-4 text-white/80 focus:outline-none focus:border-white/30"
+                />
               </div>
               <div>
                 <label className="text-white text-sm mb-2 block">Статус</label>
