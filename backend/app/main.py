@@ -6,6 +6,8 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
+# Import all models to register them with SQLAlchemy's Base registry
+import app.models
 from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
 from app.routes import ai_generate, user_variants
 from app.services.nvd_sync import cleanup_stale_sync_logs
