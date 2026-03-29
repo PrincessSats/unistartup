@@ -284,6 +284,11 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
             embedding_total INTEGER NOT NULL DEFAULT 0,
             embedding_completed INTEGER NOT NULL DEFAULT 0,
             embedding_failed INTEGER NOT NULL DEFAULT 0,
+            translation_total INTEGER NOT NULL DEFAULT 0,
+            translation_completed INTEGER NOT NULL DEFAULT 0,
+            translation_failed INTEGER NOT NULL DEFAULT 0,
+            total_to_fetch INTEGER NOT NULL DEFAULT 0,
+            detailed_status TEXT,
             status TEXT NOT NULL DEFAULT 'success',
             error TEXT
         )
@@ -295,6 +300,11 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
         "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS embedding_total INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS embedding_completed INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS embedding_failed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS translation_total INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS translation_completed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS translation_failed INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS total_to_fetch INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS detailed_status TEXT",
         "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'success'",
         "ALTER TABLE nvd_sync_log ADD COLUMN IF NOT EXISTS error TEXT",
         "UPDATE nvd_sync_log SET fetched_count = COALESCE(fetched_count, inserted_count, 0) WHERE fetched_count IS NULL",

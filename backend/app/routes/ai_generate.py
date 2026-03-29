@@ -22,6 +22,7 @@ from app.models.ai_generation import (
     AIGenerationVariant,
     AIGenerationAnalytics,
 )
+from app.models.user_task_variant import UserTaskVariantRequest
 from app.models.contest import Task, TaskFlag, TaskMaterial, TaskAuthorSolution
 from app.models.user import User, UserProfile
 from app.schemas.ai_generation import (
@@ -387,6 +388,7 @@ async def publish_variant(
     task = Task(
         title=spec.get("title", f"AI Generated — {batch.task_type}"),
         category=batch.task_type.split("_")[0].capitalize(),
+        task_kind="ugc" if variant.user_variant_request else "practice",
         difficulty={"beginner": 1, "intermediate": 2, "advanced": 3}.get(batch.difficulty, 1),
         points=difficulty_to_points.get(batch.difficulty, 100),
         access_type=access_type,
@@ -395,6 +397,12 @@ async def publish_variant(
         llm_raw_response=spec,  # full spec stored for admin reference
         created_by=user.id,
     )
+    
+    # If this variant is linked to a user request, set the parent_id
+    await db.refresh(variant, ["user_variant_request"])
+    if variant.user_variant_request:
+        task.parent_id = variant.user_variant_request.parent_task_id
+        
     db.add(task)
     await db.flush()  # get task.id
 

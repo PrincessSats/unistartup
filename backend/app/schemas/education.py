@@ -74,6 +74,9 @@ class PracticeTaskDetailResponse(BaseModel):
     chat_limits: Optional[PracticeTaskChatLimits] = None
     materials: List[PracticeTaskMaterial] = Field(default_factory=list)
     vpn: Optional[PracticeVpnInfo] = None
+    # UGC task fields
+    task_kind: Optional[str] = None  # "practice" or "ugc"
+    parent_task_id: Optional[int] = None  # If task_kind == "ugc"
 
 
 class PracticeTaskSubmitRequest(BaseModel):

@@ -304,7 +304,7 @@ def _coerce_task_kind(value: Optional[str]) -> str:
     if not value:
         return "contest"
     value = value.strip().lower()
-    return value if value in {"contest", "practice"} else "contest"
+    return value if value in {"contest", "practice", "ugc"} else "contest"
 
 
 def _coerce_access_type(value: Optional[str]) -> str:
@@ -418,6 +418,7 @@ def _task_to_response(
         participant_description=task.participant_description,
         state=task.state,
         task_kind=task.task_kind or "contest",
+        parent_id=task.parent_id,
         access_type=task.access_type or "just_flag",
         chat_system_prompt_template=task.chat_system_prompt_template,
         chat_user_message_max_chars=task.chat_user_message_max_chars or DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS,
@@ -962,6 +963,7 @@ async def create_admin_task(
             participant_description=data.participant_description,
             state=data.state,
             task_kind=task_kind,
+            parent_id=data.parent_id,
             access_type=access_type,
             chat_system_prompt_template=chat_prompt_text,
             chat_user_message_max_chars=chat_max_chars,
@@ -1129,6 +1131,8 @@ async def update_admin_task(
         task.state = data.state
     if data.task_kind is not None:
         task.task_kind = _coerce_task_kind(data.task_kind)
+    if data.parent_id is not None:
+        task.parent_id = data.parent_id
     task.access_type = next_access_type
     task.chat_system_prompt_template = chat_prompt_text
     task.chat_user_message_max_chars = chat_max_chars

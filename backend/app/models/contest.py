@@ -67,6 +67,7 @@ class Task(Base):
     state = Column(Text, nullable=False, default="draft")
     embedding = Column(Vector(256))
     kb_entry_id = Column(BigInteger, ForeignKey("kb_entries.id"))
+    parent_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
     llm_raw_response = Column(JSONB)
     created_by = Column(BigInteger, ForeignKey("users.id"))
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
@@ -76,6 +77,11 @@ class Task(Base):
     materials = relationship("TaskMaterial", back_populates="task", cascade="all, delete-orphan")
     author_solution = relationship("TaskAuthorSolution", back_populates="task", uselist=False, cascade="all, delete-orphan")
     chat_sessions = relationship("TaskChatSession", back_populates="task", cascade="all, delete-orphan")
+    user_variant_requests = relationship("UserTaskVariantRequest", back_populates="parent_task", cascade="all, delete-orphan")
+    
+    # Self-referential relationship for parent-daughter (UGC) tasks
+    parent = relationship("Task", remote_side=[id], back_populates="variants")
+    variants = relationship("Task", back_populates="parent")
 
 
 class ContestTask(Base):

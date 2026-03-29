@@ -5,6 +5,8 @@ import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { educationAPI, authAPI } from '../services/api';
 import { getEducationCardVisual } from '../utils/educationVisuals';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
+import TaskVariantGenerator from './UserTaskVariants/TaskVariantGenerator';
+import VariantList from './UserTaskVariants/VariantList';
 
 const difficultyBadgeClasses = {
   Легко: 'border-[#3FD18A]/30 bg-[#3FD18A]/10 text-[#3FD18A]',
@@ -255,6 +257,7 @@ export default function EducationTask() {
   const [chatSending, setChatSending] = useState(false);
   const [chatAborting, setChatAborting] = useState(false);
   const [startLoading, setStartLoading] = useState(false);
+  const [generatorOpen, setGeneratorOpen] = useState(false);
   const chatMessagesRef = useRef(null);
 
   useEffect(() => {
@@ -865,6 +868,44 @@ export default function EducationTask() {
         </section>
 
         <aside className="flex flex-col gap-4">
+          {/* UGC Variants Section (for Crypto/Forensics/Web) */}
+          {task?.category && ['Crypto', 'Forensics', 'Web'].includes(task.category) && (
+            <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-6 py-5">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AppIcon name="variants" className="w-5 h-5 text-[#9B6BFF]" />
+                    <h2 className="text-base font-bold text-white">
+                      Варианты от пользователей
+                    </h2>
+                  </div>
+                  {/* Parent task link (if this is a UGC task) */}
+                  {task?.parent_task_id && (
+                    <a
+                      href={`#/education/${task.parent_task_id}`}
+                      className="text-sm text-white/60 hover:text-[#9B6BFF] hover:underline transition-colors block mt-1"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/education/${task.parent_task_id}`);
+                      }}
+                    >
+                      {task.title}
+                    </a>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGeneratorOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#9B6BFF] hover:bg-[#A97CFF]
+                           rounded-[8px] text-xs font-medium text-white transition shrink-0"
+                >
+                  <AppIcon name="plus" className="h-3.5 w-3.5" />
+                  Создать
+                </button>
+              </div>
+              <VariantList taskId={task.id} parentTaskId={task.parent_task_id} parentTaskTitle={task.title} />
+            </div>
+          )}
           <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-6 py-5">
             <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
               <span>{task.passed_users_count} прошли</span>
@@ -969,6 +1010,16 @@ export default function EducationTask() {
           </div>
         </div>
       )}
+      
+      {/* Task Variant Generator */}
+      <TaskVariantGenerator
+        isOpen={generatorOpen}
+        onClose={() => setGeneratorOpen(false)}
+        parentTask={task}
+        onGenerationComplete={() => {
+          // Refresh could be implemented here if needed
+        }}
+      />
     </div>
   );
 }
