@@ -34,6 +34,14 @@ const FIGMA_ICONS = {
     viewBox: '0 0 18 16',
     d: 'M7.12891 9.25L9 11.1211V11.875H18V13.375H9V14.1289L7.12891 16H4.12109L2.25 14.1289V13.375H0V11.875H2.25V11.1211L4.12109 9.25H7.12891ZM4.74219 10.75L3.75 11.7422V13.5078L4.74219 14.5H6.50781L7.5 13.5078V11.7422L6.50781 10.75H4.74219ZM15.75 1.87109V2.625H18V4.125H15.75V4.87891L13.8789 6.75H10.8711L9 4.87891V4.125H0V2.625H9V1.87109L10.8711 0H13.8789L15.75 1.87109ZM10.5 2.49219V4.25781L11.4922 5.25H13.2578L14.25 4.25781V2.49219L13.2578 1.5H11.4922L10.5 2.49219Z',
   },
+  variants: {
+    viewBox: '0 0 18 18',
+    d: 'M2.5 0H11.5C12.88 0 14 1.12 14 2.5V11.5C14 12.88 12.88 14 11.5 14H2.5C1.12 14 0 12.88 0 11.5V2.5C0 1.12 1.12 0 2.5 0ZM2.5 2C2.22 2 2 2.22 2 2.5V11.5C2 11.78 2.22 12 2.5 12H11.5C11.78 12 12 11.78 12 11.5V2.5C12 2.22 11.78 2 11.5 2H2.5ZM5.5 5H10.5V6H5.5V5ZM5.5 7.5H10.5V8.5H5.5V7.5ZM5.5 10H8.5V11H5.5V10Z',
+  },
+  'parent-task': {
+    viewBox: '0 0 20 20',
+    d: 'M10 2C11.5 2 12.8 2.8 13.5 4H16C17.1 4 18 4.9 18 6V14C18 15.1 17.1 16 16 16H13.5C12.8 17.2 11.5 18 10 18C8.5 18 7.2 17.2 6.5 16H4C2.9 16 2 15.1 2 14V6C2 4.9 2.9 4 4 4H6.5C7.2 2.8 8.5 2 10 2ZM10 3.5C9.2 3.5 8.5 3.9 8.1 4.5L7.7 5H12.3L11.9 4.5C11.5 3.9 10.8 3.5 10 3.5ZM4 5.5C3.7 5.5 3.5 5.7 3.5 6V14C3.5 14.3 3.7 14.5 4 14.5H6.5L6.9 15C7.3 15.6 8.6 16.5 10 16.5C11.4 16.5 12.7 15.6 13.1 15L13.5 14.5H16C16.3 14.5 16.5 14.3 16.5 14V6C16.5 5.7 16.3 5.5 16 5.5H4ZM7 8C7.55 8 8 8.45 8 9V11C8 11.55 7.55 12 7 12C6.45 12 6 11.55 6 11V9C6 8.45 6.45 8 7 8ZM13 8C13.55 8 14 8.45 14 9V11C14 11.55 13.55 12 13 12C12.45 12 12 11.55 12 11V9C12 8.45 12.45 8 13 8Z',
+  },
 };
 
 function getIconPath(name) {
@@ -107,6 +115,8 @@ function getIconPath(name) {
       );
     case 'arrow-left':
       return <path d="m15 6-6 6 6 6" />;
+    case 'arrow-right':
+      return <path d="m9 6 6 6-6 6" />;
     case 'check-circle':
       return (
         <>
@@ -149,12 +159,43 @@ function getIconPath(name) {
           <path d="M4 9.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3.5" />
         </>
       );
+    case 'thumbs-up':
+      return (
+        <path d="M7 10v11a1 1 0 0 0 1 1h9.5a1 1 0 0 0 .8-.4l3-4.2a3 3 0 0 0 .7-1.9V11a2 2 0 0 0-2-2h-5.4l.7-3.8.2-.8a1 1 0 0 0-1-1.2L12 3l-5 5V10zM2 10v12h5V10H2z" />
+      );
+    case 'thumbs-down':
+      return (
+        <path d="M17 14V3a1 1 0 0 0-1-1H6.5a1 1 0 0 0-.8.4l-3 4.2A3 3 0 0 0 2 8.5V13a2 2 0 0 0 2 2h5.4l-.7 3.8-.2.8a1 1 0 0 0 1 1.2L12 21l5-5V14zM22 14V2h-5v12h5z" />
+      );
+    case 'info':
+      return (
+        <>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 16v-4" />
+          <path d="M12 8h.01" />
+        </>
+      );
+    case 'plus':
+      return <path d="M12 5v14M5 12h14" />;
+    case 'pause':
+      return (
+        <>
+          <rect x="6" y="4" width="4" height="16" rx="1" />
+          <rect x="14" y="4" width="4" height="16" rx="1" />
+        </>
+      );
+    case 'play':
+      return <path d="m5 3 14 9-14 9V3z" />;
+    case 'x':
+      return getIconPath('close');
+    case 'check':
+      return getIconPath('check-circle');
     default:
       return (
         <>
-          <circle cx="12" cy="12" r="9" />
-          <path d="M12 8v4" />
-          <circle cx="12" cy="16.5" r="0.8" fill="currentColor" stroke="none" />
+          <circle cx="12" cy="12" r="9" strokeOpacity="0.2" />
+          <path d="M12 15h.01" strokeOpacity="0.5" />
+          <path d="M12 9v2" strokeOpacity="0.5" />
         </>
       );
   }
