@@ -621,14 +621,22 @@ async def list_practice_tasks(
         categories_rows = (
             await db.execute(
                 select(Task.category)
-                .where(Task.task_kind == "practice", Task.state == "published")
+                .where(
+                    Task.task_kind.in_(["practice", "ugc"]), 
+                    Task.state == "published", 
+                    Task.parent_id.is_(None)
+                )
                 .distinct()
                 .order_by(Task.category.asc())
             )
         ).scalars().all()
         categories = [row for row in categories_rows if row]
 
-    filters = [Task.task_kind == "practice", Task.state == "published"]
+    filters = [
+        Task.task_kind.in_(["practice", "ugc"]), 
+        Task.state == "published", 
+        Task.parent_id.is_(None)
+    ]
 
     if difficulty:
         min_diff, max_diff = difficulty_bounds(difficulty)
@@ -737,8 +745,8 @@ async def get_practice_task(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -820,6 +828,9 @@ async def get_practice_task(
             session_ttl_minutes=limits.session_ttl_minutes,
         )
 
+    # For UGC tasks (tagged with "ugc"), find the parent task
+    parent_task_id = task.parent_id
+
     return PracticeTaskDetailResponse(
         id=task.id,
         title=task.title,
@@ -841,6 +852,9 @@ async def get_practice_task(
         chat_limits=chat_limits_payload,
         materials=materials_payload,
         vpn=vpn_info if has_vpn_payload else None,
+        # UGC task fields
+        task_kind=task.task_kind,
+        parent_task_id=parent_task_id,
     )
 
 
@@ -859,8 +873,8 @@ async def get_practice_task_chat_session(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -930,8 +944,8 @@ async def send_practice_task_chat_message(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -1020,8 +1034,8 @@ async def abort_practice_task_chat_session(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -1058,8 +1072,8 @@ async def restart_practice_task_chat_session(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -1114,8 +1128,8 @@ async def get_practice_task_material_download(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -1194,8 +1208,8 @@ async def download_practice_task_material_content(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()
@@ -1275,7 +1289,11 @@ async def start_practice_task(
 
     task = (
         await db.execute(
-            select(Task).where(Task.id == task_id, Task.task_kind == "practice", Task.state == "published")
+            select(Task).where(
+                Task.id == task_id, 
+                Task.task_kind.in_(["practice", "ugc"]), 
+                Task.state == "published"
+            )
         )
     ).scalar_one_or_none()
     if task is None:
@@ -1309,8 +1327,8 @@ async def submit_practice_flag(
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
-                Task.task_kind == "practice",
-                Task.state == "published",
+                Task.task_kind.in_(["practice", "ugc"]),
+                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
             )
         )
     ).scalar_one_or_none()

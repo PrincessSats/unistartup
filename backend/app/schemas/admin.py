@@ -59,6 +59,8 @@ class AdminNvdSync(BaseModel):
     translation_total: int = 0
     translation_completed: int = 0
     translation_failed: int = 0
+    total_to_fetch: int = 0
+    detailed_status: Optional[str] = None
     status: Optional[str] = None
     error: Optional[str] = None
 
@@ -140,6 +142,7 @@ class AdminTaskBase(BaseModel):
     participant_description: Optional[str] = None
     state: str = "draft"
     task_kind: str = "contest"
+    parent_id: Optional[int] = None
     access_type: AdminTaskAccessType = "just_flag"
     chat_system_prompt_template: Optional[str] = None
     chat_user_message_max_chars: int = 150
@@ -165,6 +168,7 @@ class AdminTaskUpdateRequest(BaseModel):
     participant_description: Optional[str] = None
     state: Optional[str] = None
     task_kind: Optional[str] = None
+    parent_id: Optional[int] = None
     access_type: Optional[AdminTaskAccessType] = None
     chat_system_prompt_template: Optional[str] = None
     chat_user_message_max_chars: Optional[int] = None

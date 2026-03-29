@@ -16,14 +16,14 @@ NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 DEFAULT_SLEEP_SECONDS = 6
 DEFAULT_HOURS = 24
 BATCH_SIZE = 20
-CONCURRENCY_LIMIT = 10  # Moderate concurrency to avoid rate limits
+CONCURRENCY_LIMIT = 3  # Reduced to avoid hitting 429 ResourceExhausted (quota is 10)
 
 logger = logging.getLogger(__name__)
 SYNC_LOG_COLUMNS = (
     "id, fetched_at, window_start, window_end, fetched_count, inserted_count, "
     "embedding_total, embedding_completed, embedding_failed, "
     "translation_total, translation_completed, translation_failed, "
-    "status, error"
+    "status, error, total_to_fetch, detailed_status"
 )
 
 
@@ -58,6 +58,8 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
         "translation_total": row.get("translation_total") or 0,
         "translation_completed": row.get("translation_completed") or 0,
         "translation_failed": row.get("translation_failed") or 0,
+        "total_to_fetch": row.get("total_to_fetch") or 0,
+        "detailed_status": row.get("detailed_status"),
         "status": row.get("status"),
         "error": row.get("error"),
     }
@@ -184,9 +186,16 @@ async def fetch_recent_cves(
     api_key: Optional[str],
     results_per_page: Optional[int],
     sleep_seconds: int,
+    log_id: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     start_index = 0
+    
+    # Use shorter delay if API key is provided (NVD allows more requests)
+    actual_sleep = sleep_seconds
+    if api_key and actual_sleep == DEFAULT_SLEEP_SECONDS:
+        actual_sleep = 1
+
     async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
         while True:
             data = await _fetch_page(
@@ -205,12 +214,31 @@ async def fetch_recent_cves(
             current_index = data.get("startIndex", start_index)
             next_index = current_index + (page_size or 0)
 
+            if log_id:
+                async with AsyncSessionLocal() as session:
+                    await session.execute(
+                        text(
+                            "UPDATE nvd_sync_log SET "
+                            "fetched_count = :fetched, "
+                            "total_to_fetch = :total, "
+                            "detailed_status = :status "
+                            "WHERE id = :log_id"
+                        ),
+                        {
+                            "fetched": len(items),
+                            "total": total,
+                            "status": f"Fetching CVEs: {len(items)}/{total}...",
+                            "log_id": log_id,
+                        },
+                    )
+                    await session.commit()
+
             if not vulns or next_index >= total:
                 break
 
             start_index = next_index
-            if sleep_seconds > 0:
-                await asyncio.sleep(sleep_seconds)
+            if actual_sleep > 0:
+                await asyncio.sleep(actual_sleep)
     return items
 
 
@@ -340,16 +368,28 @@ async def store_kb_entries(
                     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
                     async def translate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[FullTranslationResult]]:
-                        async with sem:
-                            try:
-                                result = await svc.translate_full_cve(
-                                    row["cve_id"],
-                                    row["raw_en_text"] or "",
-                                )
-                                return row, result
-                            except Exception as exc:
-                                logger.warning("Translation failed for entry %s: %s", row["id"], exc)
-                                return row, None
+                        max_attempts = 3
+                        base_backoff = 5.0
+                        for attempt in range(max_attempts):
+                            async with sem:
+                                try:
+                                    result = await svc.translate_full_cve(
+                                        row["cve_id"],
+                                        row["raw_en_text"] or "",
+                                    )
+                                    return row, result
+                                except Exception as exc:
+                                    # If 429, retry with backoff
+                                    if "429" in str(exc) and attempt < max_attempts - 1:
+                                        backoff = base_backoff * (2 ** attempt)
+                                        logger.warning("Translation rate limited for %s (429), retrying in %.1fs... (attempt %d/%d)", 
+                                                       row["cve_id"], backoff, attempt + 1, max_attempts)
+                                        await asyncio.sleep(backoff)
+                                        continue
+                                    
+                                    logger.warning("Translation failed for entry %s: %s", row["id"], exc)
+                                    return row, None
+                        return row, None
 
                     # Process in batches
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
@@ -406,6 +446,8 @@ async def store_kb_entries(
                             "NVD translation progress: %d completed, %d failed (total %d)",
                             translation_completed, translation_failed, translation_count,
                         )
+                        # Avoid burst limit
+                        await asyncio.sleep(2.0)
 
                 finally:
                     await svc.close()
@@ -424,17 +466,23 @@ async def store_kb_entries(
                     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
                     async def embed_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[list[float]]]:
-                        async with sem:
-                            try:
-                                embed_text = _build_embedding_text(row)
-                                if not embed_text:
+                        max_attempts = 2
+                        for attempt in range(max_attempts):
+                            async with sem:
+                                try:
+                                    embed_text = _build_embedding_text(row)
+                                    if not embed_text:
+                                        return row, None
+                                    vector = await svc.embed_document(embed_text)
+                                    return row, vector
+                                except EmbeddingError as exc:
+                                    if "429" in str(exc) and attempt < max_attempts - 1:
+                                        await asyncio.sleep(2.0 * (attempt + 1))
+                                        continue
                                     return row, None
-                                vector = await svc.embed_document(embed_text)
-                                return row, vector
-                            except EmbeddingError:
-                                return row, None
-                            except Exception:
-                                return row, None
+                                except Exception:
+                                    return row, None
+                        return row, None
 
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
                         tasks = [embed_task(row) for row in chunk]
@@ -461,6 +509,7 @@ async def store_kb_entries(
                                 updates,
                             )
                             await session.commit()
+                        await asyncio.sleep(1.0)
 
                 finally:
                     await svc.close()
@@ -482,7 +531,9 @@ async def run_sync(
     results_per_page: Optional[int] = None,
     sleep_seconds: int = DEFAULT_SLEEP_SECONDS,
     embed_new_entries: bool = True,
+    translate_new_entries: bool = True,
     include_inserted_rows: bool = False,
+    log_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     if start and end:
         window_start = start
@@ -499,11 +550,13 @@ async def run_sync(
         api_key=api_key_value,
         results_per_page=results_per_page,
         sleep_seconds=sleep_seconds,
+        log_id=log_id,
     )
     store_result = await store_kb_entries(
         vulns,
         dry_run=False,
         embed_new_entries=embed_new_entries,
+        translate_new_entries=translate_new_entries,
         include_inserted_rows=include_inserted_rows,
     )
 
@@ -550,7 +603,7 @@ async def get_latest_sync_log(
 ) -> Optional[Dict[str, Any]]:
     sql = f"SELECT {SYNC_LOG_COLUMNS} FROM nvd_sync_log"
     if active_only:
-        sql += " WHERE status IN ('fetching', 'embedding')"
+        sql += " WHERE status IN ('fetching', 'embedding', 'translating')"
     sql += " ORDER BY fetched_at DESC NULLS LAST LIMIT 1"
 
     result = await session.execute(text(sql))
@@ -574,9 +627,11 @@ async def create_sync_log(session: AsyncSession) -> Dict[str, Any]:
                     translation_completed,
                     translation_failed,
                     status,
+                    total_to_fetch,
+                    detailed_status,
                     error
                 )
-                VALUES (now(), 0, 0, 0, 0, 0, 0, 0, 0, 'fetching', NULL)
+                VALUES (now(), 0, 0, 0, 0, 0, 0, 0, 0, 'fetching', 0, 'Starting sync...', NULL)
                 RETURNING id, fetched_at
                 """
             )
@@ -596,6 +651,8 @@ async def create_sync_log(session: AsyncSession) -> Dict[str, Any]:
         "translation_total": 0,
         "translation_completed": 0,
         "translation_failed": 0,
+        "total_to_fetch": 0,
+        "detailed_status": "Starting sync...",
         "status": "fetching",
         "error": None,
     }
@@ -617,44 +674,151 @@ async def _mark_sync_failed(log_id: int, error_text: str) -> None:
         await session.commit()
 
 
+async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> Dict[str, int]:
+    """Generate structured Russian KB articles for backlog entries using article_prompt.txt.
+
+    Uses generate_article_payload (1 LLM call per CVE) which produces a properly structured
+    ru_title / ru_summary / ru_explainer via the article prompt, instead of plain translation
+    (which required 3 separate LLM calls and produced literal translations with no structure).
+    """
+    from app.services.article_generation import generate_article_payload, ArticleGenerationError
+
+    done = 0
+    failed = 0
+    total = len(entries)
+    sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
+
+    async def generate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[dict]]:
+        raw_en_text = row.get("raw_en_text") or ""
+        max_attempts = 3
+        base_backoff = 5.0
+        for attempt in range(max_attempts):
+            async with sem:
+                try:
+                    result = await generate_article_payload(raw_en_text)
+                    return row, result.get("parsed")
+                except Exception as exc:
+                    if "429" in str(exc) and attempt < max_attempts - 1:
+                        backoff = base_backoff * (2 ** attempt)
+                        logger.warning(
+                            "Article generation rate limited for %s (429), retrying in %.1fs... (attempt %d/%d)",
+                            row["cve_id"], backoff, attempt + 1, max_attempts,
+                        )
+                        await asyncio.sleep(backoff)
+                        continue
+                    logger.warning("Article generation failed for entry %s: %s", row["id"], exc)
+                    return row, None
+        return row, None
+
+    async with AsyncSessionLocal() as session:
+        for chunk in _chunked(entries, BATCH_SIZE):
+            tasks = [generate_task(row) for row in chunk]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            updates = []
+            chunk_done = 0
+            chunk_failed = 0
+
+            for res in results:
+                if isinstance(res, Exception):
+                    chunk_failed += 1
+                    continue
+
+                row, parsed = res
+                if parsed and (parsed.get("ru_title") or parsed.get("ru_summary") or parsed.get("ru_explainer")):
+                    updates.append({
+                        "ru_title": parsed.get("ru_title") or None,
+                        "ru_summary": parsed.get("ru_summary") or None,
+                        "ru_explainer": parsed.get("ru_explainer") or None,
+                        "entry_id": row["id"],
+                    })
+                    chunk_done += 1
+                else:
+                    chunk_failed += 1
+
+            if updates:
+                await session.execute(
+                    text(
+                        "UPDATE kb_entries SET "
+                        "ru_title = :ru_title, "
+                        "ru_summary = :ru_summary, "
+                        "ru_explainer = :ru_explainer "
+                        "WHERE id = :entry_id"
+                    ),
+                    updates,
+                )
+
+            done += chunk_done
+            failed += chunk_failed
+
+            await session.execute(
+                text(
+                    """
+                    UPDATE nvd_sync_log
+                    SET translation_completed = :completed,
+                        translation_failed = :failed,
+                        detailed_status = :status
+                    WHERE id = :log_id
+                    """
+                ),
+                {
+                    "log_id": log_id,
+                    "completed": done,
+                    "failed": failed,
+                    "status": f"Generating KB articles: {done + failed}/{total}...",
+                },
+            )
+            await session.commit()
+            await asyncio.sleep(2.0)
+
+    return {"completed": done, "failed": failed}
+
+
 async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> Dict[str, int]:
     from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
 
     done = 0
     failed = 0
+    total = len(entries)
     svc = EmbeddingService()
     try:
         sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
         async def embed_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[list[float]]]:
-            async with sem:
-                try:
-                    embed_text = _build_embedding_text(row)
-                    if not embed_text:
-                        # Empty text is considered a "failure" to embed, or just skip?
-                        # Original code raised EmbeddingError for empty text.
-                        raise EmbeddingError("Empty text for NVD embedding")
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                async with sem:
+                    try:
+                        embed_text = _build_embedding_text(row)
+                        if not embed_text:
+                            # Empty text is considered a "failure" to embed, or just skip?
+                            # Original code raised EmbeddingError for empty text.
+                            raise EmbeddingError("Empty text for NVD embedding")
 
-                    vector = await svc.embed_document(embed_text)
-                    return row, vector
-                except EmbeddingError as exc:
-                    logger.warning(
-                        "NVD embedding failed log_id=%s entry_id=%s cve_id=%s: %s",
-                        log_id,
-                        row.get("id"),
-                        row.get("cve_id"),
-                        exc,
-                    )
-                    return row, None
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "Unexpected NVD embedding failure log_id=%s entry_id=%s cve_id=%s: %s",
-                        log_id,
-                        row.get("id"),
-                        row.get("cve_id"),
-                        exc,
-                    )
-                    return row, None
+                        vector = await svc.embed_document(embed_text)
+                        return row, vector
+                    except EmbeddingError as exc:
+                        if "429" in str(exc) and attempt < max_attempts - 1:
+                            await asyncio.sleep(2.0 * (attempt + 1))
+                            continue
+                        logger.warning(
+                            "NVD embedding failed log_id=%s entry_id=%s cve_id=%s: %s",
+                            log_id,
+                            row.get("id"),
+                            row.get("cve_id"),
+                            exc,
+                        )
+                        return row, None
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "Unexpected NVD embedding failure log_id=%s entry_id=%s cve_id=%s: %s",
+                            log_id,
+                            row.get("id"),
+                            row.get("cve_id"),
+                            exc,
+                        )
+                        return row, None
+            return row, None
 
         async with AsyncSessionLocal() as session:
             for chunk in _chunked(entries, BATCH_SIZE):
@@ -702,13 +866,20 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
                         """
                         UPDATE nvd_sync_log
                         SET embedding_completed = :completed,
-                            embedding_failed = :failed
+                            embedding_failed = :failed,
+                            detailed_status = :status
                         WHERE id = :log_id
                         """
                     ),
-                    {"log_id": log_id, "completed": done, "failed": failed},
+                    {
+                        "log_id": log_id, 
+                        "completed": done, 
+                        "failed": failed,
+                        "status": f"Computing embeddings: {done + failed}/{total}...",
+                    },
                 )
                 await session.commit()
+                await asyncio.sleep(1.0)
     finally:
         await svc.close()
 
@@ -717,10 +888,13 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
 
 async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> None:
     try:
+        # Step 1: Fetch and Store (without automatic translation/embedding)
         result = await run_sync(
             hours=hours,
             embed_new_entries=False,
+            translate_new_entries=False,
             include_inserted_rows=True,
+            log_id=log_id,
         )
         inserted_rows = result.get("inserted_rows", []) or []
         inserted_count = len(inserted_rows)
@@ -734,10 +908,10 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                         window_end = :window_end,
                         fetched_count = :fetched_count,
                         inserted_count = :inserted_count,
+                        translation_total = :translation_total,
                         embedding_total = :embedding_total,
-                        embedding_completed = 0,
-                        embedding_failed = 0,
                         status = :status,
+                        detailed_status = :detailed_status,
                         error = NULL
                     WHERE id = :log_id
                     """
@@ -748,8 +922,10 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                     "window_end": result.get("window_end"),
                     "fetched_count": result.get("fetched"),
                     "inserted_count": inserted_count,
+                    "translation_total": inserted_count,
                     "embedding_total": inserted_count,
-                    "status": "embedding" if inserted_count > 0 else "success",
+                    "status": "translating" if inserted_count > 0 else "success",
+                    "detailed_status": f"Stored {inserted_count} new entries. Starting translation..." if inserted_count > 0 else "Finished. No new entries found.",
                 },
             )
             await session.commit()
@@ -757,16 +933,30 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
         if inserted_count == 0:
             return
 
-        embedding_result = await _embed_entries_for_log(log_id, inserted_rows)
-        if embedding_result["completed"] == 0 and embedding_result["failed"] > 0:
-            raise RuntimeError("Failed to compute embeddings for all fetched NVD entries")
+        # Step 2: Translation
+        await _translate_entries_for_log(log_id, inserted_rows)
 
+        # Update status before embedding
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    "UPDATE nvd_sync_log SET status = 'embedding', detailed_status = 'Starting embeddings...' WHERE id = :log_id"
+                ),
+                {"log_id": log_id},
+            )
+            await session.commit()
+
+        # Step 3: Embedding
+        embedding_result = await _embed_entries_for_log(log_id, inserted_rows)
+        # We don't fail the whole sync if some embeddings fail, but we log it
+        
         async with AsyncSessionLocal() as session:
             await session.execute(
                 text(
                     """
                     UPDATE nvd_sync_log
                     SET status = 'success',
+                        detailed_status = :detailed_status,
                         embedding_completed = :completed,
                         embedding_failed = :failed
                     WHERE id = :log_id
@@ -776,6 +966,7 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                     "log_id": log_id,
                     "completed": embedding_result["completed"],
                     "failed": embedding_result["failed"],
+                    "detailed_status": f"Sync completed. Processed {inserted_count} entries.",
                 },
             )
             await session.commit()

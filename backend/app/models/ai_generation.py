@@ -78,6 +78,8 @@ class AIGenerationVariant(Base):
     embedding = Column(Vector(256), nullable=True)
 
     batch = relationship("AIGenerationBatch", back_populates="variants")
+    user_variant_request = relationship("UserTaskVariantRequest", back_populates="generated_variant", uselist=False)
+    user_votes = relationship("UserTaskVariantVote", back_populates="variant", cascade="all, delete-orphan")
 
 
 class AIGenerationAnalytics(Base):
