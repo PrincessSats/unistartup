@@ -13,6 +13,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select, func, cast, Date
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, get_current_admin
@@ -335,9 +336,11 @@ async def publish_variant(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
 
-    # Load variant
+    # Load variant with user_variant_request relationship
     variant_result = await db.execute(
-        select(AIGenerationVariant).where(
+        select(AIGenerationVariant)
+        .options(joinedload(AIGenerationVariant.user_variant_request))
+        .where(
             AIGenerationVariant.id == vid,
             AIGenerationVariant.batch_id == bid,
         )
@@ -385,10 +388,14 @@ async def publish_variant(
 
     # Create the task
     difficulty_to_points = {"beginner": 50, "intermediate": 100, "advanced": 200}
+    
+    # Check if this is a user variant request (relationship is now eagerly loaded)
+    is_user_variant = variant.user_variant_request is not None
+    
     task = Task(
         title=spec.get("title", f"AI Generated — {batch.task_type}"),
         category=batch.task_type.split("_")[0].capitalize(),
-        task_kind="ugc" if variant.user_variant_request else "practice",
+        task_kind="ugc" if is_user_variant else "practice",
         difficulty={"beginner": 1, "intermediate": 2, "advanced": 3}.get(batch.difficulty, 1),
         points=difficulty_to_points.get(batch.difficulty, 100),
         access_type=access_type,
@@ -397,10 +404,9 @@ async def publish_variant(
         llm_raw_response=spec,  # full spec stored for admin reference
         created_by=user.id,
     )
-    
+
     # If this variant is linked to a user request, set the parent_id
-    await db.refresh(variant, ["user_variant_request"])
-    if variant.user_variant_request:
+    if is_user_variant:
         task.parent_id = variant.user_variant_request.parent_task_id
         
     db.add(task)
