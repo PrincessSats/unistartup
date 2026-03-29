@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import AppIcon from '../../components/AppIcon';
 import TicTacToe from './TicTacToe';
 import Snake from './Snake';
@@ -15,6 +15,12 @@ const SUGGESTED_WISHES = [
   { label: 'Другой сценарий', text: 'Другой сценарий, но та же механика' },
 ];
 
+function formatElapsed(secs) {
+  const m = Math.floor(secs / 60);
+  const s = secs % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
 /**
  * Task Variant Generator Dialog
  *
@@ -27,6 +33,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   const [userRequest, setUserRequest] = useState('');
   const [showGame, setShowGame] = useState(false);
   const [selectedGame, setSelectedGame] = useState(null); // 'tictactoe' or 'snake'
+  const [elapsed, setElapsed] = useState(0);
 
   const {
     isGenerating,
@@ -37,6 +44,13 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
     reset,
   } = useVariantGeneration(parentTask?.id);
 
+  // Elapsed timer — runs only while generation is in progress
+  useEffect(() => {
+    if (!isGenerating) return;
+    const id = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [isGenerating]);
+
   /**
    * Handle submit
    */
@@ -46,6 +60,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
     // Randomly select game (50/50)
     const game = Math.random() < 0.5 ? 'tictactoe' : 'snake';
     setSelectedGame(game);
+    setElapsed(0);
     setShowGame(true);
     await startGeneration(userRequest.trim());
   }, [userRequest, parentTask?.id, startGeneration]);
@@ -58,15 +73,15 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
     setUserRequest('');
     setShowGame(false);
     setSelectedGame(null);
+    setElapsed(0);
     onClose();
   }, [reset, onClose]);
 
   /**
    * Handle game end (generation complete)
    */
-  const handleGameEnd = useCallback((result) => {
+  const handleGameEnd = useCallback((_result) => {
     // Game ended, but we wait for generation status
-    // This is just for UX - user keeps playing
   }, []);
 
   if (!isOpen) return null;
@@ -74,6 +89,28 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   const isStep1 = !showGame && !generatedVariant;
   const isStep2 = showGame && isGenerating;
   const isStep3 = generatedVariant || (status === 'failed' && error);
+
+  // Exponential fill: reaches ~49% at 1 min, ~74% at 2 min, ~87% at 3 min, ~93% at 4 min
+  const progressPercent = generatedVariant
+    ? 100
+    : Math.min(95, Math.round((1 - Math.exp(-elapsed / 90)) * 100));
+
+  // Step states: driven by API status, with time-based fallback
+  const stepStates = [
+    'done', // "Запрос принят" — always done after submit
+    (status === 'generating' || status === 'completed') ? 'done' : 'active',
+    status === 'completed'
+      ? 'done'
+      : (status === 'generating' || progressPercent >= 40) ? 'active' : 'waiting',
+    status === 'completed' ? 'done' : progressPercent >= 82 ? 'active' : 'waiting',
+  ];
+
+  const STEPS = [
+    { label: 'Запрос принят',        desc: 'Задание передано ИИ' },
+    { label: 'Анализ оригинала',     desc: 'ИИ изучает структуру задания' },
+    { label: 'Генерация варианта',   desc: 'Создание уникального контента' },
+    { label: 'Финализация',          desc: 'Проверка и сохранение' },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -160,8 +197,8 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                     <p className="font-medium text-white mb-1">Как это работает:</p>
                     <p>
                       ИИ создаст уникальный вариант задания на основе вашего запроса.
-                      Генерация займёт около 1 минуты. Пока идёт генерация, вы можете
-                      сыграть в крестики-нолики с ботом.
+                      Генерация занимает 3–4 минуты. Пока идёт генерация, вы можете
+                      сыграть в крестики-нолики или Змейку с ботом.
                     </p>
                   </div>
                 </div>
@@ -179,15 +216,69 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 <Snake mode="endless" onGameEnd={handleGameEnd} />
               )}
 
-              {/* Smooth progress bar */}
-              <div className="mt-6 w-full max-w-[300px]">
-                <div className="flex items-center justify-between text-xs text-white/40 mb-2">
-                  <span>Генерация варианта...</span>
-                  <span>ИИ думает</span>
+              {/* Generation progress */}
+              <div className="mt-5 w-full max-w-[340px]">
+                {/* Timer header */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[11px] font-medium text-white/40 uppercase tracking-wider">
+                    Прогресс генерации
+                  </span>
+                  <span className="text-sm font-mono text-[#9B6BFF] tabular-nums">
+                    {formatElapsed(elapsed)}
+                  </span>
                 </div>
-                <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full w-full bg-gradient-to-r from-[#9B6BFF] via-[#A97CFF] to-[#9B6BFF] 
-                                  bg-[length:200%_100%] animate-progress-indeterminate rounded-full" />
+
+                {/* Steps */}
+                <div className="space-y-2 mb-4">
+                  {STEPS.map((step, i) => {
+                    const state = stepStates[i];
+                    return (
+                      <div
+                        key={step.label}
+                        className={`flex items-center gap-3 transition-opacity duration-500 ${state === 'waiting' ? 'opacity-35' : 'opacity-100'}`}
+                      >
+                        <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          state === 'done'   ? 'bg-[#3FD18A]/15' :
+                          state === 'active' ? 'bg-[#9B6BFF]/15' :
+                          'bg-white/[0.04]'
+                        }`}>
+                          {state === 'done' && (
+                            <svg className="w-3 h-3 text-[#3FD18A]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                          {state === 'active' && (
+                            <div className="w-3 h-3 rounded-full border-2 border-[#9B6BFF] border-t-transparent animate-spin" />
+                          )}
+                          {state === 'waiting' && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm leading-tight ${
+                            state === 'done'   ? 'text-[#3FD18A]' :
+                            state === 'active' ? 'text-white font-medium' :
+                            'text-white/40'
+                          }`}>
+                            {step.label}
+                          </p>
+                          <p className="text-[11px] text-white/25 mt-0.5">{step.desc}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Estimated progress bar */}
+                <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-[#9B6BFF] to-[#C084FC] rounded-full transition-all duration-[2000ms] ease-out"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between mt-1.5">
+                  <span className="text-[11px] text-white/25">~3–4 мин</span>
+                  <span className="text-[11px] text-white/35 tabular-nums">{progressPercent}%</span>
                 </div>
               </div>
             </div>
@@ -235,7 +326,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 type="button"
                 onClick={handleSubmit}
                 disabled={!userRequest.trim() || userRequest.trim().length < 3}
-                className="px-5 py-2.5 bg-[#9B6BFF] hover:bg-[#A97CFF] disabled:bg-white/10 disabled:text-white/30 
+                className="px-5 py-2.5 bg-[#9B6BFF] hover:bg-[#A97CFF] disabled:bg-white/10 disabled:text-white/30
                          disabled:cursor-not-allowed rounded-[10px] text-sm font-medium text-white transition-all"
               >
                 Создать вариант
@@ -245,7 +336,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
 
           {isStep2 && (
             <p className="text-xs text-white/40">
-              Играйте! Генерация займёт около 1 минуты...
+              Играйте! Генерация занимает 3–4 минуты...
             </p>
           )}
 
@@ -262,7 +353,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-5 py-2.5 bg-[#9B6BFF] hover:bg-[#A97CFF] rounded-[10px] 
+                  className="px-5 py-2.5 bg-[#9B6BFF] hover:bg-[#A97CFF] rounded-[10px]
                            text-sm font-medium text-white transition-all"
                 >
                   Готово
