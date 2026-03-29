@@ -8,11 +8,16 @@ env/
 venv/
 .venv/
 backend/.env
+backend/.env.local
+backend/.env.production
 shit.json
+
 # Node
 node_modules/
 frontend/build/
 frontend/.env
+frontend/.env.local
+frontend/.env.production
 
 # IDE
 .vscode/
@@ -20,6 +25,7 @@ frontend/.env
 *.swp
 *.swo
 project.md
+
 # OS
 .DS_Store
 Thumbs.db
@@ -31,10 +37,22 @@ Thumbs.db
 *.pem
 *.key
 .env
+.env.local
+.env.production
 .codex
 .claude
 dnevnik.txt
 
+# Security
+audit_logs/
+security_keys/
+*.crt
+*.cer
+
+# Reports (keep SECURITY_REPORT.md, add to gitignore as requested)
+SECURITY_REPORT.md
+DEPLOYMENT_GUIDE.md
+IMPLEMENTATION_SUMMARY.md
 security_best_practices_report.md
 CLAUDE.md
 CODEX.md

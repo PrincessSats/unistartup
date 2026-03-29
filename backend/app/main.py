@@ -16,6 +16,7 @@ from app.database import (
     ensure_nvd_sync_schema_compatibility,
     ensure_performance_indexes,
 )
+from app.security import security_headers_middleware
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
+
+# Security headers middleware (must be after CORS middleware)
+app.middleware("http")(security_headers_middleware)
 
 app.include_router(auth.router)
 app.include_router(auth_registration.router)

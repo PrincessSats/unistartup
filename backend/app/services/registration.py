@@ -621,28 +621,71 @@ def validate_registration_password(
     email: Optional[str] = None,
     provider_login: Optional[str] = None,
 ) -> list[str]:
+    """
+    Validate password strength according to security requirements.
+    
+    Requirements:
+    - Minimum 12 characters
+    - At least one uppercase letter
+    - At least one lowercase letter  
+    - At least one digit
+    - At least one special character
+    - No personal information from username/email
+    - No common patterns or sequences
+    """
     issues: list[str] = []
     raw = str(password or "")
-    if len(raw) < 8:
-        issues.append("Пароль должен быть минимум 8 символов.")
+    
+    # Check minimum length (12 characters for strong security)
+    if len(raw) < 12:
+        issues.append("Пароль должен быть минимум 12 символов.")
+    
+    # Check character set (ASCII printable, no spaces)
     if not re.fullmatch(r"[\x21-\x7E]+", raw):
         issues.append("Пароль должен содержать только латиницу, цифры и спецсимволы без пробелов.")
+    
+    # Require at least one uppercase letter
     if not re.search(r"[A-Z]", raw):
         issues.append("Пароль должен содержать хотя бы одну заглавную букву.")
+    
+    # Require at least one lowercase letter
+    if not re.search(r"[a-z]", raw):
+        issues.append("Пароль должен содержать хотя бы одну строчную букву.")
+    
+    # Require at least one digit
     if not re.search(r"\d", raw):
         issues.append("Пароль должен содержать хотя бы одну цифру.")
+    
+    # Require at least one special character
     if not re.search(r"[^A-Za-z0-9]", raw):
-        issues.append("Пароль должен содержать хотя бы один специальный символ.")
-
+        issues.append("Пароль должен содержать хотя бы один специальный символ (!@#$%^&*()_+-=[]{}|;:,.<>?).")
+    
+    # Check for personal information in password
     email_local = normalize_email(email).split("@", 1)[0] if email else ""
     for part in split_identity_parts(username, email_local, provider_login):
-        if part and part in raw.lower():
+        if part and len(part) >= 3 and part.lower() in raw.lower():
             issues.append("Пароль не должен содержать личные данные из email или никнейма.")
             break
-
+    
+    # Check for forbidden sequences and patterns
     if has_forbidden_sequence(raw):
         issues.append("Пароль не должен содержать простые последовательности или повторяющиеся символы.")
-
+    
+    # Check for common weak passwords
+    common_weak_passwords = {
+        "password", "qwerty", "123456", "12345678", "letmein", 
+        "welcome", "admin", "login", "passw0rd", "hacknet"
+    }
+    if raw.lower() in common_weak_passwords:
+        issues.append("Этот пароль слишком простой. Выберите более уникальный пароль.")
+    
+    # Check for keyboard patterns
+    keyboard_patterns = ["qwerty", "asdf", "zxcv", "1234", "!@#$", "qazwsx"]
+    for pattern in keyboard_patterns:
+        if pattern in raw.lower():
+            issues.append("Пароль не должен содержать клавиатурные паттерны (qwerty, asdf, etc.).")
+            break
+    
     return issues
 
 
