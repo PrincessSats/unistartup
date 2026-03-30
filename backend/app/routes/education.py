@@ -1202,14 +1202,14 @@ async def download_practice_task_material_content(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    _user, _profile = current_user_data
+    user, _profile = current_user_data
 
     task = (
         await db.execute(
             select(Task).where(
                 Task.id == task_id,
                 Task.task_kind.in_(["practice", "ugc"]),
-                ((Task.state == "published") | (Task.created_by == (user.id if user else -1))),
+                ((Task.state == "published") | (Task.created_by == user.id)),
             )
         )
     ).scalar_one_or_none()

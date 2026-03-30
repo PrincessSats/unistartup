@@ -21,6 +21,7 @@ from app.models.contest import (
     ContestTaskRating,
     PromptTemplate,
 )
+from app.models.audit_log import AuditLog
 
 __all__ = [
     # user models
@@ -56,4 +57,6 @@ __all__ = [
     'LlmGeneration',
     'ContestTaskRating',
     'PromptTemplate',
+    # audit log
+    'AuditLog',
 ]

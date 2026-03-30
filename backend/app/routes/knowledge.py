@@ -1,13 +1,14 @@
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy import Text, bindparam, text
+from sqlalchemy import Text, bindparam, literal_column, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, get_current_user_optional
 from app.database import get_db
 from app.schemas.comments import KBComment, KBCommentCreate
 from app.schemas.knowledge import KnowledgeEntry, KnowledgeFeedItem
+from app.security import sanitize_comment, sanitize_topic, validate_sql_sort_order
 from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/kb_entries", tags=["Knowledge Base"])
@@ -18,7 +19,7 @@ async def list_kb_entries(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(12, ge=1, le=50),
     offset: int = Query(0, ge=0),
-    order: str = Query("desc", pattern="^(asc|desc)$"),
+    order: Literal["asc", "desc"] = Query("desc"),
     tag: Optional[str] = Query(None),
     only_with_title: bool = Query(False),
 ):
@@ -27,16 +28,20 @@ async def list_kb_entries(
     order: asc | desc (по created_at)
     tag: фильтр по тегу (если указан)
     """
-    order_sql = "ASC" if order == "asc" else "DESC"
+    # Validate sort order to prevent SQL injection
+    order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
 
+    # Use literal_column with validated order_sql (safe because it's from Literal type)
+    order_clause = literal_column(f"COALESCE(updated_at, created_at) {order_sql}")
+
     stmt = text(
-        f"""
+        """
         SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
         FROM kb_entries
         WHERE (:tag IS NULL OR :tag = ANY(tags))
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
-        ORDER BY COALESCE(updated_at, created_at) {order_sql}
+        ORDER BY :order_clause
         LIMIT :limit
         OFFSET :offset
         """
@@ -77,14 +82,15 @@ async def list_kb_entries_paged(
     db: AsyncSession = Depends(get_db),
     limit: int = Query(15, ge=1, le=50),
     offset: int = Query(0, ge=0),
-    order: str = Query("desc", pattern="^(asc|desc)$"),
+    order: Literal["asc", "desc"] = Query("desc"),
     tag: Optional[str] = Query(None),
     only_with_title: bool = Query(True),
 ):
     """
     Пагинация для базы знаний (с total).
     """
-    order_sql = "ASC" if order == "asc" else "DESC"
+    # Validate sort order to prevent SQL injection
+    order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
 
     count_stmt = text(
@@ -103,19 +109,22 @@ async def list_kb_entries_paged(
         )
     ).scalar_one() or 0
 
+    # Use literal_column with validated order_sql
+    order_clause = literal_column(f"COALESCE(updated_at, created_at) {order_sql}")
+
     rows = (
         await db.execute(
             text(
-                f"""
+                """
                 SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
                 FROM kb_entries
                 WHERE (:tag IS NULL OR :tag = ANY(tags))
                   AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
-                ORDER BY COALESCE(updated_at, created_at) {order_sql}
+                ORDER BY :order_clause
                 LIMIT :limit
                 OFFSET :offset
                 """
-            ).bindparams(bindparam("tag", type_=Text)),
+            ).bindparams(bindparam("tag", type_=Text), bindparam("order_clause", order_clause)),
             {"limit": limit, "offset": offset, "tag": tag_value, "only_with_title": only_with_title},
         )
     ).mappings().all()
@@ -337,17 +346,12 @@ async def create_kb_comment(
         rule=RateLimit(max_requests=20, window_seconds=60),
     )
 
-    body = (data.body or "").strip()
+    # Sanitize comment body to prevent XSS
+    body = sanitize_comment(data.body or "", max_length=2000)
     if not body:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Комментарий не может быть пустым",
-        )
-
-    if len(body) > 2000:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Комментарий слишком длинный",
         )
 
     entry_row = (
