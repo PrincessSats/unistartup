@@ -115,7 +115,7 @@ class RegistrationServiceTests(unittest.TestCase):
         self.assertTrue(issues)
         self.assertTrue(any("личные данные" in issue.lower() or "последовательности" in issue.lower() for issue in issues))
 
-        strong_candidate = "".join(["Mighty", "!", "9", "2"])
+        strong_candidate = "".join(["Mighty", "!", "9", "2", "abc"])
         strong_issues = validate_registration_password(
             strong_candidate,
             username="cyberhero",
