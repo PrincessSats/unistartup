@@ -288,18 +288,24 @@ async def update_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Неверный текущий пароль"
         )
-    
-    # Проверяем длину нового пароля
-    if len(data.new_password) < 8:
+
+    # Validate new password strength using the same validation as registration
+    from app.services.registration import validate_registration_password
+    password_issues = validate_registration_password(
+        data.new_password,
+        username=profile.username,
+        email=user.email
+    )
+    if password_issues:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Пароль должен быть минимум 8 символов"
+            detail=" ".join(password_issues)
         )
-    
+
     # Обновляем пароль
     user.password_hash = hash_password(data.new_password)
     await db.commit()
-    
+
     return MessageResponse(message="Пароль успешно изменён")
 
 

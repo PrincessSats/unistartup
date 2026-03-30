@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
+from app.security import sanitize_feedback_message, sanitize_topic
 from app.security.rate_limit import RateLimit, enforce_rate_limit
 
 router = APIRouter(prefix="/feedback", tags=["Обратная связь"])
@@ -34,8 +35,9 @@ async def submit_feedback(
         rule=RateLimit(max_requests=10, window_seconds=60),
     )
 
-    topic = (data.topic or "").strip()
-    message = (data.message or "").strip()
+    # Sanitize topic and message to prevent XSS
+    topic = sanitize_topic(data.topic or "", max_length=100)
+    message = sanitize_feedback_message(data.message or "", max_length=500)
 
     if not topic:
         raise HTTPException(
@@ -47,12 +49,6 @@ async def submit_feedback(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Сообщение обязательно",
-        )
-
-    if len(message) > 123:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Сообщение слишком длинное",
         )
 
     await db.execute(
