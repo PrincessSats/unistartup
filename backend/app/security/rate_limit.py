@@ -6,7 +6,7 @@ from typing import Callable, DefaultDict
 
 from fastapi import HTTPException, Request, status
 
-from backend.app.config import settings
+from app.config import settings
 
 
 @dataclass(frozen=True)
