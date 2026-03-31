@@ -1,5 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  AuthShell,
+  AuthSurface,
+  AuthPrimaryButton,
+} from '../components/AuthUI';
 import { authAPI } from '../services/api';
 
 export default function ForgotPassword() {
@@ -17,7 +22,6 @@ export default function ForgotPassword() {
     try {
       await authAPI.requestPasswordReset(email);
       setSuccess(true);
-      setEmail('');
 
       // Auto-redirect after 5 seconds
       setTimeout(() => {
@@ -36,73 +40,66 @@ export default function ForgotPassword() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center px-4">
-        <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Ссылка отправлена</h2>
-          <p className="text-gray-300 mb-6">
-            Проверьте ваш email <strong>{email}</strong>. Ссылка для восстановления пароля действительна 1 час.
+      <AuthShell title="Ссылка отправлена">
+        <AuthSurface className="text-center">
+          <p className="mb-6 text-[16px] leading-6 tracking-[0.04em] text-white/70">
+            Проверьте ваш email <strong className="text-white">{email}</strong>. Ссылка для восстановления пароля действительна 1 час.
           </p>
-          <p className="text-gray-400 text-sm mb-6">
+          <p className="mb-6 text-[14px] leading-5 tracking-[0.04em] text-white/50">
             Вы будете перенаправлены на страницу входа через несколько секунд...
           </p>
-          <button
-            onClick={() => navigate('/login')}
-            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded w-full transition"
-          >
+          <AuthPrimaryButton onClick={() => navigate('/login')}>
             Вернуться на вход
-          </button>
-        </div>
-      </div>
+          </AuthPrimaryButton>
+        </AuthSurface>
+      </AuthShell>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center px-4">
-      <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full">
-        <h1 className="text-3xl font-bold text-white mb-2">Восстановление пароля</h1>
-        <p className="text-gray-400 mb-6">Введите адрес электронной почты, и мы отправим ссылку для восстановления</p>
+    <AuthShell title="Восстановление пароля">
+      <AuthSurface>
+        <p className="mb-6 text-[16px] leading-6 tracking-[0.04em] text-white/70">
+          Введите адрес электронной почты, и мы отправим ссылку для восстановления
+        </p>
 
         {error && (
-          <div className="bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded mb-6">
+          <div className="mb-6 rounded-[10px] border border-red-500/30 bg-red-500/10 px-4 py-3 text-[14px] leading-5 tracking-[0.04em] text-red-300">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-6">
-            <label className="block text-gray-300 font-semibold mb-2">Email</label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="mb-3 block text-[14px] font-medium leading-5 tracking-[0.04em] text-white/70">Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="h-14 w-full rounded-[10px] border border-white/[0.14] bg-white/[0.03] px-4 text-[16px] tracking-[0.04em] text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-white/[0.24]"
               placeholder="you@example.com"
               disabled={loading}
             />
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-600 text-white font-semibold py-2 px-4 rounded transition"
-          >
+          <AuthPrimaryButton type="submit" disabled={loading}>
             {loading ? 'Отправка...' : 'Отправить ссылку'}
-          </button>
+          </AuthPrimaryButton>
         </form>
 
         <div className="mt-6 text-center">
-          <p className="text-gray-400">
+          <p className="text-[14px] tracking-[0.04em] text-white/60">
             Вспомнили пароль?{' '}
             <button
               onClick={() => navigate('/login')}
-              className="text-blue-400 hover:text-blue-300 font-semibold transition"
+              className="text-white transition hover:text-[#AB85FF]"
             >
               Вернуться на вход
             </button>
           </p>
         </div>
-      </div>
-    </div>
+      </AuthSurface>
+    </AuthShell>
   );
 }
