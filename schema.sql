@@ -85,7 +85,7 @@ CREATE TABLE auth_password_reset_tokens (
 CREATE INDEX idx_password_reset_tokens_user_id ON auth_password_reset_tokens(user_id);
 CREATE INDEX idx_password_reset_tokens_expires_at ON auth_password_reset_tokens(expires_at);
 
--- 3.5 OAuth identity bindings
+-- 3.4 OAuth identity bindings
 CREATE TABLE IF NOT EXISTS user_auth_identities (
     id                  BIGSERIAL PRIMARY KEY,
     user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
