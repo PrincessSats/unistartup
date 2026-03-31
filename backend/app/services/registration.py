@@ -8,6 +8,9 @@ import ssl
 import time
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.header import Header
 from typing import Any, Iterable, Optional
 from urllib.parse import urlencode
 
@@ -580,6 +583,116 @@ async def send_magic_link_email(*, to_email: str, magic_link_url: str) -> None:
             to_email=to_email,
             magic_link_url=magic_link_url,
         )
+    )
+
+
+def password_reset_email_template(reset_token: str, user_email: str, reset_link_url: str) -> tuple[str, str]:
+    """
+    Generate password reset email subject and HTML body.
+
+    Args:
+        reset_token: The plaintext reset token (for audit/logging, not sent)
+        user_email: User's email address
+        reset_link_url: Full URL to reset page with token (e.g., https://hacknet.tech/reset-password?token=xyz)
+
+    Returns:
+        (subject, html_body)
+    """
+    subject = "Восстановление пароля на HackNet"
+
+    html_body = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <style>
+            body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e27; color: #e0e0e0; margin: 0; padding: 20px; }}
+            .container {{ max-width: 600px; margin: 0 auto; background: #1a1f3a; border-radius: 8px; padding: 40px; border: 1px solid #2a3050; }}
+            .logo {{ text-align: center; margin-bottom: 30px; font-size: 24px; font-weight: bold; color: #00d4ff; }}
+            .greeting {{ margin-bottom: 20px; font-size: 16px; }}
+            .message {{ margin-bottom: 30px; line-height: 1.6; font-size: 14px; }}
+            .button {{ display: inline-block; background: #00d4ff; color: #0a0e27; padding: 12px 32px; border-radius: 6px; text-decoration: none; font-weight: 600; margin: 20px 0; }}
+            .expiry {{ margin-top: 20px; font-size: 12px; color: #999; }}
+            .footer {{ margin-top: 40px; border-top: 1px solid #2a3050; padding-top: 20px; font-size: 12px; color: #666; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="logo">HackNet</div>
+
+            <div class="greeting">Привет,</div>
+
+            <div class="message">
+                Вы запросили восстановление пароля. Нажмите на кнопку ниже, чтобы установить новый пароль:
+            </div>
+
+            <a href="{reset_link_url}" class="button">Сбросить пароль</a>
+
+            <div class="expiry">
+                ⏱️ Ссылка действительна 1 час. Если вы не запрашивали восстановление, проигнорируйте это письмо.
+            </div>
+
+            <div class="footer">
+                <p>© 2026 HackNet. Все права защищены.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    return subject, html_body
+
+
+def _send_password_reset_email_sync(user_email: str, reset_token: str, frontend_base_url: str = "https://hacknet.tech") -> bool:
+    """
+    Synchronously send password reset email via Yandex SMTP.
+
+    Args:
+        user_email: Recipient email
+        reset_token: Plaintext reset token to include in link
+        frontend_base_url: Base URL for reset link (e.g., https://hacknet.tech)
+
+    Returns:
+        True if sent successfully, False otherwise
+    """
+    try:
+        reset_link_url = f"{frontend_base_url}/reset-password?token={reset_token}"
+        subject, html_body = password_reset_email_template(reset_token, user_email, reset_link_url)
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = Header(subject, "utf-8")
+        msg["From"] = settings.smtp_from_address
+        msg["To"] = user_email
+
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+
+        if settings.SMTP_USE_SSL:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, context=context, timeout=20) as server:
+                server.login(settings.YANDEX_MAIL_LOGIN, settings.YANDEX_MAIL_PASSWORD)
+                server.sendmail(settings.smtp_from_address, user_email, msg.as_string())
+            return True
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(settings.YANDEX_MAIL_LOGIN, settings.YANDEX_MAIL_PASSWORD)
+            server.sendmail(settings.smtp_from_address, user_email, msg.as_string())
+
+        return True
+    except Exception as e:
+        # Log the error without raising; caller should handle
+        return False
+
+
+async def send_password_reset_email(user_email: str, reset_token: str, frontend_base_url: str = "https://hacknet.tech") -> bool:
+    """
+    Async wrapper for password reset email sending.
+    """
+    return await anyio.to_thread.run_sync(
+        _send_password_reset_email_sync,
+        user_email,
+        reset_token,
+        frontend_base_url,
     )
 
 
