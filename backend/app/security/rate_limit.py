@@ -2,13 +2,22 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
-from typing import DefaultDict
+from typing import Callable, DefaultDict
 
 from fastapi import HTTPException, Request, status
+
+from backend.app.config import settings
 
 
 @dataclass(frozen=True)
 class RateLimit:
+    max_requests: int
+    window_seconds: int
+
+
+@dataclass(frozen=True)
+class RateLimiter:
+    key_func: Callable[[str], str]
     max_requests: int
     window_seconds: int
 
@@ -65,4 +74,18 @@ def enforce_rate_limit(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"Слишком много запросов. Повторите через {retry_after} сек.",
         )
+
+
+# Password reset rate limiters
+auth_forgot_password_email = RateLimiter(
+    key_func=lambda email: f"auth:forgot_password:email:{email}",
+    max_requests=settings.PASSWORD_RESET_REQUEST_RATE_LIMIT_COUNT,
+    window_seconds=settings.PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW,
+)
+
+auth_reset_password_ip = RateLimiter(
+    key_func=lambda ip: f"auth:reset_password:ip:{ip}",
+    max_requests=settings.PASSWORD_RESET_CONFIRM_RATE_LIMIT_COUNT,
+    window_seconds=settings.PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW,
+)
 
