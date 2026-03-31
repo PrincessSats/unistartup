@@ -168,6 +168,27 @@ function Profile() {
     }
   };
 
+  // Отправка ссылки восстановления пароля
+  const handleSendResetLink = async () => {
+    try {
+      setLoading(true);
+      await authAPI.requestPasswordReset(currentUser.email);
+
+      // Show success toast
+      setError('');
+      setSuccess('Ссылка для восстановления отправлена на ваш email');
+
+      // Clear message after 3 seconds
+      setTimeout(() => {
+        setSuccess('');
+      }, 3000);
+    } catch (err) {
+      setError(err.response?.data?.detail || 'Ошибка при отправке ссылки');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Сохранение пароля
   const handleSavePassword = async () => {
     if (newPassword !== confirmPassword) {
@@ -628,7 +649,25 @@ function Profile() {
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendResetLink}
+                  disabled={loading}
+                  className="flex-1 h-12 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-600 text-white rounded-[10px] transition-colors text-sm"
+                  title="Отправить ссылку восстановления, если забыли текущий пароль"
+                >
+                  {loading ? 'Отправка...' : 'Отправить ссылку'}
+                </button>
+                <button
+                  onClick={handleSavePassword}
+                  disabled={loading}
+                  className="flex-1 h-12 bg-white/[0.08] hover:bg-white/[0.12] disabled:bg-gray-600 text-white rounded-[10px] transition-colors"
+                >
+                  {loading ? 'Сменить...' : 'Сменить'}
+                </button>
+              </div>
               <button
                 onClick={() => {
                   setShowPasswordModal(false);
@@ -637,15 +676,9 @@ function Profile() {
                   setConfirmPassword('');
                   setError('');
                 }}
-                className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors"
+                className="w-full h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors"
               >
                 Отмена
-              </button>
-              <button
-                onClick={handleSavePassword}
-                className="flex-1 h-12 bg-white/[0.08] hover:bg-white/[0.12] text-white rounded-[10px] transition-colors"
-              >
-                Сменить
               </button>
             </div>
           </div>
