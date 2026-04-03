@@ -654,6 +654,17 @@ export const authAPI = {
   persistAccessToken: (token) => {
     setStoredAccessToken(token);
   },
+
+  requestPasswordReset: (email) => {
+    return api.post('/auth/forgot-password', { email });
+  },
+
+  confirmPasswordReset: (token, newPassword) => {
+    return api.post('/auth/reset-password', {
+      token,
+      new_password: newPassword,
+    });
+  },
 };
 
 // Запросы к защищенным endpoints
