@@ -194,10 +194,12 @@ CREATE TABLE user_tariffs (
 CREATE INDEX idx_user_tariffs_is_promo ON user_tariffs (is_promo) WHERE is_promo = TRUE;
 
 -- Выдаем промо только первым 1000 пользователям при подтверждении email
+-- Участники получают PRO-план на всю жизнь (valid_to = NULL)
 CREATE OR REPLACE FUNCTION grant_early_promo_on_email_verified()
 RETURNS trigger AS $$
 DECLARE
     promo_count BIGINT;
+    pro_plan_id BIGINT;
 BEGIN
     -- Срабатываем только при первом подтверждении email
     IF NEW.email_verified_at IS NULL OR OLD.email_verified_at IS NOT NULL THEN
@@ -223,19 +225,24 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Проставляем промо в активном тарифе, если он есть
+    -- Получаем ID PRO-плана
+    SELECT id INTO pro_plan_id FROM tariff_plans WHERE code = 'PRO' LIMIT 1;
+    IF pro_plan_id IS NULL THEN
+        -- Тарифы еще не загруженные, выходим безопасно
+        RETURN NEW;
+    END IF;
+
+    -- Обновляем активный тариф на PRO с меткой промо
     UPDATE user_tariffs
-    SET is_promo = TRUE,
+    SET tariff_id = pro_plan_id,
+        is_promo = TRUE,
         source = COALESCE(source, 'early_1000')
     WHERE user_id = NEW.id AND valid_to IS NULL;
 
-    -- Если активного тарифа нет, пытаемся создать промо на FREE-плане
+    -- Если активного тарифа нет, создаем новый PRO-тариф
     IF NOT FOUND THEN
         INSERT INTO user_tariffs (user_id, tariff_id, is_promo, source)
-        SELECT NEW.id, tp.id, TRUE, 'early_1000'
-        FROM tariff_plans tp
-        WHERE tp.code = 'FREE'
-        LIMIT 1;
+        VALUES (NEW.id, pro_plan_id, TRUE, 'early_1000');
     END IF;
 
     RETURN NEW;
