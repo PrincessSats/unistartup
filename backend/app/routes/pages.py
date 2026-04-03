@@ -2,13 +2,14 @@ from datetime import datetime, timezone
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy import text, select, func, delete, update
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
 from app.database import get_db, ensure_nvd_sync_schema_compatibility
 from app.models.user import User, UserProfile
+from app.models.activity import ActivityLog, EventType, EventSource
 from app.models.contest import (
     Contest,
     ContestTask,
@@ -46,6 +47,8 @@ from app.schemas.admin import (
     AdminContestTask,
     AdminPromptTemplate,
     AdminPromptUpdateRequest,
+    ActivityLogItemResponse,
+    ActivityLogListResponse,
 )
 from app.services.nvd_sync import (
     create_sync_log,
@@ -1642,3 +1645,77 @@ async def delete_admin_contest(
         ) from exc
 
     return {"ok": True, "deleted_id": contest_id}
+
+
+@router.get("/admin/activity-log", response_model=ActivityLogListResponse)
+async def get_activity_log(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    event_type: Optional[str] = None,
+    contest_id: Optional[int] = None,
+    source: Optional[str] = None,
+    search_text: Optional[str] = None,
+):
+    """
+    Get paginated activity log with optional filters.
+
+    Query parameters:
+    - page: Page number (default 1)
+    - page_size: Items per page (default 50, max 500)
+    - event_type: Filter by event type (e.g., "contest_created")
+    - contest_id: Filter by contest ID
+    - source: Filter by source (admin_action, system_event, participant_action)
+    - search_text: Search in action field
+    """
+    _user, _profile = current_user_data
+
+    offset = (page - 1) * page_size
+
+    # Build query
+    query = select(ActivityLog)
+    count_query = select(func.count()).select_from(ActivityLog)
+
+    # Apply filters
+    if event_type:
+        try:
+            event_enum = EventType(event_type)
+            query = query.where(ActivityLog.event_type == event_enum)
+            count_query = count_query.where(ActivityLog.event_type == event_enum)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid event_type: {event_type}")
+
+    if contest_id:
+        query = query.where(ActivityLog.contest_id == contest_id)
+        count_query = count_query.where(ActivityLog.contest_id == contest_id)
+
+    if source:
+        try:
+            source_enum = EventSource(source)
+            query = query.where(ActivityLog.source == source_enum)
+            count_query = count_query.where(ActivityLog.source == source_enum)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid source: {source}")
+
+    if search_text:
+        search_pattern = f"%{search_text}%"
+        query = query.where(ActivityLog.action.ilike(search_pattern))
+        count_query = count_query.where(ActivityLog.action.ilike(search_pattern))
+
+    # Count total
+    total = (await db.execute(count_query)).scalar_one() or 0
+
+    # Order by created_at desc (newest first), then paginate
+    query = query.order_by(ActivityLog.created_at.desc()).offset(offset).limit(page_size)
+
+    result = await db.execute(query)
+    logs = result.scalars().all()
+
+    return ActivityLogListResponse(
+        items=[ActivityLogItemResponse.from_orm(log) for log in logs],
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_more=(offset + page_size) < total,
+    )
