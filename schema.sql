@@ -302,7 +302,8 @@ CREATE TABLE nvd_sync_log (
     embedding_completed INTEGER NOT NULL DEFAULT 0,
     embedding_failed INTEGER NOT NULL DEFAULT 0,
     status          TEXT NOT NULL DEFAULT 'success', -- статус: fetching|embedding|success|failed
-    error           TEXT
+    error           TEXT,
+    event_log       JSONB -- массив событий: [{"timestamp":"...", "stage":"...", "message":"..."}]
 );
 
 CREATE INDEX idx_nvd_sync_log_fetched_at ON nvd_sync_log(fetched_at DESC);
@@ -643,3 +644,24 @@ CREATE TABLE prompt_templates (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- 19. Activity log table for tracking contest management events
+CREATE TABLE IF NOT EXISTS activity_log (
+    id SERIAL PRIMARY KEY,
+    admin_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    contest_id BIGINT REFERENCES contests(id) ON DELETE SET NULL,
+    event_type VARCHAR(64) NOT NULL,  -- e.g., "contest_created", "submission_correct"
+    source VARCHAR(32) NOT NULL DEFAULT 'admin_action',  -- "admin_action", "system_event", "participant_action"
+    action VARCHAR(255) NOT NULL,  -- Human-readable description
+    details JSONB DEFAULT '{}',  -- Additional metadata
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_activity_log_admin_id ON activity_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_contest_id ON activity_log(contest_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_event_type ON activity_log(event_type);
+CREATE INDEX IF NOT EXISTS idx_activity_log_source ON activity_log(source);
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_log_contest_created ON activity_log(contest_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_log_event_created ON activity_log(event_type, created_at);
