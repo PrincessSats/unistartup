@@ -71,7 +71,21 @@ CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user
 CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at
     ON auth_refresh_tokens(expires_at);
 
--- 3.3 OAuth identity bindings
+-- 3.3 Password reset tokens
+CREATE TABLE auth_password_reset_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ NOT NULL,
+    used_at TIMESTAMPTZ,
+    CONSTRAINT no_reuse CHECK (used_at IS NULL OR used_at <= expires_at)
+);
+
+CREATE INDEX idx_password_reset_tokens_user_id ON auth_password_reset_tokens(user_id);
+CREATE INDEX idx_password_reset_tokens_expires_at ON auth_password_reset_tokens(expires_at);
+
+-- 3.4 OAuth identity bindings
 CREATE TABLE IF NOT EXISTS user_auth_identities (
     id                  BIGSERIAL PRIMARY KEY,
     user_id             BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -92,7 +106,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_auth_identities_user_provider
 CREATE INDEX IF NOT EXISTS idx_user_auth_identities_email
     ON user_auth_identities(provider_email);
 
--- 3.4 Registration drafts for magic-link and OAuth continuation
+-- 3.6 Registration drafts for magic-link and OAuth continuation
 CREATE TABLE IF NOT EXISTS auth_registration_flows (
     id                        BIGSERIAL PRIMARY KEY,
     intent                    TEXT NOT NULL DEFAULT 'register',
@@ -131,7 +145,7 @@ CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_email
 CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_expires_at
     ON auth_registration_flows(expires_at);
 
--- 3.5 Registration questionnaire answers
+-- 3.7 Registration questionnaire answers
 CREATE TABLE IF NOT EXISTS user_registration_data (
     user_id                      BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     registration_source          TEXT NOT NULL,

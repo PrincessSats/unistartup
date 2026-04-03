@@ -1,9 +1,11 @@
-from datetime import timedelta
+from datetime import timedelta, datetime, timezone
 import logging
+import secrets
+import hashlib
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from sqlalchemy.exc import ProgrammingError
 from app.auth.security import (
     build_access_token,
@@ -14,9 +16,19 @@ from app.auth.security import (
 )
 from app.database import get_db, ensure_auth_schema_compatibility
 from app.models.user import AuthRefreshToken, User, UserProfile, UserRating
-from app.schemas.user import AuthMessage, UserRegister, UserLogin, Token, UserResponse
+from app.models.auth import PasswordResetToken
+from app.schemas.user import (
+    AuthMessage,
+    UserRegister,
+    UserLogin,
+    Token,
+    UserResponse,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    MessageResponse,
+)
 from app.config import settings
-from app.security.rate_limit import RateLimit, enforce_rate_limit
+from app.security.rate_limit import RateLimit, enforce_rate_limit, auth_forgot_password_email, auth_reset_password_ip, rate_limiter
 from app.services.auth_sessions import (
     build_token_response,
     clear_refresh_cookie,
@@ -26,6 +38,7 @@ from app.services.auth_sessions import (
     set_refresh_cookie,
     utcnow,
 )
+from app.services.registration import send_password_reset_email, validate_registration_password
 
 router = APIRouter(prefix="/auth", tags=["Авторизация"])
 logger = logging.getLogger(__name__)
@@ -344,3 +357,154 @@ async def logout(
 
     clear_refresh_cookie(response)
     return AuthMessage(message="Сессия завершена")
+
+
+@router.post("/forgot-password", response_model=MessageResponse)
+async def forgot_password(
+    request: ForgotPasswordRequest,
+    request_obj: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Request a password reset link. Returns 200 even if email not found (prevents email enumeration).
+    Rate limited to 3 requests per email per hour.
+    """
+    # Get client IP for logging
+    client_ip = request_obj.client.host if request_obj.client else "unknown"
+
+    try:
+        # Apply rate limit
+        allowed, _ = rate_limiter.check(
+            auth_forgot_password_email.key_func(request.email.lower()),
+            RateLimit(
+                max_requests=settings.PASSWORD_RESET_REQUEST_RATE_LIMIT_COUNT,
+                window_seconds=settings.PASSWORD_RESET_REQUEST_RATE_LIMIT_WINDOW,
+            ),
+        )
+        if not allowed:
+            # Still return 200 to prevent email enumeration
+            logger.warning(f"Password reset rate limit exceeded for {request.email} from {client_ip}")
+            return MessageResponse(message="Email sent")
+    except Exception as e:
+        logger.warning(f"Rate limit check error: {e}")
+        return MessageResponse(message="Email sent")
+
+    # Look up user by email (case-insensitive)
+    stmt = select(User).where(User.email == request.email.lower())
+    user = await db.scalar(stmt)
+
+    if not user:
+        # Return success even if user not found (email enumeration prevention)
+        logger.info(f"Password reset request for non-existent email: {request.email}")
+        return MessageResponse(message="Email sent")
+
+    # Generate reset token
+    plaintext_token = secrets.token_urlsafe(48)
+    token_hash = hashlib.sha256(plaintext_token.encode()).hexdigest()
+
+    # Create token record
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_TTL_MINUTES)
+    reset_token = PasswordResetToken(
+        user_id=user.id,
+        token_hash=token_hash,
+        expires_at=expires_at,
+    )
+    db.add(reset_token)
+    await db.commit()
+
+    # Send email (async, don't wait)
+    frontend_url = settings.BACKEND_CALLBACK_BASE_URL or "https://hacknet.tech"
+    # Remove /api suffix if present for frontend URL
+    if frontend_url.endswith("/api"):
+        frontend_url = frontend_url[:-4]
+
+    try:
+        await send_password_reset_email(user.email, plaintext_token, frontend_base_url=frontend_url)
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {user.email}: {e}")
+        # Still return success to client
+
+    logger.info(f"Password reset requested for {user.email}")
+    return MessageResponse(message="Email sent")
+
+
+@router.post("/reset-password", response_model=MessageResponse)
+async def reset_password(
+    request: ResetPasswordRequest,
+    request_obj: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Reset password using a valid reset token. Token is single-use.
+    Revokes all refresh tokens for the user (logs them out everywhere).
+    Rate limited to 5 requests per IP per minute.
+    """
+    # Get client IP for rate limiting
+    client_ip = request_obj.client.host if request_obj.client else "unknown"
+
+    # Check rate limit
+    allowed, retry_after = rate_limiter.check(
+        auth_reset_password_ip.key_func(client_ip),
+        RateLimit(
+            max_requests=settings.PASSWORD_RESET_CONFIRM_RATE_LIMIT_COUNT,
+            window_seconds=settings.PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW,
+        ),
+    )
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many requests. Try again in {retry_after} seconds."
+        )
+
+    # Validate new password
+    try:
+        issues = validate_registration_password(request.new_password)
+        if issues:
+            raise ValueError("; ".join(issues))
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    # Hash the plaintext token to look up in DB
+    token_hash = hashlib.sha256(request.token.encode()).hexdigest()
+
+    # Find token
+    stmt = select(PasswordResetToken).where(
+        and_(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.used_at.is_(None),  # Not yet used
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),  # Not expired
+        )
+    )
+    reset_token = await db.scalar(stmt)
+
+    if not reset_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token."
+        )
+
+    # Mark token as used
+    reset_token.used_at = datetime.now(timezone.utc)
+
+    # Get user and update password
+    user = await db.get(User, reset_token.user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found.")
+
+    user.password_hash = hash_password(request.new_password)
+
+    # Revoke all refresh tokens for this user (log out all sessions)
+    stmt_revoke = select(AuthRefreshToken).where(
+        and_(
+            AuthRefreshToken.user_id == user.id,
+            AuthRefreshToken.revoked_at.is_(None),
+        )
+    )
+    tokens_to_revoke = await db.scalars(stmt_revoke)
+    for token in tokens_to_revoke:
+        token.revoked_at = datetime.now(timezone.utc)
+
+    await db.commit()
+
+    logger.info(f"Password reset successful for {user.email}")
+    return MessageResponse(message="Password reset successfully")
