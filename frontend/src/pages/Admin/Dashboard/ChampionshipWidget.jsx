@@ -8,7 +8,7 @@ function formatDate(value) {
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function ChampionshipWidget({ contest, submissions }) {
+function ChampionshipWidget({ contest, submissions, onEditContest, onViewHistory }) {
   const contestStatus = useMemo(() => {
     if (!contest) {
       return { label: 'Нет данных', tone: 'bg-white/10 text-white/70' };
@@ -33,9 +33,27 @@ function ChampionshipWidget({ contest, submissions }) {
       title="Текущий чемпионат"
       subtitle={contest?.title || 'Нет активного чемпионата'}
       action={(
-        <span className={`text-[12px] uppercase tracking-[0.24em] px-3 py-1 rounded-full ${contestStatus.tone}`}>
-          {contestStatus.label}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`text-[12px] uppercase tracking-[0.24em] px-3 py-1 rounded-full ${contestStatus.tone}`}>
+            {contestStatus.label}
+          </span>
+          {contest && (
+            <button
+              type="button"
+              onClick={onEditContest}
+              className="ml-2 h-8 px-3 bg-[#9B6BFF]/20 hover:bg-[#9B6BFF]/30 text-[#CBB6FF] text-[12px] rounded-[10px] transition-colors"
+            >
+              Редактировать
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onViewHistory}
+            className="ml-2 h-8 px-3 bg-white/10 hover:bg-white/15 text-white/80 text-[12px] rounded-[10px] transition-colors"
+          >
+            История
+          </button>
+        </div>
       )}
     >
       <div className="flex flex-col gap-3 text-[14px] text-white/70">
