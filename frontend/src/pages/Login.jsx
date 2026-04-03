@@ -168,8 +168,11 @@ function Login() {
           </div>
 
           <div className="flex items-center justify-between gap-4 text-[13px] leading-5">
-            <span className="text-white/38">Если забыл пароль, восстановление добавим позже.</span>
-            <button type="button" className="text-white/60 transition hover:text-white">
+            <button
+              type="button"
+              onClick={() => navigate('/forgot-password')}
+              className="text-white/60 transition hover:text-white"
+            >
               Не помнишь пароль?
             </button>
           </div>
