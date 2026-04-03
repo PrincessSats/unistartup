@@ -250,3 +250,28 @@ class AdminContestListItem(AdminContestBase):
     id: int
     status: str
     tasks_count: int = 0
+
+
+class ActivityLogItemResponse(BaseModel):
+    id: int
+    admin_id: Optional[int] = None
+    contest_id: Optional[int] = None
+    event_type: str  # e.g., "contest_created"
+    source: str  # "admin_action", "system_event", "participant_action"
+    action: str
+    details: Optional[dict] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ActivityLogListResponse(BaseModel):
+    items: List[ActivityLogItemResponse]
+    total: int
+    page: int
+    page_size: int
+    has_more: bool
+
+    class Config:
+        from_attributes = True
