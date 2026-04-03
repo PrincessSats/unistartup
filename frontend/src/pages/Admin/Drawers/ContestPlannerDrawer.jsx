@@ -20,13 +20,16 @@ const initialContestState = {
   leaderboard_visible: true,
 };
 
-function ContestPlannerDrawer({ open, onClose, onCreated }) {
+function ContestPlannerDrawer({ open, onClose, onCreated, onUpdated, contestId }) {
   const [form, setForm] = useState(initialContestState);
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState('');
   const [tasks, setTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState([]);
+  const [loadingContest, setLoadingContest] = useState(false);
+
+  const isEditMode = Boolean(contestId);
 
   useEffect(() => {
     if (!open) return;
@@ -35,6 +38,36 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
     setError('');
     setSelectedTasks([]);
   }, [open]);
+
+  const loadContest = useCallback(async () => {
+    if (!contestId) return;
+    setLoadingContest(true);
+    setError('');
+    try {
+      const data = await adminAPI.getContest(contestId);
+      setForm({
+        title: data.title || '',
+        description: data.description || '',
+        start_at: data.start_at ? new Date(data.start_at).toISOString().slice(0, 16) : '',
+        end_at: data.end_at ? new Date(data.end_at).toISOString().slice(0, 16) : '',
+        is_public: data.is_public ?? false,
+        leaderboard_visible: data.leaderboard_visible ?? true,
+      });
+      if (data.tasks && Array.isArray(data.tasks)) {
+        setSelectedTasks(data.tasks.map((t) => t.task_id));
+      }
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось загрузить данные чемпионата'));
+    } finally {
+      setLoadingContest(false);
+    }
+  }, [contestId]);
+
+  useEffect(() => {
+    if (open && contestId) {
+      loadContest();
+    }
+  }, [open, contestId, loadContest]);
 
   const loadTasks = useCallback(async () => {
     setTasksLoading(true);
@@ -70,11 +103,16 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
           order_index: index,
         })),
       };
-      await adminAPI.createContest(payload);
-      if (onCreated) onCreated();
+      if (isEditMode) {
+        await adminAPI.updateContest(contestId, payload);
+        if (onUpdated) onUpdated();
+      } else {
+        await adminAPI.createContest(payload);
+        if (onCreated) onCreated();
+      }
       onClose();
     } catch (err) {
-      setError(getApiErrorMessage(err, 'Не удалось создать чемпионат'));
+      setError(getApiErrorMessage(err, isEditMode ? 'Не удалось обновить чемпионат' : 'Не удалось создать чемпионат'));
     } finally {
       setStatus('idle');
     }
@@ -94,8 +132,8 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
     <Drawer
       open={open}
       onClose={onClose}
-      title="Планирование контеста"
-      subtitle="Создание нового чемпионата"
+      title={isEditMode ? 'Редактирование контеста' : 'Планирование контеста'}
+      subtitle={isEditMode ? 'Изменение параметров чемпионата' : 'Создание нового чемпионата'}
       width="640px"
       footer={
         <div className="flex gap-3">
@@ -109,10 +147,10 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || loadingContest}
             className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8452FF] text-white rounded-[10px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {status === 'sending' ? 'Создание...' : 'Создать чемпионат'}
+            {loadingContest ? 'Загрузка...' : status === 'sending' ? (isEditMode ? 'Сохранение...' : 'Создание...') : (isEditMode ? 'Сохранить' : 'Создать чемпионат')}
           </button>
         </div>
       }
@@ -122,6 +160,18 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
           {error}
         </div>
       )}
+
+      {loadingContest ? (
+        <div className="space-y-5">
+          <SkeletonBlock className="h-12 w-full rounded-[10px]" />
+          <SkeletonBlock className="h-20 w-full rounded-[10px]" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <SkeletonBlock className="h-12 w-full rounded-[10px]" />
+            <SkeletonBlock className="h-12 w-full rounded-[10px]" />
+          </div>
+          <SkeletonBlock className="h-14 w-full rounded-[12px]" />
+        </div>
+      ) : (
 
       <div className="space-y-5">
         <div>
@@ -227,6 +277,7 @@ function ContestPlannerDrawer({ open, onClose, onCreated }) {
           )}
         </div>
       </div>
+      )}
     </Drawer>
   );
 }
