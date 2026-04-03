@@ -15,6 +15,7 @@ function Profile() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -650,24 +651,21 @@ function Profile() {
             </div>
 
             <div className="flex flex-col gap-3">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendResetLink}
-                  disabled={loading}
-                  className="flex-1 h-12 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-600 text-white rounded-[10px] transition-colors text-sm"
-                  title="Отправить ссылку восстановления, если забыли текущий пароль"
-                >
-                  {loading ? 'Отправка...' : 'Отправить ссылку'}
-                </button>
-                <button
-                  onClick={handleSavePassword}
-                  disabled={loading}
-                  className="flex-1 h-12 bg-white/[0.08] hover:bg-white/[0.12] disabled:bg-gray-600 text-white rounded-[10px] transition-colors"
-                >
-                  {loading ? 'Сменить...' : 'Сменить'}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                disabled={loading}
+                className="flex-1 h-12 bg-gray-600 hover:bg-gray-700 disabled:bg-gray-600 text-white rounded-[10px] transition-colors text-sm"
+              >
+                Не помню пароль
+              </button>
+              <button
+                onClick={handleSavePassword}
+                disabled={loading}
+                className="flex-1 h-12 bg-white/[0.08] hover:bg-white/[0.12] disabled:bg-gray-600 text-white rounded-[10px] transition-colors"
+              >
+                {loading ? 'Сменить...' : 'Сменить'}
+              </button>
               <button
                 onClick={() => {
                   setShowPasswordModal(false);
@@ -675,10 +673,62 @@ function Profile() {
                   setNewPassword('');
                   setConfirmPassword('');
                   setError('');
+                  setShowResetConfirm(false);
                 }}
                 className="w-full h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors"
               >
                 Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка подтверждения сброса пароля */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#0B0A10] border border-white/[0.09] rounded-[20px] p-8 w-full max-w-md mx-4 font-sans-figma">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 bg-white/[0.08] rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h3 className="text-white text-[24px] leading-[32px] font-medium mb-2">Сбросить пароль</h3>
+              <p className="text-white/60 text-sm leading-5">
+                Мы отправим ссылку для восстановления на ваш email
+              </p>
+              <p className="text-white/80 text-sm font-medium mt-2">
+                {currentUser?.email}
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-2 rounded-[12px] mb-4 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowResetConfirm(false);
+                  setError('');
+                }}
+                disabled={loading}
+                className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] disabled:bg-white/[0.02] text-white rounded-[10px] transition-colors"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={async () => {
+                  await handleSendResetLink();
+                  setShowResetConfirm(false);
+                }}
+                disabled={loading}
+                className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8A5AEE] disabled:bg-gray-600 text-white rounded-[10px] transition-colors"
+              >
+                {loading ? 'Отправка...' : 'Отправить'}
               </button>
             </div>
           </div>

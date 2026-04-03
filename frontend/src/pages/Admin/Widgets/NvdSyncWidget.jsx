@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 
 const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
 
-const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding']);
+const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding', 'translating']);
 
 function formatNumber(value) {
   if (value === null || value === undefined) return '—';
@@ -29,12 +29,25 @@ function getNvdProgress(sync) {
   const failed = Number(sync?.embedding_failed || 0);
   const processed = total > 0 ? Math.min(total, completed + failed) : 0;
   const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+
+  // For partial_success, also calculate translation progress if embedding progress is not available
+  const transTotal = Number(sync?.translation_total || 0);
+  const transCompleted = Number(sync?.translation_completed || 0);
+  const transFailed = Number(sync?.translation_failed || 0);
+  const transProcessed = transTotal > 0 ? Math.min(transTotal, transCompleted + transFailed) : 0;
+  const transPercent = transTotal > 0 ? Math.max(0, Math.min(100, Math.round((transProcessed / transTotal) * 100))) : 0;
+
   return {
     total,
     completed,
     failed,
     processed,
     percent,
+    transTotal,
+    transCompleted,
+    transFailed,
+    transProcessed,
+    transPercent,
   };
 }
 
@@ -45,8 +58,10 @@ function NvdSyncWidget({ nvdSync, onFetch, isRunning, error }) {
 
   const nvdStatusLabel = useMemo(() => {
     if (nvdStatus === 'fetching') return 'Получаем CVE из NVD';
+    if (nvdStatus === 'translating') return 'Генерируем статьи для KB';
     if (nvdStatus === 'embedding') return 'Считаем embeddings';
     if (nvdStatus === 'failed') return 'Синхронизация завершилась ошибкой';
+    if (nvdStatus === 'partial_success') return 'Синхронизация прервана, но данные сохранены';
     if (nvdStatus === 'success' && nvdProgress.total > 0) return 'Embeddings готовы';
     if (nvdStatus === 'success') return 'Синхронизация завершена';
     return 'Нет активной синхронизации';
@@ -58,11 +73,27 @@ function NvdSyncWidget({ nvdSync, onFetch, isRunning, error }) {
     if (nvdStatus === 'fetching') {
       return 'Читаем страницы NVD и собираем новые CVE за последние 24 часа';
     }
+    if (nvdStatus === 'translating') {
+      return `Сохранено ${formatNumber(inserted)} новых записей. Генерируем статьи...`;
+    }
     if (nvdStatus === 'embedding') {
       return `Обработано ${formatNumber(nvdProgress.processed)} из ${formatNumber(nvdProgress.total)} новых статей`;
     }
     if (nvdStatus === 'failed') {
       return nvdSync?.error || 'Фоновая задача синхронизации упала';
+    }
+    if (nvdStatus === 'partial_success') {
+      const detail = nvdSync?.detailed_status || `CVE сохранены (${formatNumber(inserted)} записей).`;
+      const transDone = Number(nvdSync?.translation_completed || 0);
+      const transFailed = Number(nvdSync?.translation_failed || 0);
+      const embedDone = Number(nvdSync?.embedding_completed || 0);
+      const extraParts = [];
+      if (transDone > 0) extraParts.push(`статей: ${formatNumber(transDone)}`);
+      if (transFailed > 0) extraParts.push(`ошибок перевода: ${formatNumber(transFailed)}`);
+      if (embedDone > 0) extraParts.push(`embeddings: ${formatNumber(embedDone)}`);
+      return extraParts.length > 0
+        ? `${detail} ${extraParts.join(', ')}`
+        : detail;
     }
     if (nvdStatus === 'success' && inserted === 0) {
       return fetched > 0
@@ -122,9 +153,13 @@ function NvdSyncWidget({ nvdSync, onFetch, isRunning, error }) {
           <span className="text-[12px] text-white/60 font-mono-figma">
             {nvdStatus === 'embedding' && nvdProgress.total > 0
               ? `${formatNumber(nvdProgress.processed)} / ${formatNumber(nvdProgress.total)}`
-              : nvdStatus === 'success' && nvdProgress.total > 0
-                ? `${formatNumber(nvdProgress.processed)} / ${formatNumber(nvdProgress.total)}`
-                : '—'}
+              : nvdStatus === 'translating' && nvdProgress.transTotal > 0
+                ? `${formatNumber(nvdProgress.transProcessed)} / ${formatNumber(nvdProgress.transTotal)}`
+                : nvdStatus === 'partial_success' && nvdProgress.transTotal > 0
+                  ? `${formatNumber(nvdProgress.transProcessed)} / ${formatNumber(nvdProgress.transTotal)} (translation)`
+                  : nvdStatus === 'success' && nvdProgress.total > 0
+                    ? `${formatNumber(nvdProgress.processed)} / ${formatNumber(nvdProgress.total)}`
+                    : '—'}
           </span>
         </div>
         <div className="mt-2 h-2 rounded-full bg-white/10 overflow-hidden">
@@ -135,11 +170,15 @@ function NvdSyncWidget({ nvdSync, onFetch, isRunning, error }) {
               className={`h-full rounded-full transition-all duration-500 ${
                 nvdStatus === 'failed'
                   ? 'bg-rose-400/80'
-                  : nvdProgress.failed > 0
+                  : nvdStatus === 'partial_success'
                     ? 'bg-amber-300/80'
-                    : 'bg-emerald-400/80'
+                    : nvdProgress.failed > 0
+                      ? 'bg-amber-300/80'
+                      : 'bg-emerald-400/80'
               }`}
-              style={{ width: `${nvdProgress.percent}%` }}
+              style={{
+                width: `${nvdStatus === 'translating' ? nvdProgress.transPercent : nvdProgress.percent}%`,
+              }}
             />
           )}
         </div>

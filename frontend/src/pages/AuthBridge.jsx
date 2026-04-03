@@ -13,7 +13,17 @@ function AuthBridge() {
 
     const finishBridge = async () => {
       try {
-        await authAPI.refresh({ timeoutMs: 8000 });
+        const params = new URLSearchParams(location.search);
+        const flowToken = params.get('flow_token');
+
+        if (flowToken) {
+          // OAuth callback - exchange flow_token for access token and session
+          await authAPI.finalizeOAuth(flowToken);
+        } else {
+          // Session refresh fallback (shouldn't normally happen)
+          await authAPI.refresh({ timeoutMs: 8000 });
+        }
+
         const profile = await profileAPI.getProfile();
         if (cancelled) return;
         navigate(profile?.role === 'admin' ? '/admin' : '/home', { replace: true });
