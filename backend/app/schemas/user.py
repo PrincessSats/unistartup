@@ -92,4 +92,23 @@ class RegistrationCompleteRequest(BaseModel):
     interest_tags: list[str] = Field(default_factory=list)
 
 
+class ForgotPasswordRequest(BaseModel):
+    """
+    Request for password reset link.
+    """
+    email: EmailStr
 
+
+class ResetPasswordRequest(BaseModel):
+    """
+    Request to reset password using a reset token.
+    """
+    token: str
+    new_password: str
+
+
+class MessageResponse(BaseModel):
+    """
+    Generic message response.
+    """
+    message: str

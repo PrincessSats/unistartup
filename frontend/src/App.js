@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import AuthBridge from './pages/AuthBridge';
 import TelegramAuth from './pages/TelegramAuth';
 import Profile from './pages/Profile';
@@ -124,6 +126,8 @@ function App() {
 
         <Route path="/login" element={<PublicRoute authReady={authReady}><Login /></PublicRoute>} />
         <Route path="/register" element={<PublicRoute authReady={authReady}><Register /></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute authReady={authReady}><ForgotPassword /></PublicRoute>} />
+        <Route path="/reset-password" element={<PublicRoute authReady={authReady}><ResetPassword /></PublicRoute>} />
         <Route path="/auth/telegram" element={<PublicRoute authReady={authReady}><TelegramAuth /></PublicRoute>} />
         <Route path="/auth/bridge" element={<AuthBridge />} />
 
