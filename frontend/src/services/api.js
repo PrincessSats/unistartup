@@ -578,6 +578,26 @@ export const authAPI = {
     return refreshAccessToken({ timeoutMs });
   },
 
+  finalizeOAuth: async (flowToken) => {
+    if (!API_URL) {
+      throw new Error('API base URL is not configured');
+    }
+    clearAllRequestCache();
+    const response = await api.post(
+      '/api/auth/oauth/finalize',
+      { flow_token: flowToken },
+      {
+        withCredentials: true,
+        timeout: AUTH_BOOTSTRAP_TIMEOUT_MS,
+        __skipAuthRefresh: true,
+      }
+    );
+    if (response.data.access_token) {
+      setStoredAccessToken(response.data.access_token);
+    }
+    return response.data;
+  },
+
   warmup: async ({ timeoutMs = 2000 } = {}) => {
     if (!API_URL) return;
     try {
