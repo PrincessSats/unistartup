@@ -571,28 +571,59 @@ async def run_sync(
 
 async def cleanup_stale_sync_logs() -> None:
     """
-    Сбрасывает записи nvd_sync_log, зависшие в статусе 'fetching' или 'embedding'
+    Сбрасывает записи nvd_sync_log, зависшие в статусе 'fetching', 'embedding' или 'translating'
     после перезапуска сервера. Вызывается при старте приложения.
+
+    Если синхронизация успела завершить фазу fetch/store (inserted_count > 0),
+    помечает её как 'partial_success' вместо 'failed', чтобы пользователь видел,
+    что данные были сохранены.
     """
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
+        # First, check for syncs that completed fetch/store but failed during translation/embedding
+        partial_result = await session.execute(
+            text(
+                """
+                UPDATE nvd_sync_log
+                SET status = 'partial_success',
+                    error = NULL,
+                    detailed_status = COALESCE(detailed_status, 'Синхронизация прервана после сохранения CVE. Данные сохранены.')
+                WHERE status IN ('fetching', 'embedding', 'translating')
+                  AND COALESCE(inserted_count, 0) > 0
+                RETURNING id, inserted_count
+                """
+            )
+        )
+        partial = partial_result.fetchall()
+
+        # Then, mark truly failed syncs (no data was saved)
+        failed_result = await session.execute(
             text(
                 """
                 UPDATE nvd_sync_log
                 SET status = 'failed',
-                    error = 'Прервано: сервер был перезапущен во время синхронизации'
+                    error = 'Прервано: сервер был перезапущен во время синхронизации. Данные не были сохранены.'
                 WHERE status IN ('fetching', 'embedding', 'translating')
+                  AND COALESCE(inserted_count, 0) = 0
                 RETURNING id
                 """
             )
         )
-        stale = result.fetchall()
+        failed = failed_result.fetchall()
+
         await session.commit()
-    if stale:
+
+    if partial:
         logger.warning(
-            "Cleaned up %d stale NVD sync log(s) after restart: ids=%s",
-            len(stale),
-            [r[0] for r in stale],
+            "Marked %d NVD sync log(s) as 'partial_success' after restart: ids=%s (inserted: %s)",
+            len(partial),
+            [r[0] for r in partial],
+            [r[1] for r in partial],
+        )
+    if failed:
+        logger.warning(
+            "Marked %d NVD sync log(s) as 'failed' after restart: ids=%s",
+            len(failed),
+            [r[0] for r in failed],
         )
 
 
