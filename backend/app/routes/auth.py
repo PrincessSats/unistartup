@@ -362,8 +362,8 @@ async def logout(
 @router.post("/forgot-password", response_model=MessageResponse)
 async def forgot_password(
     request: ForgotPasswordRequest,
+    request_obj: Request,
     db: AsyncSession = Depends(get_db),
-    request_obj: Request = Depends(),
 ):
     """
     Request a password reset link. Returns 200 even if email not found (prevents email enumeration).
@@ -431,8 +431,8 @@ async def forgot_password(
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(
     request: ResetPasswordRequest,
+    request_obj: Request,
     db: AsyncSession = Depends(get_db),
-    request_obj: Request = Depends(),
 ):
     """
     Reset password using a valid reset token. Token is single-use.
