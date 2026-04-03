@@ -92,6 +92,10 @@ class RegistrationCompleteRequest(BaseModel):
     interest_tags: list[str] = Field(default_factory=list)
 
 
+class OAuthLoginFinalizeRequest(BaseModel):
+    flow_token: str
+
+
 class ForgotPasswordRequest(BaseModel):
     """
     Request for password reset link.
