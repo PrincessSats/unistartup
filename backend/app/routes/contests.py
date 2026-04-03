@@ -28,6 +28,7 @@ from app.services.chat_task import (
     mark_chat_session_solved,
     normalize_flag_token_content,
 )
+from app.services.activity_logger import log_submission
 from app.schemas.contest import (
     ContestSummary,
     FeaturedTask,
@@ -1134,6 +1135,18 @@ async def submit_flag(
     if finished and participant.completed_at is None:
         participant.completed_at = datetime.now(timezone.utc)
 
+    await db.commit()
+
+    # Log the submission
+    await log_submission(
+        db=db,
+        contest_id=contest_id,
+        task_id=task.id,
+        user_id=user.id,
+        username=profile.username,
+        is_correct=is_correct,
+        details={"task_title": task.title},
+    )
     await db.commit()
 
     return ContestSubmissionResponse(
