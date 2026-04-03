@@ -72,6 +72,12 @@ from app.services.chat_task import (
     validate_chat_task_config_values,
 )
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
+from app.services.activity_logger import (
+    log_contest_created,
+    log_contest_updated,
+    log_contest_deleted,
+    log_contest_ended,
+)
 
 router = APIRouter(tags=["Тестовые страницы"])
 logger = logging.getLogger(__name__)
@@ -1529,6 +1535,17 @@ async def create_admin_contest(
     await db.commit()
     await db.refresh(contest)
 
+    # Log the activity
+    user, _profile = current_user_data
+    await log_contest_created(
+        db=db,
+        admin_id=user.id,
+        contest_id=contest.id,
+        contest_title=contest.title,
+        details={"task_count": len(data.tasks)},
+    )
+    await db.commit()
+
     return await get_admin_contest(contest.id, current_user_data, db)
 
 
@@ -1586,6 +1603,18 @@ async def update_admin_contest(
 
     await db.commit()
 
+    # Log the activity
+    user, _profile = current_user_data
+    task_count = len(data.tasks) if data.tasks else 0
+    await log_contest_updated(
+        db=db,
+        admin_id=user.id,
+        contest_id=contest_id,
+        contest_title=contest.title,
+        details={"task_count": task_count} if data.tasks else None,
+    )
+    await db.commit()
+
     return await get_admin_contest(contest_id, current_user_data, db)
 
 
@@ -1613,6 +1642,16 @@ async def end_admin_contest_now(
 
     await db.commit()
 
+    # Log the activity
+    user, _profile = current_user_data
+    await log_contest_ended(
+        db=db,
+        admin_id=user.id,
+        contest_id=contest_id,
+        contest_title=contest.title,
+    )
+    await db.commit()
+
     return await get_admin_contest(contest_id, current_user_data, db)
 
 
@@ -1625,11 +1664,13 @@ async def delete_admin_contest(
     """
     Удалить контест и связанные сущности.
     """
-    _user, _profile = current_user_data
+    user, _profile = current_user_data
 
-    exists = (await db.execute(select(Contest.id).where(Contest.id == contest_id))).scalar_one_or_none()
-    if exists is None:
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контест не найден")
+
+    contest_title = contest.title
 
     try:
         await db.execute(delete(ContestTask).where(ContestTask.contest_id == contest_id))
@@ -1643,6 +1684,15 @@ async def delete_admin_contest(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Не удалось удалить контест: {exc}",
         ) from exc
+
+    # Log the activity
+    await log_contest_deleted(
+        db=db,
+        admin_id=user.id,
+        contest_id=contest_id,
+        contest_title=contest_title,
+    )
+    await db.commit()
 
     return {"ok": True, "deleted_id": contest_id}
 
