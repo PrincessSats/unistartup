@@ -24,6 +24,7 @@ from app.schemas.user import (
     EmailRegistrationResendRequest,
     EmailRegistrationStartRequest,
     FlowEmailAttachRequest,
+    OAuthLoginFinalizeRequest,
     RegistrationCompleteRequest,
     RegistrationFlowResponse,
     Token,
@@ -234,22 +235,22 @@ async def _finalize_social_oauth_flow(
                 profile.avatar_url = avatar_url
 
         flow.completed_user_id = user.id
-        flow.consumed_at = now
-        refresh_token, _, _, _ = await issue_login_session(
-            request=request,
-            db=db,
-            user=user,
-        )
+        # DO NOT set consumed_at yet - the finalize endpoint will do it
+        # Set very short expiry for security (90 seconds)
+        flow.expires_at = now + timedelta(seconds=90)
+        await db.commit()
 
         redirect = RedirectResponse(
             url=build_frontend_hash_url(
                 request_host=request_host,
                 route_path="/auth/bridge",
-                params={"provider": provider},
+                params={
+                    "flow_token": _build_flow_token(flow),
+                    "provider": provider,
+                },
             ),
             status_code=status.HTTP_303_SEE_OTHER,
         )
-        set_refresh_cookie(redirect, refresh_token)
         return redirect
 
     await db.commit()
@@ -731,6 +732,75 @@ async def github_oauth_callback(
         login=github_profile.login,
         avatar_url=github_profile.avatar_url,
         raw_profile=github_profile.raw_profile,
+    )
+
+
+@router.post("/oauth/finalize", response_model=Token)
+async def finalize_oauth_login(
+    payload: OAuthLoginFinalizeRequest,
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Exchange OAuth flow token for access token and set refresh cookie.
+    Called after OAuth callback redirect when browser lands on /auth/bridge.
+    """
+    flow_id = decode_registration_flow_token(payload.flow_token)
+    if flow_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Невалидный токен потока.",
+        )
+
+    flow = await db.get(AuthRegistrationFlow, flow_id)
+    if flow is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Поток не найден.",
+        )
+
+    if flow.completed_user_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Поток не готов.",
+        )
+
+    if flow.consumed_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Поток уже использован.",
+        )
+
+    if _is_expired(flow.expires_at):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Поток истёк.",
+        )
+
+    user = await db.get(User, flow.completed_user_id)
+    if user is None or user.is_active is False:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Пользователь недоступен.",
+        )
+
+    now = utcnow()
+    flow.consumed_at = now
+
+    refresh_token, access_token, access_expires_at, session_expires_at = await issue_login_session(
+        request=request,
+        db=db,
+        user=user,
+    )
+
+    await db.commit()
+
+    set_refresh_cookie(response, refresh_token)
+    return build_token_response(
+        access_token=access_token,
+        access_expires_at=access_expires_at,
+        session_expires_at=session_expires_at,
     )
 
 

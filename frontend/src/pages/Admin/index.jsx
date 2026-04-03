@@ -15,6 +15,7 @@ import KnowledgeBaseDrawer from './Drawers/KnowledgeBaseDrawer';
 import TaskManagerDrawer from './Drawers/TaskManagerDrawer';
 import TaskEditDrawer from './Drawers/TaskEditDrawer';
 import ContestPlannerDrawer from './Drawers/ContestPlannerDrawer';
+import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
 // Icons
@@ -39,6 +40,8 @@ function Admin() {
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
   const [taskEditId, setTaskEditId] = useState(null);
   const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
+  const [isContestHistoryOpen, setIsContestHistoryOpen] = useState(false);
+  const [editingContestId, setEditingContestId] = useState(null);
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
 
   // Feedback resolution state
@@ -106,6 +109,11 @@ function Admin() {
     setIsTaskEditOpen(true);
   }, []);
 
+  const handleEditContest = useCallback((contest) => {
+    setEditingContestId(contest.id);
+    setIsContestPlanningOpen(true);
+  }, []);
+
   const handleStartResolveFeedback = useCallback((feedback) => {
     setFeedbackResolveError('');
     setFeedbackToResolve(feedback);
@@ -162,6 +170,13 @@ function Admin() {
         </div>
         <div className="flex flex-col items-end gap-3">
           <div className="flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setIsContestHistoryOpen(true)}
+              className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
+            >
+              История контестов
+            </button>
             <button
               type="button"
               onClick={() => setIsContestPlanningOpen(true)}
@@ -240,6 +255,8 @@ function Admin() {
         <ChampionshipWidget
           contest={contest}
           submissions={stats.current_championship_submissions}
+          onEditContest={() => handleEditContest(contest)}
+          onViewHistory={() => setIsContestHistoryOpen(true)}
         />
       </div>
 
@@ -287,8 +304,18 @@ function Admin() {
       />
       <ContestPlannerDrawer
         open={isContestPlanningOpen}
-        onClose={() => setIsContestPlanningOpen(false)}
+        onClose={() => {
+          setIsContestPlanningOpen(false);
+          setEditingContestId(null);
+        }}
         onCreated={refresh}
+        onUpdated={refresh}
+        contestId={editingContestId}
+      />
+      <ContestHistoryDrawer
+        open={isContestHistoryOpen}
+        onClose={() => setIsContestHistoryOpen(false)}
+        onEditContest={handleEditContest}
       />
       <PromptManagerDrawer
         open={isPromptManagerOpen}
