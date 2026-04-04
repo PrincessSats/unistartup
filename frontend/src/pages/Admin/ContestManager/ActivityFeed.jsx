@@ -72,14 +72,6 @@ export default function ActivityFeed({ refreshKey }) {
     setSearchText(e.target.value);
   };
 
-  const toggleEventTypeFilter = (eventType) => {
-    setEventTypeFilter(prev =>
-      prev.includes(eventType)
-        ? prev.filter(e => e !== eventType)
-        : [eventType]  // Single-select for simplicity
-    );
-  };
-
   const handleNextPage = () => {
     if (page * pageSize < total) {
       loadLogs(page + 1);
