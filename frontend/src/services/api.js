@@ -807,7 +807,7 @@ export const adminAPI = {
     if (params.date_from) query.append('date_from', params.date_from);
     if (params.date_to) query.append('date_to', params.date_to);
 
-    return axios.get(`/admin/activity-log?${query.toString()}`);
+    return api.get(`/admin/activity-log?${query.toString()}`);
   },
 };
 
