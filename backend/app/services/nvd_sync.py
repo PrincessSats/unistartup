@@ -63,7 +63,7 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
         "detailed_status": row.get("detailed_status"),
         "status": row.get("status"),
         "error": row.get("error"),
-        "event_log": row.get("event_log"),
+        "event_log": json.loads(row["event_log"]) if isinstance(row.get("event_log"), str) else row.get("event_log"),
     }
 
 
@@ -691,6 +691,31 @@ async def create_sync_log(session: AsyncSession) -> Dict[str, Any]:
     }
 
 
+async def _is_cancelled(log_id: int) -> bool:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            text("SELECT status FROM nvd_sync_log WHERE id = :log_id"),
+            {"log_id": log_id},
+        )
+        val = result.scalar_one_or_none()
+        return val == "cancelled"
+
+
+async def stop_active_sync_log(session: AsyncSession) -> Optional[Dict[str, Any]]:
+    await session.execute(
+        text(
+            """
+            UPDATE nvd_sync_log
+            SET status = 'cancelled',
+                detailed_status = 'Stopped by user.'
+            WHERE status IN ('fetching', 'embedding', 'translating')
+            """
+        )
+    )
+    await session.commit()
+    return await get_latest_sync_log(session)
+
+
 async def _mark_sync_failed(log_id: int, error_text: str) -> None:
     async with AsyncSessionLocal() as session:
         await session.execute(
@@ -745,6 +770,9 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
 
     async with AsyncSessionLocal() as session:
         for chunk in _chunked(entries, BATCH_SIZE):
+            if await _is_cancelled(log_id):
+                logger.info("NVD translate cancelled at chunk boundary log_id=%s done=%d", log_id, done)
+                break
             tasks = [generate_task(row) for row in chunk]
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -855,6 +883,9 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
 
         async with AsyncSessionLocal() as session:
             for chunk in _chunked(entries, BATCH_SIZE):
+                if await _is_cancelled(log_id):
+                    logger.info("NVD embed cancelled at chunk boundary log_id=%s done=%d", log_id, done)
+                    break
                 tasks = [embed_task(row) for row in chunk]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -1038,6 +1069,284 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
     except Exception as exc:  # noqa: BLE001 - background task errors must be logged
         add_event("ERROR", str(exc))
         logger.exception("NVD background sync failed log_id=%s", log_id)
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                {"log_id": log_id, "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
+        await _mark_sync_failed(log_id, str(exc))
+
+
+async def _create_standalone_log(session: AsyncSession, initial_status: str, initial_detailed: str) -> Dict[str, Any]:
+    row = (
+        await session.execute(
+            text(
+                """
+                INSERT INTO nvd_sync_log (
+                    fetched_at, fetched_count, inserted_count,
+                    embedding_total, embedding_completed, embedding_failed,
+                    translation_total, translation_completed, translation_failed,
+                    status, total_to_fetch, detailed_status, error
+                )
+                VALUES (now(), NULL, 0, 0, 0, 0, 0, 0, 0, :status, 0, :detailed, NULL)
+                RETURNING id, fetched_at
+                """
+            ),
+            {"status": initial_status, "detailed": initial_detailed},
+        )
+    ).mappings().one()
+    await session.commit()
+    return {
+        "id": row["id"],
+        "fetched_at": row["fetched_at"],
+        "window_start": None, "window_end": None,
+        "fetched_count": None, "inserted_count": 0,
+        "embedding_total": 0, "embedding_completed": 0, "embedding_failed": 0,
+        "translation_total": 0, "translation_completed": 0, "translation_failed": 0,
+        "total_to_fetch": 0,
+        "detailed_status": initial_detailed,
+        "status": initial_status,
+        "error": None,
+        "event_log": None,
+    }
+
+
+async def create_translate_log(session: AsyncSession) -> Dict[str, Any]:
+    return await _create_standalone_log(session, "translating", "Querying untranslated entries...")
+
+
+async def create_embed_log(session: AsyncSession) -> Dict[str, Any]:
+    return await _create_standalone_log(session, "embedding", "Querying unembedded entries...")
+
+
+async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> None:
+    event_log: List[Dict[str, str]] = []
+
+    def add_event(stage: str, message: str) -> None:
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+
+    try:
+        add_event("INIT", "Starting NVD fetch...")
+        add_event("FETCHING", "Connecting to NVD API")
+        result = await run_sync(
+            hours=hours,
+            embed_new_entries=False,
+            translate_new_entries=False,
+            include_inserted_rows=False,
+            log_id=log_id,
+        )
+        fetched_count = result.get("fetched", 0)
+        inserted_count = result.get("inserted", 0)
+        add_event("FETCHING", f"Completed: {fetched_count} CVEs fetched, {inserted_count} new entries stored")
+        add_event("SUCCESS", "Fetch complete")
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE nvd_sync_log
+                    SET window_start = :window_start, window_end = :window_end,
+                        fetched_count = :fetched_count, inserted_count = :inserted_count,
+                        status = 'success', detailed_status = :detailed_status,
+                        error = NULL, event_log = :event_log
+                    WHERE id = :log_id
+                    """
+                ),
+                {
+                    "log_id": log_id,
+                    "window_start": result.get("window_start"),
+                    "window_end": result.get("window_end"),
+                    "fetched_count": fetched_count,
+                    "inserted_count": inserted_count,
+                    "detailed_status": f"Fetched {fetched_count} CVEs, stored {inserted_count} new entries.",
+                    "event_log": json.dumps(event_log),
+                },
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001
+        add_event("ERROR", str(exc))
+        logger.exception("NVD fetch-only sync failed log_id=%s", log_id)
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                {"log_id": log_id, "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
+        await _mark_sync_failed(log_id, str(exc))
+
+
+async def run_translate_standalone_background(log_id: int) -> None:
+    event_log: List[Dict[str, str]] = []
+
+    def add_event(stage: str, message: str) -> None:
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+
+    try:
+        add_event("INIT", "Starting standalone translation...")
+
+        async with AsyncSessionLocal() as session:
+            rows = (await session.execute(
+                text(
+                    "SELECT id, cve_id, raw_en_text, cwe_ids, attack_vector "
+                    "FROM kb_entries WHERE source = 'nvd' AND ru_summary IS NULL "
+                    "ORDER BY id DESC LIMIT 2000"
+                )
+            )).mappings().all()
+            entries = [dict(r) for r in rows]
+
+        total = len(entries)
+        add_event("TRANSLATING", f"Found {total} untranslated entries")
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    "UPDATE nvd_sync_log SET translation_total = :total, "
+                    "detailed_status = :status, event_log = :event_log WHERE id = :log_id"
+                ),
+                {"log_id": log_id, "total": total, "status": f"Translating {total} entries...", "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
+
+        if total == 0:
+            add_event("SUCCESS", "No untranslated entries found")
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text(
+                        "UPDATE nvd_sync_log SET status = 'success', "
+                        "detailed_status = 'All entries already translated.', event_log = :event_log WHERE id = :log_id"
+                    ),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            return
+
+        res = await _translate_entries_for_log(log_id, entries)
+
+        if await _is_cancelled(log_id):
+            add_event("TRANSLATING", f"Stopped by user after {res['completed']} translations")
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            return
+
+        add_event("TRANSLATING", f"Completed: {res['completed']} ok, {res['failed']} failed")
+        add_event("SUCCESS", "Translation complete")
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE nvd_sync_log SET status = 'success',
+                        translation_completed = :completed, translation_failed = :failed,
+                        detailed_status = :detailed, event_log = :event_log
+                    WHERE id = :log_id
+                    """
+                ),
+                {
+                    "log_id": log_id,
+                    "completed": res["completed"], "failed": res["failed"],
+                    "detailed": f"Translated {res['completed']}/{total} entries.",
+                    "event_log": json.dumps(event_log),
+                },
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001
+        add_event("ERROR", str(exc))
+        logger.exception("NVD standalone translate failed log_id=%s", log_id)
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                {"log_id": log_id, "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
+        await _mark_sync_failed(log_id, str(exc))
+
+
+async def run_embed_standalone_background(log_id: int) -> None:
+    event_log: List[Dict[str, str]] = []
+
+    def add_event(stage: str, message: str) -> None:
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+
+    try:
+        add_event("INIT", "Starting standalone embedding...")
+
+        async with AsyncSessionLocal() as session:
+            rows = (await session.execute(
+                text(
+                    "SELECT id, cve_id, raw_en_text, cwe_ids, attack_vector "
+                    "FROM kb_entries WHERE source = 'nvd' AND embedding IS NULL "
+                    "ORDER BY id DESC LIMIT 2000"
+                )
+            )).mappings().all()
+            entries = [dict(r) for r in rows]
+
+        total = len(entries)
+        add_event("EMBEDDING", f"Found {total} entries without embeddings")
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    "UPDATE nvd_sync_log SET embedding_total = :total, "
+                    "detailed_status = :status, event_log = :event_log WHERE id = :log_id"
+                ),
+                {"log_id": log_id, "total": total, "status": f"Embedding {total} entries...", "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
+
+        if total == 0:
+            add_event("SUCCESS", "No entries need embedding")
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text(
+                        "UPDATE nvd_sync_log SET status = 'success', "
+                        "detailed_status = 'All entries already have embeddings.', event_log = :event_log WHERE id = :log_id"
+                    ),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            return
+
+        res = await _embed_entries_for_log(log_id, entries)
+
+        if await _is_cancelled(log_id):
+            add_event("EMBEDDING", f"Stopped by user after {res['completed']} embeddings")
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            return
+
+        add_event("EMBEDDING", f"Completed: {res['completed']} ok, {res['failed']} failed")
+        add_event("SUCCESS", "Embedding complete")
+
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE nvd_sync_log SET status = 'success',
+                        embedding_completed = :completed, embedding_failed = :failed,
+                        detailed_status = :detailed, event_log = :event_log
+                    WHERE id = :log_id
+                    """
+                ),
+                {
+                    "log_id": log_id,
+                    "completed": res["completed"], "failed": res["failed"],
+                    "detailed": f"Embedded {res['completed']}/{total} entries.",
+                    "event_log": json.dumps(event_log),
+                },
+            )
+            await session.commit()
+    except Exception as exc:  # noqa: BLE001
+        add_event("ERROR", str(exc))
+        logger.exception("NVD standalone embed failed log_id=%s", log_id)
         async with AsyncSessionLocal() as session:
             await session.execute(
                 text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
