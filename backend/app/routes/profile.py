@@ -26,6 +26,7 @@ from app.models.contest import LlmGeneration, PromptTemplate, Task
 from app.models.user import User, UserProfile, UserRating
 from app.services.auth_sessions import clear_refresh_cookie
 from app.services.storage import upload_avatar, delete_avatar
+from sqlalchemy import text
 
 router = APIRouter(prefix="/profile", tags=["Профиль"])
 logger = logging.getLogger(__name__)
@@ -40,6 +41,17 @@ async def _maybe_await(value):
 
 # ========== Схемы (Pydantic модели) ==========
 
+class CurrentTariffInfo(BaseModel):
+    """Информация о текущем тарифе пользователя"""
+    code: str
+    name: str
+    is_promo: bool = False
+    valid_to: Optional[str] = None
+    monthly_price_rub: float = 0
+    description: Optional[str] = None
+    limits: dict = {}
+
+
 class ProfileResponse(BaseModel):
     """Ответ с данными профиля"""
     id: int
@@ -52,7 +64,8 @@ class ProfileResponse(BaseModel):
     contest_rating: int = 0
     practice_rating: int = 0
     first_blood: int = 0
-    
+    current_tariff: Optional[CurrentTariffInfo] = None
+
     class Config:
         from_attributes = True
 
@@ -98,6 +111,43 @@ async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int, int]:
     return rating.contest_rating, rating.practice_rating, rating.first_blood
 
 
+async def _get_current_tariff(db: AsyncSession, user_id: int) -> Optional[CurrentTariffInfo]:
+    """Получить текущий тариф пользователя."""
+    result = await db.execute(
+        text(
+            """
+            SELECT tp.code, tp.name, tp.monthly_price_rub, tp.description, tp.limits,
+                   ut.is_promo, ut.valid_to
+            FROM user_tariffs ut
+            JOIN tariff_plans tp ON tp.id = ut.tariff_id
+            WHERE ut.user_id = :user_id
+              AND ut.valid_from <= now()
+              AND (ut.valid_to IS NULL OR ut.valid_to > now())
+            ORDER BY ut.valid_from DESC
+            LIMIT 1
+            """
+        ),
+        {"user_id": user_id},
+    )
+    row = result.mappings().first()
+    if not row:
+        return None
+
+    valid_to = row["valid_to"]
+    if valid_to:
+        valid_to = valid_to.isoformat()
+
+    return CurrentTariffInfo(
+        code=row["code"],
+        name=row["name"],
+        is_promo=row["is_promo"],
+        valid_to=valid_to,
+        monthly_price_rub=float(row["monthly_price_rub"]),
+        description=row["description"],
+        limits=row["limits"] if row["limits"] else {},
+    )
+
+
 def _build_profile_response(
     *,
     user: User,
@@ -105,6 +155,7 @@ def _build_profile_response(
     contest_rating: int,
     practice_rating: int,
     first_blood: int,
+    current_tariff: Optional[CurrentTariffInfo] = None,
 ) -> ProfileResponse:
     return ProfileResponse(
         id=user.id,
@@ -117,6 +168,7 @@ def _build_profile_response(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        current_tariff=current_tariff,
     )
 
 
@@ -132,8 +184,9 @@ async def get_profile(
     Требует авторизации (Authorization: Bearer).
     """
     user, profile = current_user_data
-    
+
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -141,6 +194,7 @@ async def get_profile(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        current_tariff=current_tariff,
     )
 
 
@@ -182,6 +236,7 @@ async def update_profile(
     await db.refresh(profile)
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -189,6 +244,7 @@ async def update_profile(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        current_tariff=current_tariff,
     )
 
 
@@ -215,6 +271,7 @@ async def update_onboarding_status(
     await db.refresh(profile)
 
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -222,6 +279,7 @@ async def update_onboarding_status(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        current_tariff=current_tariff,
     )
 
 
@@ -448,6 +506,7 @@ async def upload_user_avatar(
         )
     
     contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -455,4 +514,5 @@ async def upload_user_avatar(
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
+        current_tariff=current_tariff,
     )
