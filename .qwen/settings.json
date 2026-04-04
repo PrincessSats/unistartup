@@ -4,7 +4,10 @@
       "Bash(npm run *)",
       "Bash(python *)",
       "Bash(python3 *)",
-      "Bash(rm *)"
+      "Bash(rm *)",
+      "Bash(git rm *)",
+      "Bash(git commit *)",
+      "Bash(git add *)"
     ]
   },
   "$version": 3

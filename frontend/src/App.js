@@ -15,7 +15,9 @@ import EducationTask from './pages/EducationTask';
 import Home from './pages/Home';
 import Rating from './pages/Rating';
 import Admin from './pages/Admin/index.jsx';
+import ContestManager from './pages/Admin/ContestManager/index.jsx';
 import Pipeline from './pages/Pipeline';
+import NvdSync from './pages/NvdSync/index.jsx';
 import Layout from './components/Layout';
 import { FullScreenLoader } from './components/LoadingState';
 import { authAPI } from './services/api';
@@ -135,7 +137,9 @@ function App() {
         <Route element={<Layout />}>
           <Route path="/profile" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Profile /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Admin /></ProtectedRoute>} />
+          <Route path="/admin/contests" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><ContestManager /></ProtectedRoute>} />
           <Route path="/pipeline" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><Pipeline /></ProtectedRoute>} />
+          <Route path="/nvd-sync" element={<ProtectedRoute authReady={authReady} loginTarget={loginTarget}><NvdSync /></ProtectedRoute>} />
           <Route path="/home" element={<Home />} />
           <Route path="/championship" element={<Championship />} />
           <Route path="/education" element={<Education />} />

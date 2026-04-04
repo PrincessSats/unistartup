@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader } from '../../components/LoadingState';
 
 // Dashboard Components
 import StatCard from './Widgets/StatCard';
-import NvdSyncWidget from './Widgets/NvdSyncWidget';
 import FeedbackPanel from './Dashboard/FeedbackPanel';
 import ChampionshipWidget from './Dashboard/ChampionshipWidget';
 import RecentArticleCard from './Dashboard/RecentArticleCard';
@@ -32,7 +31,7 @@ function formatNumber(value) {
 
 function Admin() {
   const navigate = useNavigate();
-  const { loading, dashboard, error, refresh, refreshQuiet, setDashboard } = useAdminDashboard(navigate);
+  const { loading, dashboard, error, refresh, setDashboard } = useAdminDashboard(navigate);
 
   // Drawer states
   const [isKbOpen, setIsKbOpen] = useState(false);
@@ -49,60 +48,14 @@ function Admin() {
   const [isResolvingFeedback, setIsResolvingFeedback] = useState(false);
   const [feedbackResolveError, setFeedbackResolveError] = useState('');
 
-  // NVD sync state
-  const [isNvdRunning, setIsNvdRunning] = useState(false);
-  const [nvdError, setNvdError] = useState('');
-
   const stats = dashboard?.stats || {};
   const contest = dashboard?.current_championship || null;
   const lastArticle = dashboard?.last_article || null;
   const feedbacks = dashboard?.latest_feedbacks || [];
-  const nvdSync = dashboard?.nvd_sync || null;
 
   const paidConversion = stats.total_users
     ? ((stats.paid_users / stats.total_users) * 100).toFixed(1)
     : '0.0';
-
-  // NVD polling
-  const nvdStatus = nvdSync?.status || null;
-  const isNvdBackgroundRunning = useMemo(() => {
-    const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding']);
-    return NVD_ACTIVE_STATUSES.has(nvdStatus);
-  }, [nvdStatus]);
-
-  useEffect(() => {
-    if (!isNvdBackgroundRunning) return undefined;
-    const interval = setInterval(() => {
-      refreshQuiet();
-    }, 2500);
-    return () => clearInterval(interval);
-  }, [isNvdBackgroundRunning, refreshQuiet]);
-
-  const handleFetchNvd = useCallback(async () => {
-    const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding']);
-    const nvdStatus = nvdSync?.status || null;
-    if (isNvdRunning || NVD_ACTIVE_STATUSES.has(nvdStatus)) return;
-
-    setIsNvdRunning(true);
-    setNvdError('');
-    try {
-      const { adminAPI } = await import('../../services/api');
-      const data = await adminAPI.fetchNvd24h();
-      setDashboard((prev) => ({
-        ...(prev || {}),
-        nvd_sync: data,
-      }));
-    } catch (err) {
-      const detail = err?.response?.data?.detail;
-      const responseData = err?.response?.data;
-      let msg = 'Не удалось выполнить синхронизацию NVD';
-      if (typeof responseData === 'string' && responseData.trim()) msg = responseData;
-      else if (typeof detail === 'string' && detail.trim()) msg = detail;
-      setNvdError(msg);
-    } finally {
-      setIsNvdRunning(false);
-    }
-  }, [isNvdRunning, nvdSync, setDashboard]);
 
   const handleEditTask = useCallback((taskId) => {
     setTaskEditId(taskId);
@@ -206,9 +159,9 @@ function Admin() {
               База знаний
             </button>
           </div>
-          {(nvdError || error) && (
+          {error && (
             <div className="text-[14px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[12px] px-4 py-2">
-              {nvdError || error}
+              {error}
             </div>
           )}
         </div>
@@ -259,14 +212,6 @@ function Admin() {
           onViewHistory={() => setIsContestHistoryOpen(true)}
         />
       </div>
-
-      {/* NVD Sync Widget */}
-      <NvdSyncWidget
-        nvdSync={nvdSync}
-        onFetch={handleFetchNvd}
-        isRunning={isNvdRunning}
-        error={nvdError}
-      />
 
       {/* Recent Article */}
       <RecentArticleCard article={lastArticle} />

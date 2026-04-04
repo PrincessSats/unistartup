@@ -796,6 +796,19 @@ export const adminAPI = {
     const response = await api.post(`/admin/feedback/${feedbackId}/resolve`);
     return response.data;
   },
+  getActivityLog: async (params = {}) => {
+    const query = new URLSearchParams();
+    if (params.page) query.append('page', params.page);
+    if (params.page_size) query.append('page_size', params.page_size);
+    if (params.event_type) query.append('event_type', params.event_type);
+    if (params.contest_id) query.append('contest_id', params.contest_id);
+    if (params.source) query.append('source', params.source);
+    if (params.search_text) query.append('search_text', params.search_text);
+    if (params.date_from) query.append('date_from', params.date_from);
+    if (params.date_to) query.append('date_to', params.date_to);
+
+    return api.get(`/admin/activity-log?${query.toString()}`);
+  },
 };
 
 export const knowledgeAPI = {

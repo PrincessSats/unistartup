@@ -31,4 +31,16 @@ Thumbs.db
 *.pem
 *.key
 .env
+<<<<<<< HEAD
+.worktrees/
+.codex/
+.claude/
+.qwen/
+.gemini/
+.superpowers/
+=======
 .codex
+.claude
+.qwen
+.gemini
+>>>>>>> 339a431677d045a26630e8d7a5613806a1a124bd
