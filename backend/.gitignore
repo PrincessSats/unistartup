@@ -32,3 +32,6 @@ Thumbs.db
 *.key
 .env
 .codex
+.claude
+.qwen
+.gemini

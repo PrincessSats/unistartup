@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { authAPI, profileAPI } from '../services/api';
 import { PageLoader } from '../components/LoadingState';
+import TariffPlans from '../components/TariffPlans';
 
 function Profile() {
   const navigate = useNavigate();
@@ -465,6 +466,11 @@ function Profile() {
               >
                 Удалить аккаунт
               </button>
+            </div>
+
+            {/* Тарифный план */}
+            <div className="pt-4">
+              <TariffPlans currentTariff={userData?.current_tariff} />
             </div>
           </section>
         </div>
