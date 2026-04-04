@@ -52,8 +52,13 @@ from app.schemas.admin import (
 )
 from app.services.nvd_sync import (
     create_sync_log,
+    create_translate_log,
+    create_embed_log,
     get_latest_sync_log,
-    run_sync_background,
+    run_fetch_only_background,
+    run_translate_standalone_background,
+    run_embed_standalone_background,
+    stop_active_sync_log,
     sync_log_to_admin_payload,
 )
 from app.services.task_generation import (
@@ -796,7 +801,80 @@ async def sync_nvd_last_24h(
             ) from exc
         raise
 
-    background_tasks.add_task(run_sync_background, created_row["id"], hours=24)
+    background_tasks.add_task(run_fetch_only_background, created_row["id"], hours=24)
+    created_payload = sync_log_to_admin_payload(created_row)
+    return AdminNvdSync(**created_payload)
+
+
+@router.post("/admin/nvd_sync/stop", response_model=Optional[AdminNvdSync])
+async def stop_nvd_sync(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark the active sync as cancelled. Background task will stop at next chunk boundary."""
+    _user, _profile = current_user_data
+    row = await stop_active_sync_log(db)
+    return _admin_nvd_sync_from_row(row)
+
+
+@router.post("/admin/nvd_sync/translate", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
+async def translate_nvd_entries(
+    background_tasks: BackgroundTasks,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Translate kb_entries without ru_summary (standalone, background)."""
+    _user, _profile = current_user_data
+    await ensure_nvd_sync_schema_compatibility()
+
+    try:
+        active_row = await get_latest_sync_log(db, active_only=True)
+        if active_row:
+            active_payload = sync_log_to_admin_payload(active_row)
+            return AdminNvdSync(**active_payload)
+
+        created_row = await create_translate_log(db)
+    except ProgrammingError as exc:
+        error_text = str(exc)
+        if "nvd_sync_log" in error_text:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="nvd_sync_log table missing. Apply schema.sql changes.",
+            ) from exc
+        raise
+
+    background_tasks.add_task(run_translate_standalone_background, created_row["id"])
+    created_payload = sync_log_to_admin_payload(created_row)
+    return AdminNvdSync(**created_payload)
+
+
+@router.post("/admin/nvd_sync/embed", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
+async def embed_nvd_entries(
+    background_tasks: BackgroundTasks,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Embed kb_entries without embeddings (standalone, background)."""
+    _user, _profile = current_user_data
+    await ensure_nvd_sync_schema_compatibility()
+
+    try:
+        active_row = await get_latest_sync_log(db, active_only=True)
+        if active_row:
+            active_payload = sync_log_to_admin_payload(active_row)
+            return AdminNvdSync(**active_payload)
+
+        created_row = await create_embed_log(db)
+    except ProgrammingError as exc:
+        error_text = str(exc)
+        if "nvd_sync_log" in error_text:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="nvd_sync_log table missing. Apply schema.sql changes.",
+            ) from exc
+        raise
+
+    background_tasks.add_task(run_embed_standalone_background, created_row["id"])
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
 
