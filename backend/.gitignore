@@ -31,7 +31,9 @@ Thumbs.db
 *.pem
 *.key
 .env
-.codex
-.claude
-.qwen
-.gemini
+.worktrees/
+.codex/
+.claude/
+.qwen/
+.gemini/
+.superpowers/
