@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -23,7 +24,7 @@ SYNC_LOG_COLUMNS = (
     "id, fetched_at, window_start, window_end, fetched_count, inserted_count, "
     "embedding_total, embedding_completed, embedding_failed, "
     "translation_total, translation_completed, translation_failed, "
-    "status, error, total_to_fetch, detailed_status"
+    "status, error, total_to_fetch, detailed_status, event_log"
 )
 
 
@@ -62,6 +63,7 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
         "detailed_status": row.get("detailed_status"),
         "status": row.get("status"),
         "error": row.get("error"),
+        "event_log": row.get("event_log"),
     }
 
 
@@ -918,8 +920,21 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
 
 
 async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> None:
+    event_log: List[Dict[str, str]] = []
+
+    def add_event(stage: str, message: str) -> None:
+        """Add event to log with timestamp."""
+        event_log.append({
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "stage": stage,
+            "message": message,
+        })
+
     try:
+        add_event("INIT", "Starting NVD sync...")
+
         # Step 1: Fetch and Store (without automatic translation/embedding)
+        add_event("FETCHING", "Connecting to NVD API")
         result = await run_sync(
             hours=hours,
             embed_new_entries=False,
@@ -929,6 +944,10 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
         )
         inserted_rows = result.get("inserted_rows", []) or []
         inserted_count = len(inserted_rows)
+        fetched_count = result.get("fetched", 0)
+
+        add_event("FETCHING", f"Completed: {fetched_count} CVEs fetched")
+        add_event("FETCHING", f"Storing {inserted_count} new entries to database")
 
         async with AsyncSessionLocal() as session:
             await session.execute(
@@ -943,7 +962,8 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                         embedding_total = :embedding_total,
                         status = :status,
                         detailed_status = :detailed_status,
-                        error = NULL
+                        error = NULL,
+                        event_log = :event_log
                     WHERE id = :log_id
                     """
                 ),
@@ -957,30 +977,42 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                     "embedding_total": inserted_count,
                     "status": "translating" if inserted_count > 0 else "success",
                     "detailed_status": f"Stored {inserted_count} new entries. Starting translation..." if inserted_count > 0 else "Finished. No new entries found.",
+                    "event_log": json.dumps(event_log),
                 },
             )
             await session.commit()
 
         if inserted_count == 0:
+            add_event("SUCCESS", "No new entries found")
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
             return
 
         # Step 2: Translation
+        add_event("TRANSLATING", f"Starting article generation for {inserted_count} entries...")
         await _translate_entries_for_log(log_id, inserted_rows)
+        add_event("TRANSLATING", f"Completed: Articles generated for {inserted_count} entries")
 
         # Update status before embedding
         async with AsyncSessionLocal() as session:
             await session.execute(
                 text(
-                    "UPDATE nvd_sync_log SET status = 'embedding', detailed_status = 'Starting embeddings...' WHERE id = :log_id"
+                    "UPDATE nvd_sync_log SET status = 'embedding', detailed_status = 'Starting embeddings...', event_log = :event_log WHERE id = :log_id"
                 ),
-                {"log_id": log_id},
+                {"log_id": log_id, "event_log": json.dumps(event_log)},
             )
             await session.commit()
 
         # Step 3: Embedding
+        add_event("EMBEDDING", f"Starting embeddings for {inserted_count} entries...")
         embedding_result = await _embed_entries_for_log(log_id, inserted_rows)
         # We don't fail the whole sync if some embeddings fail, but we log it
-        
+        add_event("EMBEDDING", f"Completed: {embedding_result['completed']} successful, {embedding_result['failed']} failed")
+
         async with AsyncSessionLocal() as session:
             await session.execute(
                 text(
@@ -989,7 +1021,8 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                     SET status = 'success',
                         detailed_status = :detailed_status,
                         embedding_completed = :completed,
-                        embedding_failed = :failed
+                        embedding_failed = :failed,
+                        event_log = :event_log
                     WHERE id = :log_id
                     """
                 ),
@@ -998,11 +1031,19 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                     "completed": embedding_result["completed"],
                     "failed": embedding_result["failed"],
                     "detailed_status": f"Sync completed. Processed {inserted_count} entries.",
+                    "event_log": json.dumps(event_log),
                 },
             )
             await session.commit()
     except Exception as exc:  # noqa: BLE001 - background task errors must be logged
+        add_event("ERROR", str(exc))
         logger.exception("NVD background sync failed log_id=%s", log_id)
+        async with AsyncSessionLocal() as session:
+            await session.execute(
+                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                {"log_id": log_id, "event_log": json.dumps(event_log)},
+            )
+            await session.commit()
         await _mark_sync_failed(log_id, str(exc))
 
 
