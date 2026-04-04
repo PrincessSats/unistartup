@@ -792,6 +792,22 @@ export const adminAPI = {
     const response = await api.get('/admin/nvd_sync');
     return response.data;
   },
+  stopNvdSync: async () => {
+    const response = await api.post('/admin/nvd_sync/stop');
+    return response.data;
+  },
+  triggerNvdTranslate: async () => {
+    const response = await api.post('/admin/nvd_sync/translate', null, {
+      timeout: ADMIN_NVD_TIMEOUT_MS,
+    });
+    return response.data;
+  },
+  triggerNvdEmbed: async () => {
+    const response = await api.post('/admin/nvd_sync/embed', null, {
+      timeout: ADMIN_NVD_TIMEOUT_MS,
+    });
+    return response.data;
+  },
   resolveFeedback: async (feedbackId) => {
     const response = await api.post(`/admin/feedback/${feedbackId}/resolve`);
     return response.data;

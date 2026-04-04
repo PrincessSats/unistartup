@@ -63,6 +63,7 @@ class AdminNvdSync(BaseModel):
     detailed_status: Optional[str] = None
     status: Optional[str] = None
     error: Optional[str] = None
+    event_log: Optional[list] = None
 
 
 class AdminDashboardResponse(BaseModel):
