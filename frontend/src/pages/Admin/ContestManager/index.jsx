@@ -20,7 +20,7 @@ export default function ContestManager() {
         const [contestsRes] = await Promise.all([
           adminAPI.listContests(),
         ]);
-        setContests(contestsRes.data || []);
+        setContests(Array.isArray(contestsRes) ? contestsRes : []);
         setError(null);
       } catch (err) {
         console.error('Failed to load data:', err);
