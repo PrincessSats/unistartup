@@ -22,6 +22,7 @@ from app.models.contest import (
     PromptTemplate,
 )
 from app.models.audit_log import AuditLog
+from app.models.activity import ActivityLog, EventType, EventSource
 
 __all__ = [
     # user models
@@ -59,4 +60,8 @@ __all__ = [
     'PromptTemplate',
     # audit log
     'AuditLog',
+    # activity log
+    'ActivityLog',
+    'EventType',
+    'EventSource',
 ]
