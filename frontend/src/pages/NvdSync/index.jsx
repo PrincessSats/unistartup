@@ -1,291 +1,291 @@
 import React, { useEffect, useRef } from 'react';
 import useNvdSyncData from './useNvdSyncData';
 
-const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
-
-function formatNumber(value) {
+function fmt(value) {
   if (value === null || value === undefined) return '—';
   if (Number.isNaN(Number(value))) return '—';
   return Number(value).toLocaleString('ru-RU');
 }
 
-function formatDateTime(value) {
+function fmtDt(value) {
   if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-function getNvdProgress(sync) {
-  const total = Number(sync?.embedding_total || 0);
-  const completed = Number(sync?.embedding_completed || 0);
-  const failed = Number(sync?.embedding_failed || 0);
-  const processed = total > 0 ? Math.min(total, completed + failed) : 0;
-  const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
+function pct(completed, total) {
+  if (!total) return 0;
+  return Math.max(0, Math.min(100, Math.round((Math.min(completed, total) / total) * 100)));
+}
 
-  const transTotal = Number(sync?.translation_total || 0);
-  const transCompleted = Number(sync?.translation_completed || 0);
-  const transFailed = Number(sync?.translation_failed || 0);
-  const transProcessed = transTotal > 0 ? Math.min(transTotal, transCompleted + transFailed) : 0;
-  const transPercent = transTotal > 0 ? Math.max(0, Math.min(100, Math.round((transProcessed / transTotal) * 100))) : 0;
+const STATUS_COLORS = {
+  fetching: { dot: 'bg-blue-400 animate-pulse', badge: 'bg-blue-500/10 border-blue-500/25', text: 'text-blue-400', label: 'Fetching CVEs...' },
+  translating: { dot: 'bg-purple-400 animate-pulse', badge: 'bg-purple-500/10 border-purple-500/25', text: 'text-purple-400', label: 'Translating articles...' },
+  embedding: { dot: 'bg-cyan-400 animate-pulse', badge: 'bg-cyan-500/10 border-cyan-500/25', text: 'text-cyan-400', label: 'Computing embeddings...' },
+  success: { dot: 'bg-emerald-400', badge: 'bg-emerald-500/10 border-emerald-500/25', text: 'text-emerald-400', label: 'Completed' },
+  partial_success: { dot: 'bg-amber-400', badge: 'bg-amber-500/10 border-amber-500/25', text: 'text-amber-400', label: 'Partial success' },
+  failed: { dot: 'bg-rose-400', badge: 'bg-rose-500/10 border-rose-500/25', text: 'text-rose-400', label: 'Failed' },
+  cancelled: { dot: 'bg-white/40', badge: 'bg-white/5 border-white/15', text: 'text-white/50', label: 'Stopped' },
+};
 
-  return {
-    total,
-    completed,
-    failed,
-    processed,
-    percent,
-    transTotal,
-    transCompleted,
-    transFailed,
-    transProcessed,
-    transPercent,
+function StatusBadge({ status }) {
+  const c = STATUS_COLORS[status] || STATUS_COLORS.success;
+  return (
+    <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${c.badge}`}>
+      <div className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+      <span className={`text-[12px] ${c.text}`}>{c.label}</span>
+    </div>
+  );
+}
+
+function ProgressBar({ value, color = 'emerald', label, current, total, showWhenEmpty = false }) {
+  const isEmpty = !total;
+  if (isEmpty && !showWhenEmpty) return null;
+  const barClass = color === 'purple'
+    ? 'bg-gradient-to-r from-purple-400 to-fuchsia-400'
+    : color === 'cyan'
+      ? 'bg-gradient-to-r from-cyan-400 to-blue-400'
+      : 'bg-gradient-to-r from-emerald-400 to-teal-400';
+
+  return (
+    <div>
+      <div className="flex justify-between items-baseline mb-1.5">
+        <span className="text-[12px] text-white/50">{label}</span>
+        <span className="text-[11px] font-mono text-white/40">{fmt(current)} / {fmt(total || 0)}</span>
+      </div>
+      <div className="h-2 bg-white/[0.07] rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ease-out ${barClass}`}
+          style={{ width: `${isEmpty ? 0 : value}%` }}
+        />
+      </div>
+      <div className="text-right mt-0.5">
+        <span className="text-[10px] text-white/25">{isEmpty ? '—' : `${value}%`}</span>
+      </div>
+    </div>
+  );
+}
+
+function ActionButton({ label, onClick, disabled, loading, color = 'white' }) {
+  const colorMap = {
+    white: 'bg-white/[0.1] border-white/[0.3] text-white/60 hover:bg-white/[0.2] hover:text-white/80 hover:border-white/[0.5]',
+    purple: 'bg-purple-500/10 border-purple-500/30 text-purple-300 hover:bg-purple-500/20 hover:text-purple-200 hover:border-purple-400/50',
+    cyan: 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 hover:text-cyan-200 hover:border-cyan-400/50',
   };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`h-9 px-4 rounded-[9px] border text-[12px] tracking-[0.05em] font-medium transition-colors duration-200 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed ${colorMap[color]}`}
+    >
+      {loading ? (
+        <span className="flex items-center gap-2">
+          <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+          Running...
+        </span>
+      ) : label}
+    </button>
+  );
 }
-
-const NVD_ACTIVE_STATUSES = new Set(['fetching', 'embedding', 'translating']);
 
 function NvdSync() {
-  const { nvdSync, isRunning, error, onFetch } = useNvdSyncData();
+  const { nvdSync, isBusy, pendingOp, isActive, error, onFetch, onTranslate, onEmbed, onStop } = useNvdSyncData();
   const eventLogRef = useRef(null);
 
-  const nvdStatus = nvdSync?.status || null;
-  const nvdProgress = React.useMemo(() => getNvdProgress(nvdSync), [nvdSync]);
-  const isNvdBusy = isRunning || NVD_ACTIVE_STATUSES.has(nvdStatus);
+  const s = nvdSync || {};
+  const status = s.status || null;
+  const isFetching = status === 'fetching' || pendingOp === 'fetch';
+  const isTranslating = status === 'translating' || pendingOp === 'translate';
+  const isEmbedding = status === 'embedding' || pendingOp === 'embed';
 
-  const nvdStatusLabel = React.useMemo(() => {
-    if (nvdStatus === 'fetching') return 'Получаем CVE из NVD';
-    if (nvdStatus === 'translating') return 'Генерируем статьи для KB';
-    if (nvdStatus === 'embedding') return 'Считаем embeddings';
-    if (nvdStatus === 'failed') return 'Синхронизация завершилась ошибкой';
-    if (nvdStatus === 'partial_success') return 'Синхронизация прервана, но данные сохранены';
-    if (nvdStatus === 'success' && nvdProgress.total > 0) return 'Embeddings готовы';
-    if (nvdStatus === 'success') return 'Синхронизация завершена';
-    return 'Нет активной синхронизации';
-  }, [nvdProgress.total, nvdStatus]);
+  const transPct = pct((s.translation_completed || 0) + (s.translation_failed || 0), s.translation_total);
+  const embedPct = pct((s.embedding_completed || 0) + (s.embedding_failed || 0), s.embedding_total);
 
-  // Auto-scroll event log to bottom when new events arrive
+  const eventLog = Array.isArray(s.event_log) ? s.event_log : [];
+
   useEffect(() => {
     if (eventLogRef.current) {
       eventLogRef.current.scrollTop = eventLogRef.current.scrollHeight;
     }
-  }, [nvdSync?.event_log]);
+  }, [eventLog.length]);
 
-  const eventLog = nvdSync?.event_log || [];
+  const STAGE_COLOR = { FETCHING: 'text-blue-400', TRANSLATING: 'text-purple-400', EMBEDDING: 'text-cyan-400', SUCCESS: 'text-emerald-400', ERROR: 'text-rose-400', INIT: 'text-white/50' };
 
   return (
-    <div className="flex-1 min-w-0">
-      {/* Page Header */}
-      <div className="mb-6">
-        <div className="text-[22px] leading-[26px] font-semibold tracking-[0.02em] text-white">
-          NVD Sync
-        </div>
-        <div className="text-[13px] text-white/40 mt-1">
-          Синхронизация CVE из National Vulnerability Database
-        </div>
+    <div className="flex-1 min-w-0 space-y-4">
+      {/* Header */}
+      <div>
+        <div className="text-[22px] leading-[26px] font-semibold tracking-[0.02em] text-white">NVD Sync</div>
+        <div className="text-[13px] text-white/40 mt-1">Синхронизация CVE из National Vulnerability Database</div>
       </div>
 
-      {/* Error Banner */}
       {error && (
-        <div className="text-[14px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[12px] px-4 py-2 mb-4">
+        <div className="text-[13px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[10px] px-4 py-2">
           {error}
         </div>
       )}
 
-      {/* 3-Panel Grid */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Panel 1: Sync Data */}
-        <div className={`${cardBase} p-6`}>
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div>
-              <div className="text-[12px] uppercase tracking-[0.18em] text-white/30 mb-2">Sync Data</div>
-              <div className="text-[16px] leading-[20px] font-semibold text-white">
-                Current Sync Status
-              </div>
-              <div className="text-[12px] text-white/40 mt-1">
-                Состояние синхронизации и управление запуском
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={onFetch}
-              disabled={isNvdBusy}
-              className="h-10 px-4 rounded-[10px] bg-white/[0.15] border border-white/[0.4] text-white/70 text-[13px] tracking-[0.04em] transition-colors duration-200 hover:bg-white/[0.25] hover:text-white/80 hover:border-white/[0.6] disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap flex-shrink-0"
-            >
-              {isRunning
-                ? 'Starting...'
-                : nvdStatus === 'fetching'
-                  ? 'Fetching NVD...'
-                  : nvdStatus === 'embedding'
-                    ? 'Embedding...'
-                    : '▶ Fetch NVD 24h'}
-            </button>
-          </div>
-
-          {/* Status Badge */}
-          <div className="flex items-center gap-2 mb-4">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${
-              nvdStatus === 'failed' ? 'bg-rose-500/10 border-rose-500/25' :
-              nvdStatus === 'partial_success' ? 'bg-amber-500/10 border-amber-500/25' :
-              NVD_ACTIVE_STATUSES.has(nvdStatus) ? 'bg-purple-500/10 border-purple-500/25' :
-              'bg-emerald-500/10 border-emerald-500/25'
-            }`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${
-                nvdStatus === 'failed' ? 'bg-rose-400' :
-                nvdStatus === 'partial_success' ? 'bg-amber-400' :
-                NVD_ACTIVE_STATUSES.has(nvdStatus) ? 'bg-purple-400 animate-pulse' :
-                'bg-emerald-400'
-              }`} />
-              <span className={`text-[12px] ${
-                nvdStatus === 'failed' ? 'text-rose-400' :
-                nvdStatus === 'partial_success' ? 'text-amber-400' :
-                NVD_ACTIVE_STATUSES.has(nvdStatus) ? 'text-purple-400' :
-                'text-emerald-400'
-              }`}>{nvdStatusLabel}</span>
-            </div>
-            <span className="text-[11px] text-white/30 ml-auto">
-              Last: {formatDateTime(nvdSync?.last_fetch_at)}
-            </span>
-          </div>
-
-          {/* Pipeline Stages */}
-          <div className="flex gap-2 mb-4">
-            <div className="flex-1 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/7 text-center">
-              <div className="text-[11px] font-semibold text-emerald-400 mb-1">Fetching</div>
-              <div className="text-[10px] text-emerald-400/70">{formatNumber(nvdSync?.fetched_count)}</div>
-            </div>
-            <div className="flex-1 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/7 text-center">
-              <div className="text-[11px] font-semibold text-emerald-400 mb-1">Translating</div>
-              <div className="text-[10px] text-emerald-400/70">{formatNumber(nvdSync?.translation_total)}</div>
-            </div>
-            <div className="flex-1 px-3 py-2 rounded-lg border border-emerald-500/30 bg-emerald-500/7 text-center">
-              <div className="text-[11px] font-semibold text-emerald-400 mb-1">Embedding</div>
-              <div className="text-[10px] text-emerald-400/70">{formatNumber(nvdProgress.total)}</div>
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="flex gap-3">
-            <div className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2">
-              <div className="text-[18px] font-semibold text-white font-variant-numeric">{formatNumber(nvdSync?.fetched_count)}</div>
-              <div className="text-[11px] text-white/40 mt-0.5">CVEs fetched</div>
-            </div>
-            <div className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2">
-              <div className="text-[18px] font-semibold text-white">{formatNumber(nvdSync?.last_inserted)}</div>
-              <div className="text-[11px] text-white/40 mt-0.5">New articles</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Panel 2: Translation Progress */}
-        <div className={`${cardBase} p-6`}>
-          <div className="mb-4">
-            <div className="text-[12px] uppercase tracking-[0.18em] text-white/30 mb-2">Translation Progress</div>
-            <div className="text-[16px] leading-[20px] font-semibold text-white">
-              Pipeline Status
-            </div>
-            <div className="text-[12px] text-white/40 mt-1">
-              Статус перевода и embeddings
-            </div>
-          </div>
-
-          {/* Translation Progress */}
-          <div className="mb-4">
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[12px] text-white/50">Translation</span>
-              <span className="text-[12px] font-mono text-white/60">{formatNumber(nvdProgress.transProcessed)} / {formatNumber(nvdProgress.transTotal)}</span>
-            </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full transition-all duration-500"
-                style={{ width: `${nvdProgress.transPercent}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Embedding Progress */}
-          <div className="mb-4">
-            <div className="flex justify-between items-baseline mb-2">
-              <span className="text-[12px] text-white/50">Embeddings</span>
-              <span className="text-[12px] font-mono text-white/60">{formatNumber(nvdProgress.processed)} / {formatNumber(nvdProgress.total)}</span>
-            </div>
-            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  nvdProgress.failed > 0
-                    ? 'bg-gradient-to-r from-amber-400 to-yellow-400'
-                    : 'bg-gradient-to-r from-emerald-400 to-teal-400'
-                }`}
-                style={{ width: `${nvdProgress.percent}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="flex gap-3">
-            <div className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2">
-              <div className="text-[18px] font-semibold text-emerald-400">{formatNumber(nvdProgress.completed)}</div>
-              <div className="text-[11px] text-white/40 mt-0.5">Complete</div>
-            </div>
-            <div className="flex-1 bg-white/[0.04] border border-white/[0.08] rounded-lg px-3 py-2">
-              <div className="text-[18px] font-semibold text-rose-400">{formatNumber(nvdProgress.failed)}</div>
-              <div className="text-[11px] text-white/40 mt-0.5">Failed</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Panel 3: Event Log (Full Width) */}
-        <div className={`${cardBase} p-6 col-span-2`}>
-          <div className="mb-4">
-            <div className="text-[12px] uppercase tracking-[0.18em] text-white/30 mb-2">Event Log</div>
-            <div className="text-[16px] leading-[20px] font-semibold text-white">
-              Real-time Sync Log
-            </div>
-            <div className="text-[12px] text-white/40 mt-1">
-              Событийный лог текущей синхронизации
-            </div>
-          </div>
-
-          {/* Event Log Container */}
-          <div
-            ref={eventLogRef}
-            className="h-64 max-h-64 overflow-y-auto bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 font-mono text-[11px] leading-relaxed"
+      {/* Status row */}
+      <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] px-5 py-4 flex items-center gap-4 flex-wrap">
+        {status ? <StatusBadge status={status} /> : <span className="text-[12px] text-white/30 italic">Нет данных</span>}
+        {s.detailed_status && (
+          <span className="text-[12px] text-white/40">{s.detailed_status}</span>
+        )}
+        <span className="ml-auto text-[11px] text-white/25">Last: {fmtDt(s.last_fetch_at)}</span>
+        {isActive && (
+          <button
+            type="button"
+            onClick={onStop}
+            disabled={pendingOp === 'stop'}
+            className="h-8 px-3 rounded-[8px] border border-rose-500/40 bg-rose-500/10 text-rose-400 text-[12px] tracking-[0.04em] transition-colors duration-200 hover:bg-rose-500/20 hover:border-rose-400/60 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            {eventLog && eventLog.length > 0 ? (
-              eventLog.map((event, idx) => {
-                const timestamp = new Date(event.timestamp).toLocaleTimeString('ru-RU', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                });
-                let stageColor = 'text-white/40';
-                if (event.stage === 'FETCHING') stageColor = 'text-blue-400';
-                else if (event.stage === 'TRANSLATING') stageColor = 'text-purple-400';
-                else if (event.stage === 'EMBEDDING') stageColor = 'text-cyan-400';
-                else if (event.stage === 'SUCCESS') stageColor = 'text-emerald-400';
-                else if (event.stage === 'ERROR') stageColor = 'text-rose-400';
-                else if (event.stage === 'INIT') stageColor = 'text-white/60';
+            {pendingOp === 'stop' ? 'Stopping...' : '■ Stop'}
+          </button>
+        )}
+      </div>
 
-                return (
-                  <div key={idx} className="border-b border-white/[0.05] py-1 last:border-b-0">
-                    <span className="text-white/30">[{timestamp}]</span>
-                    {' '}
-                    <span className={stageColor}>{event.stage}</span>
-                    {' '}
-                    <span className="text-white/70">{event.message}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="text-white/40 italic">Нет событий</div>
-            )}
+      {/* 3 stage cards */}
+      <div className="grid grid-cols-3 gap-4">
+        {/* Fetch */}
+        <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.15em] text-blue-400/60 mb-1">Stage 1</div>
+              <div className="text-[14px] font-semibold text-white">Fetch CVEs</div>
+              <div className="text-[11px] text-white/35 mt-0.5">Загрузка из NVD API за 24ч</div>
+            </div>
+            <ActionButton
+              label="▶ Fetch"
+              onClick={onFetch}
+              disabled={isBusy}
+              loading={isFetching}
+              color="white"
+            />
           </div>
+          <div className="grid grid-cols-2 gap-2 mt-auto">
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-white">{fmt(s.fetched_count)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">CVEs fetched</div>
+            </div>
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-white">{fmt(s.last_inserted)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">New stored</div>
+            </div>
+          </div>
+          {isFetching && s.total_to_fetch > 0 && (
+            <ProgressBar
+              value={pct(s.fetched_count, s.total_to_fetch)}
+              color="emerald"
+              label="Fetching"
+              current={s.fetched_count}
+              total={s.total_to_fetch}
+              showWhenEmpty
+            />
+          )}
+        </div>
+
+        {/* Translate */}
+        <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.15em] text-purple-400/60 mb-1">Stage 2</div>
+              <div className="text-[14px] font-semibold text-white">Translate</div>
+              <div className="text-[11px] text-white/35 mt-0.5">Генерация KB-статей (ru)</div>
+            </div>
+            <ActionButton
+              label="▶ Translate"
+              onClick={onTranslate}
+              disabled={isBusy}
+              loading={isTranslating}
+              color="purple"
+            />
+          </div>
+          <ProgressBar
+            value={transPct}
+            color="purple"
+            label="Translation"
+            current={(s.translation_completed || 0) + (s.translation_failed || 0)}
+            total={s.translation_total}
+            showWhenEmpty={isTranslating}
+          />
+          <div className="grid grid-cols-2 gap-2 mt-auto">
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-emerald-400">{fmt(s.translation_completed)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">Done</div>
+            </div>
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-rose-400">{fmt(s.translation_failed)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">Failed</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Embed */}
+        <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.15em] text-cyan-400/60 mb-1">Stage 3</div>
+              <div className="text-[14px] font-semibold text-white">Embed</div>
+              <div className="text-[11px] text-white/35 mt-0.5">Векторные embeddings</div>
+            </div>
+            <ActionButton
+              label="▶ Embed"
+              onClick={onEmbed}
+              disabled={isBusy}
+              loading={isEmbedding}
+              color="cyan"
+            />
+          </div>
+          <ProgressBar
+            value={embedPct}
+            color="cyan"
+            label="Embeddings"
+            current={(s.embedding_completed || 0) + (s.embedding_failed || 0)}
+            total={s.embedding_total}
+            showWhenEmpty={isEmbedding}
+          />
+          <div className="grid grid-cols-2 gap-2 mt-auto">
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-emerald-400">{fmt(s.embedding_completed)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">Done</div>
+            </div>
+            <div className="bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-2">
+              <div className="text-[16px] font-semibold text-rose-400">{fmt(s.embedding_failed)}</div>
+              <div className="text-[10px] text-white/35 mt-0.5">Failed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Event log */}
+      <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5">
+        <div className="mb-3">
+          <div className="text-[11px] uppercase tracking-[0.15em] text-white/25 mb-1">Event Log</div>
+          <div className="text-[14px] font-semibold text-white">Real-time Sync Log</div>
+        </div>
+        <div
+          ref={eventLogRef}
+          className="h-52 overflow-y-auto bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 font-mono text-[11px] leading-relaxed"
+        >
+          {eventLog.length > 0 ? (
+            eventLog.map((ev, idx) => {
+              const ts = new Date(ev.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+              const col = STAGE_COLOR[ev.stage] || 'text-white/40';
+              return (
+                <div key={idx} className="border-b border-white/[0.04] py-1 last:border-b-0">
+                  <span className="text-white/25">[{ts}]</span>
+                  {' '}
+                  <span className={col}>{ev.stage}</span>
+                  {' '}
+                  <span className="text-white/65">{ev.message}</span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="text-white/30 italic">Нет событий</div>
+          )}
         </div>
       </div>
     </div>
