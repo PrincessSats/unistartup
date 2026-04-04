@@ -38,7 +38,7 @@ export default function ActivityFeed({ refreshKey }) {
   const [pageSize] = useState(50);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [eventTypeFilter, setEventTypeFilter] = useState([]);
+  const [eventTypeFilter] = useState([]);
   const [sourceFilter, setSourceFilter] = useState('all');
   const [expandedEventId, setExpandedEventId] = useState(null);
 
