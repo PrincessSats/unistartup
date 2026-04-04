@@ -64,7 +64,8 @@ explain.txt
 
 # Worktrees
 .worktrees/
-.codex
-.claude
-.qwen
-.gemini
+.codex/
+.claude/
+.qwen/
+.gemini/
+.superpowers/
