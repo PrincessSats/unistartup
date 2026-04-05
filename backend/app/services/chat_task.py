@@ -37,9 +37,37 @@ _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
 _async_client: Optional[AsyncOpenAI] = None
 
+# Role-boundary tokens used by common LLM tokenizers; strip to prevent role spoofing.
+_ROLE_BOUNDARY_TOKENS = re.compile(
+    r"(<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|<\|system\|>|<\|user\|>|<\|assistant\|>"
+    r"|<\|begin_of_text\|>|<\|end_of_text\|>|\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>)",
+    re.IGNORECASE,
+)
+# ASCII control characters except tab (0x09) and newline (0x0A, 0x0D)
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
 
 class ChatTaskError(RuntimeError):
     pass
+
+
+def sanitize_user_message(text: str) -> str:
+    """
+    Sanitize a user message before it is stored and sent to the LLM.
+
+    Removes control characters and special tokenizer role-boundary tokens that
+    could break message-role separation in the LLM API call.  Prompt-injection
+    phrasing ("ignore previous instructions", etc.) is intentionally NOT blocked
+    because bypassing the system prompt is the CTF challenge mechanic.
+    """
+    import unicodedata
+    # Normalize unicode to prevent homoglyph / hidden-character tricks
+    text = unicodedata.normalize("NFKC", text)
+    # Strip LLM role-boundary special tokens
+    text = _ROLE_BOUNDARY_TOKENS.sub("", text)
+    # Strip ASCII control characters (keep \t, \n, \r)
+    text = _CONTROL_CHARS.sub("", text)
+    return text
 
 
 class ChatTaskConfigError(ChatTaskError):
@@ -682,7 +710,7 @@ async def generate_chat_reply(
         raise ChatTaskSessionExpiredError("Чат-сессия истекла")
 
     limits = get_chat_limits_for_task(task)
-    message_text = (user_message or "").strip()
+    message_text = sanitize_user_message((user_message or "").strip())
     if not message_text:
         raise ChatTaskError("Message is empty")
     if len(message_text) > limits.user_message_max_chars:

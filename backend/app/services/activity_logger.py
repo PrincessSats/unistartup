@@ -55,7 +55,7 @@ async def log_activity(
     except Exception as e:
         logger.error(f"Failed to log activity: {e}")
         # Don't raise - activity logging should not break the main action
-        raise
+        return None
 
 
 async def log_contest_created(

@@ -49,6 +49,7 @@ from app.schemas.admin import (
     AdminPromptUpdateRequest,
     ActivityLogItemResponse,
     ActivityLogListResponse,
+    CveSearchResult,
 )
 from app.services.nvd_sync import (
     create_sync_log,
@@ -593,6 +594,40 @@ async def list_kb_entries_admin(
     return [AdminArticle(**row) for row in rows]
 
 
+@router.get("/admin/cve_search", response_model=list[CveSearchResult])
+async def search_cves(
+    q: str = Query("", min_length=0),
+    limit: int = Query(20, ge=1, le=100),
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search kb_entries by CVE ID or title text. Empty q returns most recent entries."""
+    _user, _profile = current_user_data
+    if q.strip():
+        sql = text(
+            """
+            SELECT id, cve_id, ru_title, ru_summary
+            FROM kb_entries
+            WHERE cve_id ILIKE :q OR ru_title ILIKE :q
+            ORDER BY COALESCE(updated_at, created_at) DESC
+            LIMIT :limit
+            """
+        )
+        params = {"q": f"%{q.strip()}%", "limit": limit}
+    else:
+        sql = text(
+            """
+            SELECT id, cve_id, ru_title, ru_summary
+            FROM kb_entries
+            ORDER BY COALESCE(updated_at, created_at) DESC
+            LIMIT :limit
+            """
+        )
+        params = {"limit": limit}
+    rows = (await db.execute(sql, params)).mappings().all()
+    return [CveSearchResult(**row) for row in rows]
+
+
 @router.put("/admin/kb_entries/{entry_id}", response_model=AdminArticle)
 async def update_kb_entry(
     entry_id: int,
@@ -770,7 +805,13 @@ async def get_nvd_sync_status(
             ) from exc
         raise
 
-    return _admin_nvd_sync_from_row(row)
+    untranslated = (
+        await db.execute(text("SELECT COUNT(*) FROM kb_entries WHERE source = 'nvd' AND ru_summary IS NULL"))
+    ).scalar_one()
+
+    payload = sync_log_to_admin_payload(row) or {}
+    payload["untranslated_count"] = untranslated
+    return AdminNvdSync(**payload)
 
 
 @router.post("/admin/nvd_sync", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
@@ -822,8 +863,9 @@ async def translate_nvd_entries(
     background_tasks: BackgroundTasks,
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
+    limit: Optional[int] = Query(None, ge=1, le=50000),
 ):
-    """Translate kb_entries without ru_summary (standalone, background)."""
+    """Translate kb_entries without ru_summary (newest first, optional limit)."""
     _user, _profile = current_user_data
     await ensure_nvd_sync_schema_compatibility()
 
@@ -843,7 +885,7 @@ async def translate_nvd_entries(
             ) from exc
         raise
 
-    background_tasks.add_task(run_translate_standalone_background, created_row["id"])
+    background_tasks.add_task(run_translate_standalone_background, created_row["id"], limit=limit)
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
 
@@ -877,6 +919,31 @@ async def embed_nvd_entries(
     background_tasks.add_task(run_embed_standalone_background, created_row["id"])
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
+
+
+@router.delete("/admin/nvd_sync/untranslated", response_model=dict)
+async def purge_untranslated_entries(
+    keep: int = Query(300, ge=0, le=10000),
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete kb_entries without ru_summary, keeping the newest `keep` rows."""
+    _user, _profile = current_user_data
+    result = await db.execute(
+        text("""
+            DELETE FROM kb_entries
+            WHERE ru_summary IS NULL
+              AND id NOT IN (
+                  SELECT id FROM kb_entries
+                  WHERE ru_summary IS NULL
+                  ORDER BY id DESC
+                  LIMIT :keep
+              )
+        """),
+        {"keep": keep},
+    )
+    await db.commit()
+    return {"deleted": result.rowcount}
 
 
 @router.get("/admin/tasks", response_model=list[AdminTaskResponse])

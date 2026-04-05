@@ -380,11 +380,22 @@ async def publish_variant(
     verification_data = artifact.get("verification_data") or {}
 
     # Build participant_description: base description + ciphertext if present
+    # For chat tasks, artifact content is the system prompt — don't append to participant_desc
     base_desc = spec.get("description") or spec.get("participant_description") or ""
-    if ciphertext and ciphertext not in base_desc:
+    is_chat = access_type == "chat"
+    if not is_chat and ciphertext and ciphertext not in base_desc:
         participant_desc = f"{base_desc}\n\nCiphertext (what you need to decode):\n```\n{ciphertext}\n```" if base_desc else f"Ciphertext (what you need to decode):\n```\n{ciphertext}\n```"
     else:
         participant_desc = base_desc
+
+    # Reject duplicate task titles
+    title = spec.get("title", f"AI Generated — {batch.task_type}")
+    dup = await db.execute(select(Task.id).where(Task.title == title))
+    if dup.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Task '{title}' already exists",
+        )
 
     # Create the task
     difficulty_to_points = {"beginner": 50, "intermediate": 100, "advanced": 200}
@@ -392,6 +403,18 @@ async def publish_variant(
     # Check if this is a user variant request (relationship is now eagerly loaded)
     is_user_variant = variant.user_variant_request is not None
     
+    # For chat tasks, pick up optional limit overrides from spec
+    chat_extras: dict = {}
+    if is_chat:
+        chat_extras["chat_system_prompt_template"] = ciphertext or ""
+        for field in ("chat_user_message_max_chars", "chat_model_max_output_tokens", "chat_session_ttl_minutes"):
+            raw = spec.get(field)
+            if raw is not None:
+                try:
+                    chat_extras[field] = int(raw)
+                except (TypeError, ValueError):
+                    pass
+
     task = Task(
         title=spec.get("title", f"AI Generated — {batch.task_type}"),
         category=batch.task_type.split("_")[0].capitalize(),
@@ -403,18 +426,19 @@ async def publish_variant(
         participant_description=participant_desc,
         llm_raw_response=spec,  # full spec stored for admin reference
         created_by=user.id,
+        **chat_extras,
     )
 
     # If this variant is linked to a user request, set the parent_id
     if is_user_variant:
         task.parent_id = variant.user_variant_request.parent_task_id
-        
+
     db.add(task)
     await db.flush()  # get task.id
 
-    # Create task flag
+    # Create task flag — skipped for chat tasks (flags are dynamic per-session)
     flag_value = spec.get("flag", "")
-    if flag_value:
+    if flag_value and not is_chat:
         db.add(TaskFlag(
             task_id=task.id,
             flag_id="main",

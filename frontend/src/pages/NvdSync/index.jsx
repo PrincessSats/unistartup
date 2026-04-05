@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import useNvdSyncData from './useNvdSyncData';
 
 function fmt(value) {
@@ -91,7 +91,8 @@ function ActionButton({ label, onClick, disabled, loading, color = 'white' }) {
 }
 
 function NvdSync() {
-  const { nvdSync, isBusy, pendingOp, isActive, error, onFetch, onTranslate, onEmbed, onStop } = useNvdSyncData();
+  const { nvdSync, isBusy, pendingOp, isActive, error, onFetch, onTranslate, onEmbed, onStop, onPurge } = useNvdSyncData();
+  const [translateLimit, setTranslateLimit] = useState('');
   const eventLogRef = useRef(null);
 
   const s = nvdSync || {};
@@ -196,12 +197,46 @@ function NvdSync() {
             </div>
             <ActionButton
               label="▶ Translate"
-              onClick={onTranslate}
+              onClick={() => onTranslate(translateLimit ? parseInt(translateLimit, 10) : undefined)}
               disabled={isBusy}
               loading={isTranslating}
               color="purple"
             />
           </div>
+
+          {/* Untranslated count + limit input */}
+          <div className="flex items-center gap-2">
+            {s.untranslated_count != null && (
+              <span className="text-[11px] text-purple-400/70">
+                {fmt(s.untranslated_count)} untranslated
+              </span>
+            )}
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="text-[11px] text-white/30">Limit:</span>
+              <input
+                type="number"
+                min="1"
+                placeholder={s.untranslated_count != null ? String(s.untranslated_count) : 'all'}
+                value={translateLimit}
+                onChange={e => setTranslateLimit(e.target.value)}
+                disabled={isBusy}
+                className="w-20 h-7 px-2 rounded-[6px] bg-white/[0.06] border border-white/[0.12] text-white/70 text-[11px] font-mono placeholder-white/25 focus:outline-none focus:border-purple-400/40 disabled:opacity-40"
+              />
+            </div>
+          </div>
+          {/* Purge untranslated */}
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Delete all untranslated articles except the newest 300?')) {
+                onPurge(300);
+              }
+            }}
+            disabled={isBusy}
+            className="self-start h-7 px-3 rounded-[6px] border border-rose-500/30 bg-rose-500/08 text-rose-400/80 text-[11px] tracking-[0.04em] transition-colors duration-200 hover:bg-rose-500/15 hover:border-rose-400/50 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {pendingOp === 'purge' ? 'Purging...' : '🗑 Purge untranslated (keep 300)'}
+          </button>
           <ProgressBar
             value={transPct}
             color="purple"

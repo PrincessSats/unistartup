@@ -796,9 +796,11 @@ export const adminAPI = {
     const response = await api.post('/admin/nvd_sync/stop');
     return response.data;
   },
-  triggerNvdTranslate: async () => {
+  triggerNvdTranslate: async (limit) => {
+    const params = limit ? { limit } : {};
     const response = await api.post('/admin/nvd_sync/translate', null, {
       timeout: ADMIN_NVD_TIMEOUT_MS,
+      params,
     });
     return response.data;
   },
@@ -806,6 +808,10 @@ export const adminAPI = {
     const response = await api.post('/admin/nvd_sync/embed', null, {
       timeout: ADMIN_NVD_TIMEOUT_MS,
     });
+    return response.data;
+  },
+  purgeUntranslated: async (keep = 300) => {
+    const response = await api.delete('/admin/nvd_sync/untranslated', { params: { keep } });
     return response.data;
   },
   resolveFeedback: async (feedbackId) => {
@@ -1010,6 +1016,12 @@ export const contestAPI = {
   rateTask: async (contestId, taskId, rating) => {
     await api.post(`/contests/${contestId}/tasks/${taskId}/rate`, { rating });
   },
+  downloadTaskMaterialContent: async (contestId, taskId, materialId) => {
+    return api.get(
+      `/contests/${contestId}/tasks/${taskId}/materials/${materialId}/download/content`,
+      { responseType: 'blob' }
+    );
+  },
 };
 
 export const ratingsAPI = {
@@ -1038,6 +1050,13 @@ export const ratingsAPI = {
 export const feedbackAPI = {
   submitFeedback: async (topic, message) => {
     const response = await api.post('/feedback', { topic, message });
+    return response.data;
+  },
+};
+
+export const cveAPI = {
+  search: async (q, limit = 20) => {
+    const response = await api.get('/admin/cve_search', { params: { q, limit } });
     return response.data;
   },
 };

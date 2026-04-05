@@ -35,9 +35,10 @@ function useNvdSyncData() {
   }, []);
 
   const onFetch = useCallback(() => _trigger('fetch', adminAPI.fetchNvd24h), [_trigger]);
-  const onTranslate = useCallback(() => _trigger('translate', adminAPI.triggerNvdTranslate), [_trigger]);
+  const onTranslate = useCallback((limit) => _trigger('translate', () => adminAPI.triggerNvdTranslate(limit)), [_trigger]);
   const onEmbed = useCallback(() => _trigger('embed', adminAPI.triggerNvdEmbed), [_trigger]);
   const onStop = useCallback(() => _trigger('stop', adminAPI.stopNvdSync), [_trigger]);
+  const onPurge = useCallback((keep) => _trigger('purge', () => adminAPI.purgeUntranslated(keep)), [_trigger]);
 
   useEffect(() => {
     fetchStatus();
@@ -65,6 +66,7 @@ function useNvdSyncData() {
     onTranslate,
     onEmbed,
     onStop,
+    onPurge,
   };
 }
 
