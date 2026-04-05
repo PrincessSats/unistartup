@@ -92,6 +92,7 @@ function Championship() {
   const [isMyRowVisible, setIsMyRowVisible] = useState(false);
   const [taskRating, setTaskRating] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
+  const [downloadLoadingId, setDownloadLoadingId] = useState(null);
 
   useEffect(() => {
     const fetchContest = async () => {
@@ -292,6 +293,64 @@ function Championship() {
       : ['Стеганография', 'Реверс-инжиниринг'];
 
   const taskDescription = currentTask?.participant_description || contest?.description || '';
+
+  const taskAccessType = String(currentTask?.access_type || 'just_flag').toLowerCase();
+  const taskMaterials = Array.isArray(currentTask?.materials) ? currentTask.materials : [];
+  const getMat = (type) => taskMaterials.find((m) => String(m?.type || '').toLowerCase() === type);
+  const getMetaOf = (m) => (m && typeof m.meta === 'object' && !Array.isArray(m.meta) ? m.meta : {});
+
+  const fileMaterial = getMat('file');
+  const fileMeta = getMetaOf(fileMaterial);
+  const fileBadge = String(fileMeta.badge || fileMeta.file_ext || fileMaterial?.name?.split('.').pop() || 'FILE').toUpperCase();
+  const fileSizeLabel = String(fileMeta.size_label || fileMeta.file_size_label || '');
+  const isFileDownloading = downloadLoadingId === fileMaterial?.id;
+
+  const vmMaterial = getMat('vm');
+  const vmMeta = getMetaOf(vmMaterial);
+  const vmLaunchUrl = String(vmMeta.launch_url || vmMaterial?.url || '').trim();
+
+  const linkMaterial = getMat('link') || taskMaterials.find((m) => {
+    const t = [m?.type, m?.name, m?.description].filter(Boolean).join(' ').toLowerCase();
+    return t.includes('link') || t.includes('url') || t.includes('ссылк');
+  });
+  const linkMeta = getMetaOf(linkMaterial);
+  const linkUrl = String(linkMeta.target_url || linkMaterial?.url || linkMeta.url || '').trim();
+  const linkLabel = String(linkMeta.label || linkMaterial?.name || 'Перейти к заданию').trim() || 'Перейти к заданию';
+  const isLinkDownloading = downloadLoadingId === linkMaterial?.id;
+
+  const handleMaterialDownload = async (material) => {
+    if (!contest?.id || !currentTask?.id || !material?.id) return;
+    const loadingKey = material.id;
+    setDownloadLoadingId(loadingKey);
+    setSubmitMessage('');
+    try {
+      const response = await contestAPI.downloadTaskMaterialContent(contest.id, currentTask.id, material.id);
+      const disposition = response?.headers?.['content-disposition'] || '';
+      const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+      let filename = material.name || 'download';
+      if (utf8Match?.[1]) {
+        try { filename = decodeURIComponent(utf8Match[1]).trim(); } catch { filename = utf8Match[1].trim(); }
+      } else {
+        const basic = disposition.match(/filename="?([^";]+)"?/i);
+        if (basic?.[1]) filename = basic[1].trim();
+      }
+      const objectUrl = URL.createObjectURL(response.data);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.setAttribute('download', filename);
+      link.rel = 'noopener noreferrer';
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось скачать файл');
+    } finally {
+      setDownloadLoadingId(null);
+    }
+  };
 
   const handleJoin = async () => {
     if (!contest?.id) return;
@@ -835,6 +894,58 @@ function Championship() {
                             </div>
                           </div>
                         ) : null}
+
+                        {taskAccessType === 'file' && fileMaterial && (
+                          <div className="flex h-[76px] items-center gap-3 rounded-[12px] border border-white/[0.09] px-4 mb-2">
+                            <div className="rounded-[8px] bg-[#2FCF95] px-2 py-1 text-[12px] tracking-[0.04em] text-white">
+                              {fileBadge}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-[16px] tracking-[0.02em] text-white">
+                                {fileMaterial.name || 'Файл'}
+                                {fileSizeLabel && (
+                                  <span className="ml-2 text-white/50">{fileSizeLabel}</span>
+                                )}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={!fileMaterial.id || isFileDownloading}
+                              onClick={() => handleMaterialDownload(fileMaterial)}
+                              className="rounded-[8px] border border-white/[0.12] bg-white/[0.03] px-4 py-2 text-[14px] text-white/85 transition hover:border-[#9B6BFF]/60 hover:bg-[#9B6BFF]/20 disabled:cursor-not-allowed disabled:opacity-45"
+                            >
+                              {isFileDownloading ? 'Скачивание...' : 'Скачать'}
+                            </button>
+                          </div>
+                        )}
+
+                        {taskAccessType === 'link' && linkMaterial && (
+                          <button
+                            type="button"
+                            disabled={!linkUrl && !linkMaterial.id || isLinkDownloading}
+                            onClick={async () => {
+                              if (linkMaterial.storage_key || (getMetaOf(linkMaterial).target_storage_key)) {
+                                await handleMaterialDownload(linkMaterial);
+                              } else if (linkUrl) {
+                                window.open(linkUrl, '_blank', 'noopener,noreferrer');
+                              }
+                            }}
+                            className="mb-2 text-left text-[20px] leading-[24px] tracking-[0.03em] text-white/85 underline-offset-4 transition hover:text-white hover:underline disabled:cursor-not-allowed disabled:text-white/35 disabled:no-underline"
+                          >
+                            {isLinkDownloading ? 'Открытие...' : linkLabel}
+                          </button>
+                        )}
+
+                        {taskAccessType === 'vm' && vmLaunchUrl && (
+                          <button
+                            type="button"
+                            onClick={() => window.open(vmLaunchUrl, '_blank', 'noopener,noreferrer')}
+                            className="mb-2 h-12 rounded-[10px] bg-[#9B6BFF] px-5 text-[18px] text-white transition hover:bg-[#A97CFF]"
+                          >
+                            Запустить машину
+                          </button>
+                        )}
+
                         {requiredFlags.length ? (
                           <div className="flex flex-col gap-3">
                             {requiredFlags.map((flag) => {

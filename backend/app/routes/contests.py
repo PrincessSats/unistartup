@@ -2,13 +2,22 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set, Tuple
 
+import logging
+from urllib.parse import quote
+
+from botocore.exceptions import BotoCoreError, ClientError
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_db
 from app.auth.dependencies import get_current_user, get_current_user_optional
+from app.services.storage import get_s3_client
+
+logger = logging.getLogger(__name__)
 from app.models.contest import Contest, ContestTask, Task, Submission, ContestParticipant, TaskFlag, ContestTaskRating
 from app.models.user import UserProfile
 from app.security.rate_limit import RateLimit, enforce_rate_limit
@@ -80,6 +89,7 @@ def _merge_task(
     contest_task: ContestTask,
     task_flags: Optional[List[TaskFlag]] = None,
     solved_flag_ids: Optional[Set[str]] = None,
+    task_materials: Optional[List[dict]] = None,
 ) -> ContestTaskInfo:
     task_flags = task_flags or []
     solved_flag_ids = solved_flag_ids or set()
@@ -102,6 +112,19 @@ def _merge_task(
             session_ttl_minutes=limits.session_ttl_minutes,
         )
 
+    materials = [
+        ContestTaskInfo.MaterialInfo(
+            id=m["id"],
+            type=m.get("type", ""),
+            name=m.get("name", ""),
+            description=m.get("description"),
+            url=m.get("url"),
+            storage_key=m.get("storage_key"),
+            meta=m.get("meta"),
+        )
+        for m in (task_materials or [])
+    ]
+
     return ContestTaskInfo(
         id=task.id,
         title=contest_task.override_title or task.title,
@@ -117,6 +140,7 @@ def _merge_task(
         required_flags=required_flags,
         required_flags_count=len(required_flags),
         solved_flags_count=sum(1 for flag in required_flags if flag.is_solved),
+        materials=materials,
     )
 
 
@@ -169,6 +193,57 @@ async def _load_user_correct_progress(
         if flag_id:
             solved_flags_by_task.setdefault(task_id, set()).add(flag_id)
     return solved_flags_by_task, legacy_solved_task_ids
+
+
+async def _load_materials_bulk(
+    db: AsyncSession,
+    task_ids: List[int],
+) -> Dict[int, List[dict]]:
+    if not task_ids:
+        return {}
+    try:
+        rows = (
+            await db.execute(
+                text(
+                    """
+                    SELECT task_id, id, type, name, description, url, storage_key, meta
+                    FROM task_materials
+                    WHERE task_id = ANY(:task_ids)
+                    ORDER BY task_id, id ASC
+                    """
+                ),
+                {"task_ids": task_ids},
+            )
+        ).mappings().all()
+    except ProgrammingError as exc:
+        lowered = str(exc).lower()
+        if "task_materials" in lowered and "meta" in lowered and "column" in lowered:
+            await db.rollback()
+            rows = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT task_id, id, type, name, description, url, storage_key
+                        FROM task_materials
+                        WHERE task_id = ANY(:task_ids)
+                        ORDER BY task_id, id ASC
+                        """
+                    ),
+                    {"task_ids": task_ids},
+                )
+            ).mappings().all()
+        elif "task_materials" in lowered:
+            await db.rollback()
+            return {}
+        else:
+            raise
+
+    result: Dict[int, List[dict]] = {}
+    for row in rows:
+        d = dict(row)
+        tid = d.pop("task_id")
+        result.setdefault(tid, []).append(d)
+    return result
 
 
 def _ensure_contest_access(contest: Optional[Contest], role: str) -> Contest:
@@ -234,13 +309,14 @@ async def _build_contest_progress_context(
         user_id,
         task_ids,
     )
+    materials_by_task = await _load_materials_bulk(db, task_ids)
 
     merged_tasks: List[tuple[ContestTaskInfo, ContestTask, Task]] = []
     current_task: Optional[tuple[ContestTaskInfo, ContestTask, Task]] = None
     for contest_task, task in tasks_rows:
         required_flags = flags_by_task.get(task.id, [])
         solved_flag_ids = solved_flags_by_task.get(task.id, set())
-        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
+        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids, materials_by_task.get(task.id, []))
         required_flag_ids = [flag.flag_id for flag in required_flags]
         task_info.is_solved = _is_task_completed(
             task.id,
@@ -515,6 +591,7 @@ async def get_current_task(
         user.id,
         task_ids,
     )
+    materials_by_task = await _load_materials_bulk(db, task_ids)
 
     merged_tasks: List[ContestTaskInfo] = []
     solved_task_ids: List[int] = []
@@ -522,7 +599,7 @@ async def get_current_task(
     for contest_task, task in tasks_rows:
         required_flags = flags_by_task.get(task.id, [])
         solved_flag_ids = solved_flags_by_task.get(task.id, set())
-        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids)
+        task_info = _merge_task(task, contest_task, required_flags, solved_flag_ids, materials_by_task.get(task.id, []))
         required_flag_ids = [flag.flag_id for flag in required_flags]
         task_info.is_solved = _is_task_completed(
             task.id,
@@ -1194,3 +1271,116 @@ async def rate_contest_task(
         ))
 
     await db.commit()
+
+
+def _contest_storage_configured() -> bool:
+    return bool(
+        settings.s3_task_bucket_name
+        and settings.s3_task_access_key
+        and settings.s3_task_secret_key
+    )
+
+
+def _contest_s3_client():
+    return get_s3_client(
+        access_key=settings.s3_task_access_key,
+        secret_key=settings.s3_task_secret_key,
+    )
+
+
+def _resolve_contest_material_storage_key(material: dict) -> Optional[str]:
+    meta = material.get("meta") or {}
+    if isinstance(meta, dict):
+        key = str(
+            material.get("storage_key")
+            or meta.get("download_storage_key")
+            or meta.get("target_storage_key")
+            or meta.get("storage_key")
+            or ""
+        ).strip()
+    else:
+        key = str(material.get("storage_key") or "").strip()
+    return key or None
+
+
+def _content_disposition(filename: Optional[str]) -> str:
+    if not filename:
+        return "attachment"
+    safe = quote(str(filename), safe="")
+    return f"attachment; filename*=UTF-8''{safe}"
+
+
+@router.get("/{contest_id}/tasks/{task_id}/materials/{material_id}/download/content")
+async def download_contest_task_material_content(
+    contest_id: int,
+    task_id: int,
+    material_id: int,
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, profile = current_user_data
+
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=404, detail="Контест не найден")
+    if not contest.is_public and profile.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Контест недоступен")
+
+    participant = (
+        await db.execute(
+            select(ContestParticipant).where(
+                ContestParticipant.contest_id == contest_id,
+                ContestParticipant.user_id == user.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if participant is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Нужно вступить в контест")
+
+    materials = await _load_materials_bulk(db, [task_id])
+    material = next(
+        (m for m in materials.get(task_id, []) if m.get("id") == material_id),
+        None,
+    )
+    if material is None:
+        raise HTTPException(status_code=404, detail="Материал не найден")
+
+    storage_key = _resolve_contest_material_storage_key(material)
+    if not storage_key:
+        raise HTTPException(status_code=404, detail="Для материала не настроен storage key")
+
+    if not _contest_storage_configured():
+        raise HTTPException(status_code=503, detail="Object Storage не настроен на сервере")
+
+    client = _contest_s3_client()
+    try:
+        payload = client.get_object(
+            Bucket=settings.s3_task_bucket_name,
+            Key=storage_key,
+        )
+        body_stream = payload.get("Body")
+        content = body_stream.read() if body_stream is not None else b""
+        if body_stream is not None:
+            body_stream.close()
+        content_type = str(payload.get("ContentType") or "application/octet-stream")
+    except ClientError as exc:
+        code = str((exc.response or {}).get("Error", {}).get("Code", "")).strip()
+        if code in {"404", "NoSuchKey", "NotFound"}:
+            raise HTTPException(status_code=404, detail="Файл не найден в хранилище") from exc
+        logger.exception("Storage error contest_id=%s task_id=%s material_id=%s", contest_id, task_id, material_id)
+        raise HTTPException(status_code=502, detail="Не удалось скачать файл из хранилища") from exc
+    except BotoCoreError as exc:
+        logger.exception("BotoCoreError contest_id=%s task_id=%s material_id=%s", contest_id, task_id, material_id)
+        raise HTTPException(status_code=502, detail="Не удалось скачать файл из хранилища") from exc
+
+    meta = material.get("meta") or {}
+    filename = (
+        (meta.get("file_name") if isinstance(meta, dict) else None)
+        or material.get("name")
+        or storage_key.rsplit("/", 1)[-1]
+    )
+    headers = {
+        "Content-Disposition": _content_disposition(filename),
+        "Cache-Control": "no-store",
+    }
+    return Response(content=content, media_type=content_type, headers=headers)

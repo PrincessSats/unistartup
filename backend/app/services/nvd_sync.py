@@ -1176,7 +1176,7 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS) 
         await _mark_sync_failed(log_id, str(exc))
 
 
-async def run_translate_standalone_background(log_id: int) -> None:
+async def run_translate_standalone_background(log_id: int, *, limit: Optional[int] = None) -> None:
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
@@ -1185,12 +1185,13 @@ async def run_translate_standalone_background(log_id: int) -> None:
     try:
         add_event("INIT", "Starting standalone translation...")
 
+        row_limit = limit if limit and limit > 0 else 50000
         async with AsyncSessionLocal() as session:
             rows = (await session.execute(
                 text(
                     "SELECT id, cve_id, raw_en_text, cwe_ids, attack_vector "
                     "FROM kb_entries WHERE source = 'nvd' AND ru_summary IS NULL "
-                    "ORDER BY id DESC LIMIT 2000"
+                    f"ORDER BY id DESC LIMIT {row_limit}"
                 )
             )).mappings().all()
             entries = [dict(r) for r in rows]

@@ -44,6 +44,15 @@ class ContestTaskInfo(BaseModel):
         description: Optional[str] = None
         is_solved: bool = False
 
+    class MaterialInfo(BaseModel):
+        id: int
+        type: str
+        name: str
+        description: Optional[str] = None
+        url: Optional[str] = None
+        storage_key: Optional[str] = None
+        meta: Optional[dict] = None
+
     id: int
     title: str
     category: Optional[str] = None
@@ -58,6 +67,7 @@ class ContestTaskInfo(BaseModel):
     required_flags: List[FlagInfo] = Field(default_factory=list)
     required_flags_count: int = 0
     solved_flags_count: int = 0
+    materials: List[MaterialInfo] = Field(default_factory=list)
 
 
 class ContestJoinResponse(BaseModel):
