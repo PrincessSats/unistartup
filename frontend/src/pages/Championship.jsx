@@ -922,7 +922,7 @@ function Championship() {
                         {taskAccessType === 'link' && linkMaterial && (
                           <button
                             type="button"
-                            disabled={!linkUrl && !linkMaterial.id || isLinkDownloading}
+                            disabled={(!linkUrl && !linkMaterial.id) || isLinkDownloading}
                             onClick={async () => {
                               if (linkMaterial.storage_key || (getMetaOf(linkMaterial).target_storage_key)) {
                                 await handleMaterialDownload(linkMaterial);
