@@ -37,8 +37,14 @@ export default function ContestCreateModal({ isOpen, contestId, onClose, onSucce
         {/* Use existing ContestPlannerDrawer component */}
         <div className="p-6">
           <ContestPlannerDrawer
+            open={true}
             contestId={contestId}
-            onSuccess={() => {
+            onCreated={() => {
+              setShowDrawer(false);
+              onClose();
+              onSuccess?.();
+            }}
+            onUpdated={() => {
               setShowDrawer(false);
               onClose();
               onSuccess?.();

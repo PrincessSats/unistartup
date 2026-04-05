@@ -75,10 +75,10 @@ class ActivityLog(Base):
     contest_id = Column(BIGINT, ForeignKey("contests.id", ondelete="SET NULL"), nullable=True, index=True)
 
     # Event type (e.g., "contest_created", "submission_correct")
-    event_type = Column(SQLEnum(EventType), nullable=False, index=True)
+    event_type = Column(SQLEnum(EventType, native_enum=False), nullable=False, index=True)
 
     # Source of the event (admin_action, system_event, participant_action)
-    source = Column(SQLEnum(EventSource), nullable=False, default=EventSource.ADMIN_ACTION)
+    source = Column(SQLEnum(EventSource, native_enum=False), nullable=False, default=EventSource.ADMIN_ACTION)
 
     # Human-readable action description (e.g., "Created contest 'HackNet Summer'")
     action = Column(String(255), nullable=False)

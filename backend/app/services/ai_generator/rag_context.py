@@ -272,7 +272,7 @@ class RAGContextBuilder:
 
         try:
             if specific_cve:
-                cve_entries = await self._fetch_specific_cve(specific_cve)
+                cve_entries = await self._fetch_cve_plus_similar(specific_cve, n=10)
                 query_text = specific_cve
             else:
                 query_text = self._build_query(task_type, difficulty, specific_topic)
@@ -457,6 +457,37 @@ class RAGContextBuilder:
                 attack_vector=getattr(entry, "attack_vector", None),
             )
         ]
+
+    async def _fetch_cve_plus_similar(self, cve_id: str, n: int = 10) -> list[CVEEntry]:
+        """Fetch target CVE plus up to n-1 semantically similar entries."""
+        primary = await self._fetch_specific_cve(cve_id)
+        if not primary:
+            return []
+        target = primary[0]
+        if not target.stored_embedding or n <= 1:
+            return primary
+        vec = target.stored_embedding
+        try:
+            result = await self._db.execute(
+                text(
+                    "SELECT id, cve_id, ru_title, ru_summary, raw_en_text, tags, difficulty, "
+                    "embedding, cwe_ids, cvss_base_score, attack_vector, "
+                    "1 - (embedding <=> CAST(:vec AS vector)) AS similarity "
+                    "FROM kb_entries "
+                    "WHERE embedding IS NOT NULL AND id != :target_id "
+                    "ORDER BY embedding <=> CAST(:vec AS vector) "
+                    "LIMIT :lim"
+                ),
+                {"vec": str(vec), "target_id": target.id, "lim": n - 1},
+            )
+            similar = [
+                self._row_to_cve_entry(row, retrieval_score=float(row.similarity) if row.similarity else 0.0)
+                for row in result.fetchall()
+            ]
+        except Exception as exc:
+            logger.warning("Failed to fetch similar CVEs for %s: %s", cve_id, exc)
+            similar = []
+        return primary + similar
 
     async def _fetch_existing_tasks(self, task_type: str) -> list[str]:
         category = task_type.split("_")[0].capitalize()

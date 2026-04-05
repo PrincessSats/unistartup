@@ -4,6 +4,13 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
+class CveSearchResult(BaseModel):
+    id: int
+    cve_id: Optional[str] = None
+    ru_title: Optional[str] = None
+    ru_summary: Optional[str] = None
+
+
 class AdminStats(BaseModel):
     total_users: int
     active_users_24h: int
@@ -64,6 +71,7 @@ class AdminNvdSync(BaseModel):
     status: Optional[str] = None
     error: Optional[str] = None
     event_log: Optional[list] = None
+    untranslated_count: Optional[int] = None
 
 
 class AdminDashboardResponse(BaseModel):
