@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import text, select, func, delete, update
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -87,6 +88,9 @@ from app.services.activity_logger import (
 
 router = APIRouter(tags=["Тестовые страницы"])
 logger = logging.getLogger(__name__)
+
+# Keep strong references to fire-and-forget asyncio tasks so they survive client disconnect
+_nvd_background_tasks: set[asyncio.Task] = set()
 
 
 def _admin_nvd_sync_from_row(row: Optional[dict]) -> Optional[AdminNvdSync]:
@@ -816,7 +820,6 @@ async def get_nvd_sync_status(
 
 @router.post("/admin/nvd_sync", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
 async def sync_nvd_last_24h(
-    background_tasks: BackgroundTasks,
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -842,7 +845,9 @@ async def sync_nvd_last_24h(
             ) from exc
         raise
 
-    background_tasks.add_task(run_fetch_only_background, created_row["id"], hours=24)
+    task = asyncio.create_task(run_fetch_only_background(created_row["id"], hours=24))
+    _nvd_background_tasks.add(task)
+    task.add_done_callback(_nvd_background_tasks.discard)
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
 
@@ -860,7 +865,6 @@ async def stop_nvd_sync(
 
 @router.post("/admin/nvd_sync/translate", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
 async def translate_nvd_entries(
-    background_tasks: BackgroundTasks,
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     limit: Optional[int] = Query(None, ge=1, le=50000),
@@ -885,14 +889,15 @@ async def translate_nvd_entries(
             ) from exc
         raise
 
-    background_tasks.add_task(run_translate_standalone_background, created_row["id"], limit=limit)
+    task = asyncio.create_task(run_translate_standalone_background(created_row["id"], limit=limit))
+    _nvd_background_tasks.add(task)
+    task.add_done_callback(_nvd_background_tasks.discard)
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
 
 
 @router.post("/admin/nvd_sync/embed", response_model=AdminNvdSync, status_code=status.HTTP_202_ACCEPTED)
 async def embed_nvd_entries(
-    background_tasks: BackgroundTasks,
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
@@ -916,7 +921,9 @@ async def embed_nvd_entries(
             ) from exc
         raise
 
-    background_tasks.add_task(run_embed_standalone_background, created_row["id"])
+    task = asyncio.create_task(run_embed_standalone_background(created_row["id"]))
+    _nvd_background_tasks.add(task)
+    task.add_done_callback(_nvd_background_tasks.discard)
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
 
