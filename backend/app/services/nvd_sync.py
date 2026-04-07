@@ -764,7 +764,17 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
                         )
                         await asyncio.sleep(backoff)
                         continue
-                    logger.warning("Article generation failed for entry %s: %s", row["id"], exc)
+                    if attempt == max_attempts - 1:
+                        logger.warning(
+                            "Article generation exhausted retries for entry %s (cve_id=%s) after %d attempts"
+                            " (type=%s): %s",
+                            row["id"], row.get("cve_id"), max_attempts, type(exc).__name__, exc,
+                        )
+                    else:
+                        logger.warning(
+                            "Article generation failed for entry %s (cve_id=%s, type=%s, attempt=%d/%d): %s",
+                            row["id"], row.get("cve_id"), type(exc).__name__, attempt + 1, max_attempts, exc,
+                        )
                     return row, None
         return row, None
 
@@ -782,6 +792,10 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
 
             for res in results:
                 if isinstance(res, Exception):
+                    logger.error(
+                        "Unexpected exception in generate_task (type=%s): %s",
+                        type(res).__name__, res,
+                    )
                     chunk_failed += 1
                     continue
 
@@ -795,6 +809,10 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
                     })
                     chunk_done += 1
                 else:
+                    logger.warning(
+                        "Entry %s (cve_id=%s) produced no usable fields: parsed=%r",
+                        row["id"], row.get("cve_id"), parsed,
+                    )
                     chunk_failed += 1
 
             if updates:
@@ -1235,6 +1253,28 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
             return
 
         add_event("TRANSLATING", f"Completed: {res['completed']} ok, {res['failed']} failed")
+
+        if res["completed"] == 0 and res["failed"] > 0:
+            add_event("ERROR", f"All {res['failed']} entries failed to translate")
+            logger.error(
+                "NVD translate log_id=%s: all %d entries failed (0 completed)",
+                log_id, res["failed"],
+            )
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            await _mark_sync_failed(log_id, f"All {res['failed']} entries failed to translate")
+            return
+
+        if res["failed"] > 0:
+            logger.warning(
+                "NVD translate log_id=%s: partial failure — %d ok, %d failed",
+                log_id, res["completed"], res["failed"],
+            )
+
         add_event("SUCCESS", "Translation complete")
 
         async with AsyncSessionLocal() as session:
