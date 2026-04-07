@@ -48,6 +48,7 @@ def _build_client() -> OpenAI:
         api_key=api_key,
         base_url="https://llm.api.cloud.yandex.net/v1",
         project=folder,
+        timeout=120,
     )
 
 
@@ -73,6 +74,10 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
             ],
         )
     except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "Yandex LLM request failed (type=%s): %s",
+            type(exc).__name__, exc,
+        )
         raise ArticleGenerationError(f"Yandex model request failed: {exc}") from exc
     text = (response.choices[0].message.content or "").strip()
     logger.info("KB generation completed (chars=%s)", len(text))
@@ -80,6 +85,10 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
     try:
         parsed = json.loads(cleaned)
     except json.JSONDecodeError as exc:
+        logger.error(
+            "Model returned invalid JSON (chars=%d, preview=%r): %s",
+            len(text), text[:300], exc,
+        )
         raise ArticleGenerationError(f"Model returned invalid JSON: {exc}") from exc
     if not isinstance(parsed, dict):
         raise ArticleGenerationError(

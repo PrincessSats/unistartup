@@ -534,6 +534,12 @@ def _extract_text_from_llm_response(response: Any) -> str:
         text = _extract_text_from_llm_content(content)
         if text:
             return text
+        reasoning = getattr(message, "reasoning_content", None)
+        if reasoning is None and isinstance(message, dict):
+            reasoning = message.get("reasoning_content")
+        text = _extract_text_from_llm_content(reasoning)
+        if text:
+            return text
 
     fallback_text = getattr(first_choice, "text", None)
     if fallback_text is None and isinstance(first_choice, dict):
@@ -604,7 +610,7 @@ def _extract_error_status_code(error: Exception) -> Optional[int]:
 def _is_retryable_llm_error(error: Exception) -> bool:
     status_code = _extract_error_status_code(error)
     if status_code is not None:
-        return status_code >= 500 or status_code in {408, 429}
+        return status_code >= 500 or status_code in {408, 429, 499}
     lowered_text = str(error).lower()
     transient_markers = (
         "server_error",
@@ -638,7 +644,7 @@ async def _run_llm_chat_completion(
     client = _build_async_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     model_name = f"gpt://{folder}/{YANDEX_CHAT_MODEL_ID}/{YANDEX_CHAT_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
+    reasoning_effort = "disabled"
     last_error: Optional[Exception] = None
     for attempt in range(LLM_COMPLETION_MAX_ATTEMPTS):
         try:
