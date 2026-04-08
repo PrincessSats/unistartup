@@ -34,7 +34,13 @@ def _strip_code_fence(text: str) -> str:
     return "\n".join(lines).strip()
 
 
+_CLIENT: Optional[OpenAI] = None
+
+
 def _build_client() -> OpenAI:
+    global _CLIENT
+    if _CLIENT is not None:
+        return _CLIENT
     api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     missing: list[str] = []
@@ -44,12 +50,13 @@ def _build_client() -> OpenAI:
         missing.append("YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID / YC_FOLDER_ID)")
     if missing:
         raise ArticleGenerationError(f"Missing Yandex LLM config: {', '.join(missing)}")
-    return OpenAI(
+    _CLIENT = OpenAI(
         api_key=api_key,
         base_url="https://llm.api.cloud.yandex.net/v1",
         project=folder,
         timeout=120,
     )
+    return _CLIENT
 
 
 def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> dict[str, Any]:
