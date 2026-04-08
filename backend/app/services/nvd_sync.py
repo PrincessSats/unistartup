@@ -732,7 +732,11 @@ async def _mark_sync_failed(log_id: int, error_text: str) -> None:
         await session.commit()
 
 
-async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> Dict[str, int]:
+async def _translate_entries_for_log(
+    log_id: int,
+    entries: List[Dict[str, Any]],
+    event_log: Optional[List[Dict[str, str]]] = None,
+) -> Dict[str, int]:
     """Generate structured Russian KB articles for backlog entries using article_prompt.txt.
 
     Uses generate_article_payload (1 LLM call per CVE) which produces a properly structured
@@ -751,31 +755,43 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
         max_attempts = 3
         base_backoff = 5.0
         for attempt in range(max_attempts):
+            backoff_needed = 0.0
             async with sem:
                 try:
-                    result = await generate_article_payload(raw_en_text)
+                    result = await asyncio.wait_for(
+                        generate_article_payload(raw_en_text),
+                        timeout=150.0,
+                    )
                     return row, result.get("parsed")
+                except asyncio.TimeoutError:
+                    logger.warning(
+                        "Article generation timed out for entry %s (cve_id=%s, attempt=%d/%d)",
+                        row["id"], row.get("cve_id"), attempt + 1, max_attempts,
+                    )
+                    return row, None
                 except Exception as exc:
                     if "429" in str(exc) and attempt < max_attempts - 1:
-                        backoff = base_backoff * (2 ** attempt)
+                        backoff_needed = base_backoff * (2 ** attempt)
                         logger.warning(
                             "Article generation rate limited for %s (429), retrying in %.1fs... (attempt %d/%d)",
-                            row["cve_id"], backoff, attempt + 1, max_attempts,
+                            row["cve_id"], backoff_needed, attempt + 1, max_attempts,
                         )
-                        await asyncio.sleep(backoff)
-                        continue
-                    if attempt == max_attempts - 1:
+                    elif attempt == max_attempts - 1:
                         logger.warning(
                             "Article generation exhausted retries for entry %s (cve_id=%s) after %d attempts"
                             " (type=%s): %s",
                             row["id"], row.get("cve_id"), max_attempts, type(exc).__name__, exc,
                         )
+                        return row, None
                     else:
                         logger.warning(
                             "Article generation failed for entry %s (cve_id=%s, type=%s, attempt=%d/%d): %s",
                             row["id"], row.get("cve_id"), type(exc).__name__, attempt + 1, max_attempts, exc,
                         )
-                    return row, None
+                        return row, None
+            # Sleep outside the semaphore so other tasks can proceed during backoff
+            if backoff_needed > 0:
+                await asyncio.sleep(backoff_needed)
         return row, None
 
     async with AsyncSessionLocal() as session:
@@ -830,23 +846,51 @@ async def _translate_entries_for_log(log_id: int, entries: List[Dict[str, Any]])
             done += chunk_done
             failed += chunk_failed
 
-            await session.execute(
-                text(
-                    """
-                    UPDATE nvd_sync_log
-                    SET translation_completed = :completed,
-                        translation_failed = :failed,
-                        detailed_status = :status
-                    WHERE id = :log_id
-                    """
-                ),
-                {
-                    "log_id": log_id,
-                    "completed": done,
-                    "failed": failed,
-                    "status": f"Generating KB articles: {done + failed}/{total}...",
-                },
-            )
+            if event_log is not None:
+                event_log.append({
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "stage": "TRANSLATING",
+                    "message": f"Chunk done: {done} ok, {failed} failed so far ({done + failed}/{total})",
+                })
+
+            if event_log is not None:
+                await session.execute(
+                    text(
+                        """
+                        UPDATE nvd_sync_log
+                        SET translation_completed = :completed,
+                            translation_failed = :failed,
+                            detailed_status = :status,
+                            event_log = :event_log
+                        WHERE id = :log_id
+                        """
+                    ),
+                    {
+                        "log_id": log_id,
+                        "completed": done,
+                        "failed": failed,
+                        "status": f"Generating KB articles: {done + failed}/{total}...",
+                        "event_log": json.dumps(event_log),
+                    },
+                )
+            else:
+                await session.execute(
+                    text(
+                        """
+                        UPDATE nvd_sync_log
+                        SET translation_completed = :completed,
+                            translation_failed = :failed,
+                            detailed_status = :status
+                        WHERE id = :log_id
+                        """
+                    ),
+                    {
+                        "log_id": log_id,
+                        "completed": done,
+                        "failed": failed,
+                        "status": f"Generating KB articles: {done + failed}/{total}...",
+                    },
+                )
             await session.commit()
             await asyncio.sleep(2.0)
 
@@ -1084,16 +1128,25 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
                 },
             )
             await session.commit()
-    except Exception as exc:  # noqa: BLE001 - background task errors must be logged
-        add_event("ERROR", str(exc))
-        logger.exception("NVD background sync failed log_id=%s", log_id)
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
-                {"log_id": log_id, "event_log": json.dumps(event_log)},
-            )
-            await session.commit()
-        await _mark_sync_failed(log_id, str(exc))
+    except BaseException as exc:  # noqa: BLE001 — catches CancelledError too
+        error_msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        add_event("ERROR", error_msg)
+        if isinstance(exc, asyncio.CancelledError):
+            logger.warning("NVD background sync task cancelled log_id=%s (saved state to DB)", log_id)
+        else:
+            logger.exception("NVD background sync failed log_id=%s", log_id)
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            await _mark_sync_failed(log_id, error_msg)
+        except Exception:
+            logger.exception("Failed to save error state for log_id=%s", log_id)
+        if isinstance(exc, asyncio.CancelledError):
+            raise
 
 
 async def _create_standalone_log(session: AsyncSession, initial_status: str, initial_detailed: str) -> Dict[str, Any]:
@@ -1182,16 +1235,25 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS) 
                 },
             )
             await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        add_event("ERROR", str(exc))
-        logger.exception("NVD fetch-only sync failed log_id=%s", log_id)
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
-                {"log_id": log_id, "event_log": json.dumps(event_log)},
-            )
-            await session.commit()
-        await _mark_sync_failed(log_id, str(exc))
+    except BaseException as exc:  # noqa: BLE001 — catches CancelledError too
+        error_msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        add_event("ERROR", error_msg)
+        if isinstance(exc, asyncio.CancelledError):
+            logger.warning("NVD fetch-only sync task cancelled log_id=%s (saved state to DB)", log_id)
+        else:
+            logger.exception("NVD fetch-only sync failed log_id=%s", log_id)
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            await _mark_sync_failed(log_id, error_msg)
+        except Exception:
+            logger.exception("Failed to save error state for log_id=%s", log_id)
+        if isinstance(exc, asyncio.CancelledError):
+            raise
 
 
 async def run_translate_standalone_background(log_id: int, *, limit: Optional[int] = None) -> None:
@@ -1240,7 +1302,7 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
                 await session.commit()
             return
 
-        res = await _translate_entries_for_log(log_id, entries)
+        res = await _translate_entries_for_log(log_id, entries, event_log=event_log)
 
         if await _is_cancelled(log_id):
             add_event("TRANSLATING", f"Stopped by user after {res['completed']} translations")
@@ -1295,16 +1357,27 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
                 },
             )
             await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        add_event("ERROR", str(exc))
-        logger.exception("NVD standalone translate failed log_id=%s", log_id)
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
-                {"log_id": log_id, "event_log": json.dumps(event_log)},
-            )
-            await session.commit()
-        await _mark_sync_failed(log_id, str(exc))
+    except BaseException as exc:  # noqa: BLE001 — catches CancelledError too
+        error_msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        add_event("ERROR", error_msg)
+        if isinstance(exc, asyncio.CancelledError):
+            logger.warning("NVD translate task cancelled log_id=%s (saved state to DB)", log_id)
+        else:
+            logger.exception("NVD standalone translate failed log_id=%s", log_id)
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text(
+                        "UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"
+                    ),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            await _mark_sync_failed(log_id, error_msg)
+        except Exception:
+            logger.exception("Failed to save error state for log_id=%s", log_id)
+        if isinstance(exc, asyncio.CancelledError):
+            raise
 
 
 async def run_embed_standalone_background(log_id: int) -> None:
@@ -1385,16 +1458,25 @@ async def run_embed_standalone_background(log_id: int) -> None:
                 },
             )
             await session.commit()
-    except Exception as exc:  # noqa: BLE001
-        add_event("ERROR", str(exc))
-        logger.exception("NVD standalone embed failed log_id=%s", log_id)
-        async with AsyncSessionLocal() as session:
-            await session.execute(
-                text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
-                {"log_id": log_id, "event_log": json.dumps(event_log)},
-            )
-            await session.commit()
-        await _mark_sync_failed(log_id, str(exc))
+    except BaseException as exc:  # noqa: BLE001 — catches CancelledError too
+        error_msg = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+        add_event("ERROR", error_msg)
+        if isinstance(exc, asyncio.CancelledError):
+            logger.warning("NVD standalone embed task cancelled log_id=%s (saved state to DB)", log_id)
+        else:
+            logger.exception("NVD standalone embed failed log_id=%s", log_id)
+        try:
+            async with AsyncSessionLocal() as session:
+                await session.execute(
+                    text("UPDATE nvd_sync_log SET event_log = :event_log WHERE id = :log_id"),
+                    {"log_id": log_id, "event_log": json.dumps(event_log)},
+                )
+                await session.commit()
+            await _mark_sync_failed(log_id, error_msg)
+        except Exception:
+            logger.exception("Failed to save error state for log_id=%s", log_id)
+        if isinstance(exc, asyncio.CancelledError):
+            raise
 
 
 async def main() -> int:
