@@ -845,11 +845,25 @@ async def sync_nvd_last_24h(
             ) from exc
         raise
 
-    task = asyncio.create_task(run_fetch_only_background(created_row["id"], hours=24))
+    task = asyncio.create_task(run_fetch_only_background(created_row["id"], hours=24, date_filter="published"))
     _nvd_background_tasks.add(task)
     task.add_done_callback(_nvd_background_tasks.discard)
     created_payload = sync_log_to_admin_payload(created_row)
     return AdminNvdSync(**created_payload)
+
+
+@router.delete("/admin/kb_entries/purge_by_date", status_code=status.HTTP_200_OK)
+async def purge_kb_entries_by_date(
+    date: str = Query(..., description="ISO date, e.g. 2026-04-16"),
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        text("DELETE FROM kb_entries WHERE created_at::date = :date"),
+        {"date": date},
+    )
+    await db.commit()
+    return {"deleted": result.rowcount}
 
 
 @router.post("/admin/nvd_sync/stop", response_model=Optional[AdminNvdSync])
