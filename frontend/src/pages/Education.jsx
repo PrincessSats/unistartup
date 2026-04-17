@@ -75,7 +75,7 @@ function EducationCard({ task }) {
         </div>
 
         <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
-          <span>{task.passed_users_count} прошли</span>
+          {/* <span>{task.passed_users_count} прошли</span> */}
           <span className="inline-flex items-center gap-2 font-mono-figma text-[18px] leading-[24px] text-white">
             <AppIcon name="star" className="h-[22px] w-[22px] text-white/80" />
             {task.points}

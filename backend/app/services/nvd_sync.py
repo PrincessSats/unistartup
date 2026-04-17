@@ -164,12 +164,20 @@ async def _fetch_page(
     start_index: int,
     results_per_page: Optional[int],
     api_key: Optional[str],
+    date_filter: str = "published",
 ) -> Dict[str, Any]:
-    params: Dict[str, Any] = {
-        "lastModStartDate": _format_dt(start),
-        "lastModEndDate": _format_dt(end),
-        "startIndex": start_index,
-    }
+    if date_filter == "published":
+        params: Dict[str, Any] = {
+            "pubStartDate": _format_dt(start),
+            "pubEndDate": _format_dt(end),
+            "startIndex": start_index,
+        }
+    else:
+        params: Dict[str, Any] = {
+            "lastModStartDate": _format_dt(start),
+            "lastModEndDate": _format_dt(end),
+            "startIndex": start_index,
+        }
     if results_per_page is not None:
         params["resultsPerPage"] = results_per_page
     headers = {"User-Agent": "unistartup-nvd-sync/1.0"}
@@ -189,10 +197,11 @@ async def fetch_recent_cves(
     results_per_page: Optional[int],
     sleep_seconds: int,
     log_id: Optional[int] = None,
+    date_filter: str = "published",
 ) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     start_index = 0
-    
+
     # Use shorter delay if API key is provided (NVD allows more requests)
     actual_sleep = sleep_seconds
     if api_key and actual_sleep == DEFAULT_SLEEP_SECONDS:
@@ -207,6 +216,7 @@ async def fetch_recent_cves(
                 start_index=start_index,
                 results_per_page=results_per_page,
                 api_key=api_key,
+                date_filter=date_filter,
             )
             vulns = data.get("vulnerabilities", []) or []
             items.extend(vulns)
@@ -536,6 +546,7 @@ async def run_sync(
     translate_new_entries: bool = True,
     include_inserted_rows: bool = False,
     log_id: Optional[int] = None,
+    date_filter: str = "published",
 ) -> Dict[str, Any]:
     if start and end:
         window_start = start
@@ -553,6 +564,7 @@ async def run_sync(
         results_per_page=results_per_page,
         sleep_seconds=sleep_seconds,
         log_id=log_id,
+        date_filter=date_filter,
     )
     store_result = await store_kb_entries(
         vulns,
@@ -597,6 +609,23 @@ async def cleanup_stale_sync_logs() -> None:
         )
         partial = partial_result.fetchall()
 
+        # Mark translation/embedding partial progress (data saved but process interrupted)
+        translation_partial_result = await session.execute(
+            text(
+                """
+                UPDATE nvd_sync_log
+                SET status = 'partial_success',
+                    error = NULL,
+                    detailed_status = COALESCE(detailed_status, 'Синхронизация прервана после частичного перевода/эмбеддинга. Данные сохранены.')
+                WHERE status IN ('translating', 'embedding')
+                  AND COALESCE(inserted_count, 0) = 0
+                  AND (translation_completed > 0 OR embedding_completed > 0)
+                RETURNING id, translation_completed, embedding_completed
+                """
+            )
+        )
+        translation_partial = translation_partial_result.fetchall()
+        
         # Then, mark truly failed syncs (no data was saved)
         failed_result = await session.execute(
             text(
@@ -606,6 +635,8 @@ async def cleanup_stale_sync_logs() -> None:
                     error = 'Прервано: сервер был перезапущен во время синхронизации. Данные не были сохранены.'
                 WHERE status IN ('fetching', 'embedding', 'translating')
                   AND COALESCE(inserted_count, 0) = 0
+                  AND translation_completed = 0
+                  AND embedding_completed = 0
                 RETURNING id
                 """
             )
@@ -620,6 +651,14 @@ async def cleanup_stale_sync_logs() -> None:
             len(partial),
             [r[0] for r in partial],
             [r[1] for r in partial],
+        )
+    if translation_partial:
+        logger.warning(
+            "Marked %d NVD sync log(s) as 'partial_success' after restart (translation/embedding progress): ids=%s (translation: %s, embedding: %s)",
+            len(translation_partial),
+            [r[0] for r in translation_partial],
+            [r[1] for r in translation_partial],
+            [r[2] for r in translation_partial],
         )
     if failed:
         logger.warning(
@@ -1012,7 +1051,7 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
     return {"completed": done, "failed": failed}
 
 
-async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> None:
+async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_filter: str = "published") -> None:
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
@@ -1034,6 +1073,7 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> Non
             translate_new_entries=False,
             include_inserted_rows=True,
             log_id=log_id,
+            date_filter=date_filter,
         )
         inserted_rows = result.get("inserted_rows", []) or []
         inserted_count = len(inserted_rows)
@@ -1191,7 +1231,7 @@ async def create_embed_log(session: AsyncSession) -> Dict[str, Any]:
     return await _create_standalone_log(session, "embedding", "Querying unembedded entries...")
 
 
-async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS) -> None:
+async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_filter: str = "published") -> None:
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
@@ -1206,6 +1246,7 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS) 
             translate_new_entries=False,
             include_inserted_rows=False,
             log_id=log_id,
+            date_filter=date_filter,
         )
         fetched_count = result.get("fetched", 0)
         inserted_count = result.get("inserted", 0)
