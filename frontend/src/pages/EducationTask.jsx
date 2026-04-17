@@ -908,7 +908,7 @@ export default function EducationTask() {
           )}
           <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-6 py-5">
             <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
-              <span>{task.passed_users_count} прошли</span>
+              {/* <span>{task.passed_users_count} прошли</span> */}
               <span className="inline-flex items-center gap-2 font-mono-figma text-white">
                 <AppIcon name="star" className="h-4 w-4 text-white/80" />
                 {task.points}
