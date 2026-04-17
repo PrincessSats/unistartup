@@ -445,7 +445,7 @@ function NewsItem({ title, meta, to }) {
 function TaskNewsItem({ task }) {
   const title = String(task?.title || '').trim() || 'Без названия';
   const category = String(task?.category || '').trim() || 'Без категории';
-  const passedUsersCount = toSafeNumber(task?.passed_users_count, 0);
+  // const passedUsersCount = toSafeNumber(task?.passed_users_count, 0);
 
   return (
     <Link to={`/education/${task.id}`} className="bg-white/[0.05] rounded-[12px] px-4 py-5 transition hover:border hover:border-[#9B6BFF]/50">
