@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -11,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
+from app.services import _log_status as _ls
 
 
 NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
@@ -646,26 +648,25 @@ async def cleanup_stale_sync_logs() -> None:
         await session.commit()
 
     if partial:
-        logger.warning(
-            "Marked %d NVD sync log(s) as 'partial_success' after restart: ids=%s (inserted: %s)",
-            len(partial),
-            [r[0] for r in partial],
-            [r[1] for r in partial],
+        _ls.status_warn(
+            logger,
+            f"Startup cleanup: {len(partial)} NVD sync log(s) → partial_success "
+            f"(ids={[r[0] for r in partial]}, inserted={[r[1] for r in partial]})",
         )
     if translation_partial:
-        logger.warning(
-            "Marked %d NVD sync log(s) as 'partial_success' after restart (translation/embedding progress): ids=%s (translation: %s, embedding: %s)",
-            len(translation_partial),
-            [r[0] for r in translation_partial],
-            [r[1] for r in translation_partial],
-            [r[2] for r in translation_partial],
+        _ls.status_warn(
+            logger,
+            f"Startup cleanup: {len(translation_partial)} NVD sync log(s) → partial_success "
+            f"(translation/embed progress ids={[r[0] for r in translation_partial]})",
         )
     if failed:
-        logger.warning(
-            "Marked %d NVD sync log(s) as 'failed' after restart: ids=%s",
-            len(failed),
-            [r[0] for r in failed],
+        _ls.status_fail(
+            logger,
+            f"Startup cleanup: {len(failed)} NVD sync log(s) marked failed (no data saved) "
+            f"ids={[r[0] for r in failed]}",
         )
+    if not partial and not translation_partial and not failed:
+        _ls.status_ok(logger, "Startup NVD sync log cleanup: nothing stale")
 
 
 async def get_latest_sync_log(
@@ -756,6 +757,7 @@ async def stop_active_sync_log(session: AsyncSession) -> Optional[Dict[str, Any]
 
 
 async def _mark_sync_failed(log_id: int, error_text: str) -> None:
+    _ls.status_fail(logger, f"NVD sync log_id={log_id} marked failed: {error_text[:200]}")
     async with AsyncSessionLocal() as session:
         await session.execute(
             text(
@@ -787,6 +789,7 @@ async def _translate_entries_for_log(
     done = 0
     failed = 0
     total = len(entries)
+    error_types: Counter = Counter()
     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
     async def generate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[dict]]:
@@ -803,30 +806,39 @@ async def _translate_entries_for_log(
                     )
                     return row, result.get("parsed")
                 except asyncio.TimeoutError:
-                    logger.warning(
-                        "Article generation timed out for entry %s (cve_id=%s, attempt=%d/%d)",
-                        row["id"], row.get("cve_id"), attempt + 1, max_attempts,
+                    _ls.status_warn(
+                        logger,
+                        f"Translation timeout (150s): cve_id={row.get('cve_id')} "
+                        f"entry={row['id']} attempt={attempt + 1}/{max_attempts}",
                     )
+                    error_types["TimeoutError"] += 1
                     return row, None
                 except Exception as exc:
                     if "429" in str(exc) and attempt < max_attempts - 1:
                         backoff_needed = base_backoff * (2 ** attempt)
-                        logger.warning(
-                            "Article generation rate limited for %s (429), retrying in %.1fs... (attempt %d/%d)",
-                            row["cve_id"], backoff_needed, attempt + 1, max_attempts,
+                        _ls.status_warn(
+                            logger,
+                            f"Translation rate-limited 429: cve_id={row.get('cve_id')} "
+                            f"retry in {backoff_needed:.1f}s (attempt {attempt + 1}/{max_attempts})",
                         )
+                        error_types["RateLimited429"] += 1
                     elif attempt == max_attempts - 1:
-                        logger.warning(
-                            "Article generation exhausted retries for entry %s (cve_id=%s) after %d attempts"
-                            " (type=%s): %s",
-                            row["id"], row.get("cve_id"), max_attempts, type(exc).__name__, exc,
+                        _ls.status_fail(
+                            logger,
+                            f"Translation exhausted {max_attempts} retries: "
+                            f"cve_id={row.get('cve_id')} entry={row['id']} "
+                            f"{type(exc).__name__}: {exc}",
                         )
+                        error_types[type(exc).__name__] += 1
                         return row, None
                     else:
-                        logger.warning(
-                            "Article generation failed for entry %s (cve_id=%s, type=%s, attempt=%d/%d): %s",
-                            row["id"], row.get("cve_id"), type(exc).__name__, attempt + 1, max_attempts, exc,
+                        _ls.status_warn(
+                            logger,
+                            f"Translation error attempt={attempt + 1}/{max_attempts}: "
+                            f"cve_id={row.get('cve_id')} entry={row['id']} "
+                            f"{type(exc).__name__}: {exc}",
                         )
+                        error_types[type(exc).__name__] += 1
                         return row, None
             # Sleep outside the semaphore so other tasks can proceed during backoff
             if backoff_needed > 0:
@@ -847,10 +859,11 @@ async def _translate_entries_for_log(
 
             for res in results:
                 if isinstance(res, Exception):
-                    logger.error(
-                        "Unexpected exception in generate_task (type=%s): %s",
-                        type(res).__name__, res,
+                    _ls.status_fail(
+                        logger,
+                        f"Unexpected error in translation task: {type(res).__name__}: {res}",
                     )
+                    error_types[type(res).__name__] += 1
                     chunk_failed += 1
                     continue
 
@@ -864,10 +877,13 @@ async def _translate_entries_for_log(
                     })
                     chunk_done += 1
                 else:
-                    logger.warning(
-                        "Entry %s (cve_id=%s) produced no usable fields: parsed=%r",
-                        row["id"], row.get("cve_id"), parsed,
+                    raw_preview = repr((row.get("raw_en_text") or "")[:200])
+                    _ls.status_warn(
+                        logger,
+                        f"Translation empty result: cve_id={row.get('cve_id')} "
+                        f"entry={row['id']} raw_preview={raw_preview}",
                     )
+                    error_types["EmptyResult"] += 1
                     chunk_failed += 1
 
             if updates:
@@ -932,6 +948,23 @@ async def _translate_entries_for_log(
                 )
             await session.commit()
             await asyncio.sleep(2.0)
+
+    top_errors = error_types.most_common(3) if error_types else []
+    error_summary = ", ".join(f"{etype}×{count}" for etype, count in top_errors)
+    if failed == 0:
+        _ls.status_banner_ok(logger, "TRANSLATION COMPLETE", f"{done}/{total} OK")
+    elif done == 0:
+        _ls.status_banner_fail(
+            logger, "TRANSLATION FAILED",
+            f"0/{total} OK — all entries failed"
+            + (f" | errors: {error_summary}" if error_summary else ""),
+        )
+    else:
+        _ls.status_banner_warn(
+            logger, "TRANSLATION PARTIAL",
+            f"{done} OK, {failed} failed, {total} total"
+            + (f" | errors: {error_summary}" if error_summary else ""),
+        )
 
     return {"completed": done, "failed": failed}
 
@@ -1055,15 +1088,21 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
-        """Add event to log with timestamp."""
+        emoji = _ls.db_emoji(stage)
         event_log.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "stage": stage,
-            "message": message,
+            "message": f"{emoji} {message}",
         })
+        if stage == "SUCCESS":
+            _ls.status_ok(logger, message)
+        elif stage == "ERROR":
+            _ls.status_fail(logger, message)
+        else:
+            _ls.status_stage(logger, stage, message)
 
     try:
-        add_event("INIT", "Starting NVD sync...")
+        add_event("INIT", f"Starting NVD sync (log_id={log_id}, hours={hours})")
 
         # Step 1: Fetch and Store (without automatic translation/embedding)
         add_event("FETCHING", "Connecting to NVD API")
@@ -1127,8 +1166,8 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
 
         # Step 2: Translation
         add_event("TRANSLATING", f"Starting article generation for {inserted_count} entries...")
-        await _translate_entries_for_log(log_id, inserted_rows)
-        add_event("TRANSLATING", f"Completed: Articles generated for {inserted_count} entries")
+        translate_result = await _translate_entries_for_log(log_id, inserted_rows)
+        add_event("TRANSLATING", f"Completed: {translate_result['completed']} ok, {translate_result['failed']} failed")
 
         # Update status before embedding
         async with AsyncSessionLocal() as session:
@@ -1145,6 +1184,13 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
         embedding_result = await _embed_entries_for_log(log_id, inserted_rows)
         # We don't fail the whole sync if some embeddings fail, but we log it
         add_event("EMBEDDING", f"Completed: {embedding_result['completed']} successful, {embedding_result['failed']} failed")
+
+        add_event(
+            "SUCCESS",
+            f"NVD sync complete: fetched={fetched_count} inserted={inserted_count} "
+            f"translated={translate_result['completed']}/{inserted_count} "
+            f"embedded={embedding_result['completed']}/{inserted_count}",
+        )
 
         async with AsyncSessionLocal() as session:
             await session.execute(
@@ -1174,6 +1220,11 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
         if isinstance(exc, asyncio.CancelledError):
             logger.warning("NVD background sync task cancelled log_id=%s (saved state to DB)", log_id)
         else:
+            last_stage = event_log[-2]["stage"] if len(event_log) > 1 else "UNKNOWN"
+            _ls.status_banner_fail(
+                logger, "NVD SYNC FAILED",
+                f"log_id={log_id} stage={last_stage} | {error_msg}",
+            )
             logger.exception("NVD background sync failed log_id=%s", log_id)
         try:
             async with AsyncSessionLocal() as session:
@@ -1235,10 +1286,17 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS, 
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
-        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+        emoji = _ls.db_emoji(stage)
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": f"{emoji} {message}"})
+        if stage == "SUCCESS":
+            _ls.status_ok(logger, message)
+        elif stage == "ERROR":
+            _ls.status_fail(logger, message)
+        else:
+            _ls.status_stage(logger, stage, message)
 
     try:
-        add_event("INIT", "Starting NVD fetch...")
+        add_event("INIT", f"Starting NVD fetch (log_id={log_id}, hours={hours})")
         add_event("FETCHING", "Connecting to NVD API")
         result = await run_sync(
             hours=hours,
@@ -1282,6 +1340,7 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS, 
         if isinstance(exc, asyncio.CancelledError):
             logger.warning("NVD fetch-only sync task cancelled log_id=%s (saved state to DB)", log_id)
         else:
+            _ls.status_banner_fail(logger, "NVD FETCH FAILED", f"log_id={log_id} | {error_msg}")
             logger.exception("NVD fetch-only sync failed log_id=%s", log_id)
         try:
             async with AsyncSessionLocal() as session:
@@ -1301,10 +1360,17 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
-        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+        emoji = _ls.db_emoji(stage)
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": f"{emoji} {message}"})
+        if stage == "SUCCESS":
+            _ls.status_ok(logger, message)
+        elif stage == "ERROR":
+            _ls.status_fail(logger, message)
+        else:
+            _ls.status_stage(logger, stage, message)
 
     try:
-        add_event("INIT", "Starting standalone translation...")
+        add_event("INIT", f"Starting standalone translation (log_id={log_id})")
 
         row_limit = limit if limit and limit > 0 else 50000
         async with AsyncSessionLocal() as session:
@@ -1359,9 +1425,9 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
 
         if res["completed"] == 0 and res["failed"] > 0:
             add_event("ERROR", f"All {res['failed']} entries failed to translate")
-            logger.error(
-                "NVD translate log_id=%s: all %d entries failed (0 completed)",
-                log_id, res["failed"],
+            _ls.status_banner_fail(
+                logger, "TRANSLATION FAILED",
+                f"log_id={log_id} | 0/{res['failed']} translated — see per-CVE errors above",
             )
             async with AsyncSessionLocal() as session:
                 await session.execute(
@@ -1373,12 +1439,12 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
             return
 
         if res["failed"] > 0:
-            logger.warning(
-                "NVD translate log_id=%s: partial failure — %d ok, %d failed",
-                log_id, res["completed"], res["failed"],
+            _ls.status_warn(
+                logger,
+                f"NVD translate log_id={log_id}: partial — {res['completed']} ok, {res['failed']} failed",
             )
 
-        add_event("SUCCESS", "Translation complete")
+        add_event("SUCCESS", f"Translation complete: {res['completed']}/{total} OK")
 
         async with AsyncSessionLocal() as session:
             await session.execute(
@@ -1404,6 +1470,7 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
         if isinstance(exc, asyncio.CancelledError):
             logger.warning("NVD translate task cancelled log_id=%s (saved state to DB)", log_id)
         else:
+            _ls.status_banner_fail(logger, "NVD TRANSLATE FAILED", f"log_id={log_id} | {error_msg}")
             logger.exception("NVD standalone translate failed log_id=%s", log_id)
         try:
             async with AsyncSessionLocal() as session:
@@ -1425,10 +1492,17 @@ async def run_embed_standalone_background(log_id: int) -> None:
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
-        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": message})
+        emoji = _ls.db_emoji(stage)
+        event_log.append({"timestamp": datetime.now(timezone.utc).isoformat(), "stage": stage, "message": f"{emoji} {message}"})
+        if stage == "SUCCESS":
+            _ls.status_ok(logger, message)
+        elif stage == "ERROR":
+            _ls.status_fail(logger, message)
+        else:
+            _ls.status_stage(logger, stage, message)
 
     try:
-        add_event("INIT", "Starting standalone embedding...")
+        add_event("INIT", f"Starting standalone embedding (log_id={log_id})")
 
         async with AsyncSessionLocal() as session:
             rows = (await session.execute(
@@ -1505,6 +1579,7 @@ async def run_embed_standalone_background(log_id: int) -> None:
         if isinstance(exc, asyncio.CancelledError):
             logger.warning("NVD standalone embed task cancelled log_id=%s (saved state to DB)", log_id)
         else:
+            _ls.status_banner_fail(logger, "NVD EMBED FAILED", f"log_id={log_id} | {error_msg}")
             logger.exception("NVD standalone embed failed log_id=%s", log_id)
         try:
             async with AsyncSessionLocal() as session:
