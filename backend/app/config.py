@@ -94,6 +94,18 @@ class Settings(BaseSettings):
             "REASONING_EFFORT",
         ),
     )
+    ARTICLE_MODEL_ID: str = Field(
+        default="deepseek-v32",
+        validation_alias=AliasChoices("ARTICLE_MODEL_ID"),
+    )
+    TRANSLATION_MODEL_ID: str = Field(
+        default="deepseek-v32",
+        validation_alias=AliasChoices("TRANSLATION_MODEL_ID"),
+    )
+    TRANSLATION_REASONING_EFFORT: str = Field(
+        default="low",
+        validation_alias=AliasChoices("TRANSLATION_REASONING_EFFORT"),
+    )
     YANDEX_CLIENT_ID: str = ""
     YANDEX_CLIENT_SECRET: str = ""
     YANDEX_OAUTH_SCOPES: str = "login:email login:info login:avatar"
@@ -229,12 +241,33 @@ class Settings(BaseSettings):
         normalized = "high" if value is None else str(value).strip().lower()
         if not normalized:
             normalized = "high"
-        allowed = {"disabled", "low", "medium", "high"}
+        allowed = {"none", "low", "medium", "high"}
         if normalized not in allowed:
             raise ValueError(
-                "YANDEX_REASONING_EFFORT must be one of: disabled, low, medium, high"
+                "YANDEX_REASONING_EFFORT must be one of: none, low, medium, high"
             )
         return normalized
+
+    @field_validator("TRANSLATION_REASONING_EFFORT", mode="before")
+    @classmethod
+    def normalize_translation_reasoning_effort(cls, value: Any) -> str:
+        normalized = "low" if value is None else str(value).strip().lower()
+        if not normalized:
+            normalized = "low"
+        allowed = {"none", "low", "medium", "high"}
+        if normalized not in allowed:
+            raise ValueError(
+                "TRANSLATION_REASONING_EFFORT must be one of: none, low, medium, high"
+            )
+        return normalized
+
+    @field_validator("TRANSLATION_MODEL_ID", "ARTICLE_MODEL_ID", mode="before")
+    @classmethod
+    def normalize_model_ids(cls, value: Any) -> str:
+        if value is None:
+            return "deepseek-v32"
+        normalized = str(value).strip()
+        return normalized if normalized else "deepseek-v32"
 
     @field_validator("REFRESH_TOKEN_COOKIE_SAMESITE", mode="before")
     @classmethod
