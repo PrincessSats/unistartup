@@ -12,6 +12,7 @@ from typing import Optional
 from openai import OpenAI
 
 from app.config import settings
+from app.services.ai_generator.llm_retry import llm_call_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -102,14 +103,14 @@ def _run_review(spec: dict, task_type: str, difficulty: str) -> tuple[float, dic
     }, ensure_ascii=False)
 
     try:
-        response = client.chat.completions.create(
+        response = llm_call_with_retry(lambda: client.chat.completions.create(
             model=model,
             reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": REVIEWER_SYSTEM_PROMPT},
                 {"role": "user", "content": user_content},
             ],
-        )
+        ))
     except Exception as exc:
         logger.warning("Reviewer LLM call failed: %s", exc)
         return 0.0, {"error": str(exc)}

@@ -6,6 +6,7 @@ from typing import Any, Optional
 from openai import OpenAI
 
 from app.config import settings
+from app.services.ai_generator.llm_retry import llm_call_with_retry
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 
@@ -72,14 +73,14 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
         len(raw_en_text),
     )
     try:
-        response = client.chat.completions.create(
+        response = llm_call_with_retry(lambda: client.chat.completions.create(
             model=model_name,
             reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": prompt_text},
                 {"role": "user", "content": raw_en_text},
             ],
-        )
+        ))
     except Exception as exc:  # noqa: BLE001
         logger.error(
             "Yandex LLM request failed (type=%s): %s",
