@@ -91,7 +91,7 @@ function ActionButton({ label, onClick, disabled, loading, color = 'white' }) {
 }
 
 function NvdSync() {
-  const { nvdSync, isBusy, pendingOp, isActive, error, onFetch, onTranslate, onEmbed, onStop, onPurge } = useNvdSyncData();
+  const { nvdSync, isBusy, pendingOp, isActive, error, onFetch, onTranslate, onEmbed, onStop, onPurge, selectedModel, setSelectedModel } = useNvdSyncData();
   const [translateLimit, setTranslateLimit] = useState('');
   const eventLogRef = useRef(null);
 
@@ -117,9 +117,23 @@ function NvdSync() {
   return (
     <div className="flex-1 min-w-0 space-y-4">
       {/* Header */}
-      <div>
-        <div className="text-[22px] leading-[26px] font-semibold tracking-[0.02em] text-white">NVD Sync</div>
-        <div className="text-[13px] text-white/40 mt-1">Синхронизация CVE из National Vulnerability Database</div>
+      <div className="flex items-end justify-between gap-4 flex-wrap">
+        <div>
+          <div className="text-[22px] leading-[26px] font-semibold tracking-[0.02em] text-white">NVD Sync</div>
+          <div className="text-[13px] text-white/40 mt-1">Синхронизация CVE из National Vulnerability Database</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-white/40">Модель синтеза EN:</span>
+          <select
+            value={selectedModel}
+            onChange={e => setSelectedModel(e.target.value)}
+            disabled={isBusy}
+            className="h-8 px-3 rounded-[8px] bg-white/[0.06] border border-white/[0.12] text-white/70 text-[12px] focus:outline-none focus:border-purple-400/40 disabled:opacity-40 cursor-pointer"
+          >
+            <option value="deepseek">deepseek</option>
+            <option value="qwen">qwen 3.5</option>
+          </select>
+        </div>
       </div>
 
       {error && (
@@ -197,7 +211,7 @@ function NvdSync() {
             </div>
             <ActionButton
               label="▶ Translate"
-              onClick={() => onTranslate(translateLimit ? parseInt(translateLimit, 10) : undefined)}
+              onClick={() => onTranslate(translateLimit ? parseInt(translateLimit, 10) : undefined, selectedModel)}
               disabled={isBusy}
               loading={isTranslating}
               color="purple"

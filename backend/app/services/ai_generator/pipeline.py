@@ -30,6 +30,7 @@ from app.config import settings
 from app.models.ai_generation import AIGenerationBatch, AIGenerationVariant
 from app.services.ai_generator.artifact_creator import create_artifact, ArtifactResult
 from app.services.ai_generator.feedback import FeedbackContext, compute_feedback_context
+from app.services.ai_generator.llm_retry import llm_call_with_retry
 from app.services.ai_generator.rag_context import RAGContextBuilder, RAGContext
 from app.services.ai_generator.reward import (
     RewardCheck, VariantReward, compute_group_advantages, REWARD_WEIGHTS,
@@ -141,14 +142,14 @@ def _run_one_spec(
 
     start = time.monotonic()
     try:
-        response = client.chat.completions.create(
+        response = llm_call_with_retry(lambda: client.chat.completions.create(
             model=model,
             reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
-        )
+        ))
     except Exception as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.warning("LLM generation error: %s", exc)

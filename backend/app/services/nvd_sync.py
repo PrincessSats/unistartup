@@ -382,28 +382,12 @@ async def store_kb_entries(
                     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
                     async def translate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[FullTranslationResult]]:
-                        max_attempts = 3
-                        base_backoff = 5.0
-                        for attempt in range(max_attempts):
-                            async with sem:
-                                try:
-                                    result = await svc.translate_full_cve(
-                                        row["cve_id"],
-                                        row["raw_en_text"] or "",
-                                    )
-                                    return row, result
-                                except Exception as exc:
-                                    # If 429, retry with backoff
-                                    if "429" in str(exc) and attempt < max_attempts - 1:
-                                        backoff = base_backoff * (2 ** attempt)
-                                        logger.warning("Translation rate limited for %s (429), retrying in %.1fs... (attempt %d/%d)", 
-                                                       row["cve_id"], backoff, attempt + 1, max_attempts)
-                                        await asyncio.sleep(backoff)
-                                        continue
-                                    
-                                    logger.warning("Translation failed for entry %s: %s", row["id"], exc)
-                                    return row, None
-                        return row, None
+                        async with sem:
+                            result = await svc.translate_full_cve(
+                                row["cve_id"],
+                                row["raw_en_text"] or "",
+                            )
+                            return row, result
 
                     # Process in batches
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
@@ -777,177 +761,133 @@ async def _translate_entries_for_log(
     log_id: int,
     entries: List[Dict[str, Any]],
     event_log: Optional[List[Dict[str, str]]] = None,
+    model: Optional[str] = None,
 ) -> Dict[str, int]:
-    """Generate structured Russian KB articles for backlog entries using article_prompt.txt.
-
-    Uses generate_article_payload (1 LLM call per CVE) which produces a properly structured
-    ru_title / ru_summary / ru_explainer via the article prompt, instead of plain translation
-    (which required 3 separate LLM calls and produced literal translations with no structure).
-    """
-    from app.services.article_generation import generate_article_payload, ArticleGenerationError
+    """Translate kb_entries to Russian via Yandex Translate (+ optional LLM EN synthesis)."""
+    from app.services.ai_generator.translation_service import TranslationService, FullTranslationResult
 
     done = 0
     failed = 0
     total = len(entries)
     error_types: Counter = Counter()
     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
+    svc = TranslationService()
 
-    async def generate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[dict]]:
-        raw_en_text = row.get("raw_en_text") or ""
-        max_attempts = 3
-        base_backoff = 5.0
-        for attempt in range(max_attempts):
-            backoff_needed = 0.0
-            async with sem:
-                try:
-                    result = await asyncio.wait_for(
-                        generate_article_payload(raw_en_text),
-                        timeout=150.0,
-                    )
-                    return row, result.get("parsed")
-                except asyncio.TimeoutError:
-                    _ls.status_warn(
-                        logger,
-                        f"Translation timeout (150s): cve_id={row.get('cve_id')} "
-                        f"entry={row['id']} attempt={attempt + 1}/{max_attempts}",
-                    )
-                    error_types["TimeoutError"] += 1
-                    return row, None
-                except Exception as exc:
-                    if "429" in str(exc) and attempt < max_attempts - 1:
-                        backoff_needed = base_backoff * (2 ** attempt)
-                        _ls.status_warn(
-                            logger,
-                            f"Translation rate-limited 429: cve_id={row.get('cve_id')} "
-                            f"retry in {backoff_needed:.1f}s (attempt {attempt + 1}/{max_attempts})",
-                        )
-                        error_types["RateLimited429"] += 1
-                    elif attempt == max_attempts - 1:
+    async def translate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], FullTranslationResult]:
+        async with sem:
+            result = await svc.translate_full_cve(
+                row.get("cve_id") or "",
+                row.get("raw_en_text") or "",
+                model=model,
+            )
+            return row, result
+
+    try:
+        async with AsyncSessionLocal() as session:
+            for chunk in _chunked(entries, BATCH_SIZE):
+                if await _is_cancelled(log_id):
+                    logger.info("NVD translate cancelled at chunk boundary log_id=%s done=%d", log_id, done)
+                    break
+                tasks = [translate_task(row) for row in chunk]
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                updates = []
+                chunk_done = 0
+                chunk_failed = 0
+
+                for res in results:
+                    if isinstance(res, Exception):
                         _ls.status_fail(
                             logger,
-                            f"Translation exhausted {max_attempts} retries: "
-                            f"cve_id={row.get('cve_id')} entry={row['id']} "
-                            f"{type(exc).__name__}: {exc}",
+                            f"Unexpected error in translation task: {type(res).__name__}: {res}",
                         )
-                        error_types[type(exc).__name__] += 1
-                        return row, None
+                        error_types[type(res).__name__] += 1
+                        chunk_failed += 1
+                        continue
+
+                    row, translation = res
+                    if translation and (translation.ru_title or translation.ru_summary or translation.ru_explainer):
+                        updates.append({
+                            "ru_title": translation.ru_title or None,
+                            "ru_summary": translation.ru_summary or None,
+                            "ru_explainer": translation.ru_explainer or None,
+                            "entry_id": row["id"],
+                        })
+                        chunk_done += 1
                     else:
+                        raw_preview = repr((row.get("raw_en_text") or "")[:200])
                         _ls.status_warn(
                             logger,
-                            f"Translation error attempt={attempt + 1}/{max_attempts}: "
-                            f"cve_id={row.get('cve_id')} entry={row['id']} "
-                            f"{type(exc).__name__}: {exc}",
+                            f"Translation empty result: cve_id={row.get('cve_id')} "
+                            f"entry={row['id']} raw_preview={raw_preview}",
                         )
-                        error_types[type(exc).__name__] += 1
-                        return row, None
-            # Sleep outside the semaphore so other tasks can proceed during backoff
-            if backoff_needed > 0:
-                await asyncio.sleep(backoff_needed)
-        return row, None
+                        error_types["EmptyResult"] += 1
+                        chunk_failed += 1
 
-    async with AsyncSessionLocal() as session:
-        for chunk in _chunked(entries, BATCH_SIZE):
-            if await _is_cancelled(log_id):
-                logger.info("NVD translate cancelled at chunk boundary log_id=%s done=%d", log_id, done)
-                break
-            tasks = [generate_task(row) for row in chunk]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-
-            updates = []
-            chunk_done = 0
-            chunk_failed = 0
-
-            for res in results:
-                if isinstance(res, Exception):
-                    _ls.status_fail(
-                        logger,
-                        f"Unexpected error in translation task: {type(res).__name__}: {res}",
+                if updates:
+                    await session.execute(
+                        text(
+                            "UPDATE kb_entries SET "
+                            "ru_title = :ru_title, "
+                            "ru_summary = :ru_summary, "
+                            "ru_explainer = :ru_explainer "
+                            "WHERE id = :entry_id"
+                        ),
+                        updates,
                     )
-                    error_types[type(res).__name__] += 1
-                    chunk_failed += 1
-                    continue
 
-                row, parsed = res
-                if parsed and (parsed.get("ru_title") or parsed.get("ru_summary") or parsed.get("ru_explainer")):
-                    updates.append({
-                        "ru_title": parsed.get("ru_title") or None,
-                        "ru_summary": parsed.get("ru_summary") or None,
-                        "ru_explainer": parsed.get("ru_explainer") or None,
-                        "entry_id": row["id"],
+                done += chunk_done
+                failed += chunk_failed
+
+                if event_log is not None:
+                    event_log.append({
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "stage": "TRANSLATING",
+                        "message": f"Chunk done: {done} ok, {failed} failed so far ({done + failed}/{total})",
                     })
-                    chunk_done += 1
-                else:
-                    raw_preview = repr((row.get("raw_en_text") or "")[:200])
-                    _ls.status_warn(
-                        logger,
-                        f"Translation empty result: cve_id={row.get('cve_id')} "
-                        f"entry={row['id']} raw_preview={raw_preview}",
+
+                if event_log is not None:
+                    await session.execute(
+                        text(
+                            """
+                            UPDATE nvd_sync_log
+                            SET translation_completed = :completed,
+                                translation_failed = :failed,
+                                detailed_status = :status,
+                                event_log = :event_log
+                            WHERE id = :log_id
+                            """
+                        ),
+                        {
+                            "log_id": log_id,
+                            "completed": done,
+                            "failed": failed,
+                            "status": f"Translating CVEs: {done + failed}/{total}...",
+                            "event_log": json.dumps(event_log),
+                        },
                     )
-                    error_types["EmptyResult"] += 1
-                    chunk_failed += 1
-
-            if updates:
-                await session.execute(
-                    text(
-                        "UPDATE kb_entries SET "
-                        "ru_title = :ru_title, "
-                        "ru_summary = :ru_summary, "
-                        "ru_explainer = :ru_explainer "
-                        "WHERE id = :entry_id"
-                    ),
-                    updates,
-                )
-
-            done += chunk_done
-            failed += chunk_failed
-
-            if event_log is not None:
-                event_log.append({
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "stage": "TRANSLATING",
-                    "message": f"Chunk done: {done} ok, {failed} failed so far ({done + failed}/{total})",
-                })
-
-            if event_log is not None:
-                await session.execute(
-                    text(
-                        """
-                        UPDATE nvd_sync_log
-                        SET translation_completed = :completed,
-                            translation_failed = :failed,
-                            detailed_status = :status,
-                            event_log = :event_log
-                        WHERE id = :log_id
-                        """
-                    ),
-                    {
-                        "log_id": log_id,
-                        "completed": done,
-                        "failed": failed,
-                        "status": f"Generating KB articles: {done + failed}/{total}...",
-                        "event_log": json.dumps(event_log),
-                    },
-                )
-            else:
-                await session.execute(
-                    text(
-                        """
-                        UPDATE nvd_sync_log
-                        SET translation_completed = :completed,
-                            translation_failed = :failed,
-                            detailed_status = :status
-                        WHERE id = :log_id
-                        """
-                    ),
-                    {
-                        "log_id": log_id,
-                        "completed": done,
-                        "failed": failed,
-                        "status": f"Generating KB articles: {done + failed}/{total}...",
-                    },
-                )
-            await session.commit()
-            await asyncio.sleep(2.0)
+                else:
+                    await session.execute(
+                        text(
+                            """
+                            UPDATE nvd_sync_log
+                            SET translation_completed = :completed,
+                                translation_failed = :failed,
+                                detailed_status = :status
+                            WHERE id = :log_id
+                            """
+                        ),
+                        {
+                            "log_id": log_id,
+                            "completed": done,
+                            "failed": failed,
+                            "status": f"Translating CVEs: {done + failed}/{total}...",
+                        },
+                    )
+                await session.commit()
+                await asyncio.sleep(2.0)
+    finally:
+        await svc.close()
 
     top_errors = error_types.most_common(3) if error_types else []
     error_summary = ", ".join(f"{etype}×{count}" for etype, count in top_errors)
@@ -1356,7 +1296,7 @@ async def run_fetch_only_background(log_id: int, *, hours: int = DEFAULT_HOURS, 
             raise
 
 
-async def run_translate_standalone_background(log_id: int, *, limit: Optional[int] = None) -> None:
+async def run_translate_standalone_background(log_id: int, *, limit: Optional[int] = None, model: Optional[str] = None) -> None:
     event_log: List[Dict[str, str]] = []
 
     def add_event(stage: str, message: str) -> None:
@@ -1409,7 +1349,7 @@ async def run_translate_standalone_background(log_id: int, *, limit: Optional[in
                 await session.commit()
             return
 
-        res = await _translate_entries_for_log(log_id, entries, event_log=event_log)
+        res = await _translate_entries_for_log(log_id, entries, event_log=event_log, model=model)
 
         if await _is_cancelled(log_id):
             add_event("TRANSLATING", f"Stopped by user after {res['completed']} translations")
