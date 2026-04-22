@@ -882,6 +882,7 @@ async def translate_nvd_entries(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     limit: Optional[int] = Query(None, ge=1, le=50000),
+    model: Optional[str] = Query(None),
 ):
     """Translate kb_entries without ru_summary (newest first, optional limit)."""
     _user, _profile = current_user_data
@@ -903,7 +904,7 @@ async def translate_nvd_entries(
             ) from exc
         raise
 
-    task = asyncio.create_task(run_translate_standalone_background(created_row["id"], limit=limit))
+    task = asyncio.create_task(run_translate_standalone_background(created_row["id"], limit=limit, model=model))
     _nvd_background_tasks.add(task)
     task.add_done_callback(_nvd_background_tasks.discard)
     created_payload = sync_log_to_admin_payload(created_row)

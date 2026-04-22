@@ -1,44 +1,73 @@
 """
-Translation service for CVE descriptions using Yandex Cloud LLM.
+Translation service for CVE descriptions using Yandex Translate API.
 
-Single-call structured translation: one LLM request returns {ru_title, ru_summary, ru_explainer}
-instead of three separate calls. Model and reasoning effort are env-configurable.
+Single-request batch translation: one REST call returns ru_title, ru_summary, ru_explainer.
 """
 from __future__ import annotations
 
 import asyncio
-import json
+import json as _json
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from openai import AsyncOpenAI
+import httpx
+from openai import OpenAI
 
 from app.config import settings
+from app.services.ai_generator.llm_retry import http_call_with_retry_async, llm_call_with_retry
 
 logger = logging.getLogger(__name__)
 
-TRANSLATION_SYSTEM_PROMPT = """Ты — профессиональный технический переводчик в области кибербезопасности. Переведи текст уязвимости CVE с английского на русский.
+_TRANSLATE_ENDPOINT = "https://translate.api.cloud.yandex.net/translate/v2/translate"
 
-Требования:
-- Оставляй CVE ID, технические термины и акронимы на английском (например, "CVE-2024-1234", "XSS", "SQL injection", "API", "HTTP")
-- Переводи только описательный текст
-- Делай перевод точным, полным и профессиональным
-- Сохраняй структуру оригинала (абзацы, списки)
-- Выводи ТОЛЬКО перевод, без дополнительных комментариев
-"""
+_ENRICHMENT_SYSTEM = (
+    "You are a technical security analyst. Given a CVE description, produce a JSON object with two keys:\n"
+    '  "summary": a concise English summary of the vulnerability (1-3 sentences, 60-200 words).\n'
+    '  "explainer": a detailed technical English explainer covering impact, root cause, and context (150-500 words).\n'
+    "Respond ONLY with the raw JSON object, no markdown fences."
+)
 
-TRANSLATION_STRUCTURED_PROMPT = """Ты — профессиональный технический переводчик в области кибербезопасности.
-Получив описание уязвимости CVE на английском, верни JSON-объект с полями:
-- "ru_title": краткое русское название (первое предложение оригинала, не более 150 символов)
-- "ru_summary": краткое описание на русском (первые ~3000 символов оригинала)
-- "ru_explainer": полный перевод (до 8000 символов оригинала)
+_MODEL_URI_MAP = {
+    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
+    "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
+}
 
-Правила:
-- CVE ID, технические термины и акронимы оставляй на английском (XSS, SQL injection, API, HTTP и т. п.)
-- Переводи только описательный текст, точно и профессионально
-- Выводи ТОЛЬКО валидный JSON, без комментариев и markdown-оформления
-"""
+_LLM_CLIENT: Optional[OpenAI] = None
+
+
+def _build_llm_client() -> OpenAI:
+    global _LLM_CLIENT
+    if _LLM_CLIENT is None:
+        _LLM_CLIENT = OpenAI(
+            api_key=(settings.YANDEX_CLOUD_API_KEY or "").strip(),
+            base_url="https://llm.api.cloud.yandex.net/v1",
+            timeout=120,
+        )
+    return _LLM_CLIENT
+
+
+def _generate_enrichment_sync(raw_en_text: str, model_uri: str) -> tuple[str, str]:
+    """Call LLM (sync) to produce (en_summary, en_explainer). Called via asyncio.to_thread."""
+    client = _build_llm_client()
+    response = llm_call_with_retry(lambda: client.chat.completions.create(
+        model=model_uri,
+        messages=[
+            {"role": "system", "content": _ENRICHMENT_SYSTEM},
+            {"role": "user", "content": raw_en_text[:8000]},
+        ],
+    ))
+    content = (response.choices[0].message.content or "").strip()
+    if content.startswith("```"):
+        lines = content.splitlines()
+        content = "\n".join(lines[1:] if lines[0].startswith("```") else lines)
+        if content.rstrip().endswith("```"):
+            content = content.rstrip()[:-3].rstrip()
+    try:
+        parsed = _json.loads(content)
+        return str(parsed.get("summary", "")), str(parsed.get("explainer", ""))
+    except _json.JSONDecodeError:
+        return content[:300], content
 
 
 @dataclass
@@ -54,71 +83,70 @@ class TranslationError(Exception):
     pass
 
 
+class _YandexTranslateClient:
+    """Thin async wrapper around Yandex Translate REST API."""
+
+    def __init__(self, api_key: str, folder_id: str):
+        self._api_key = api_key
+        self._folder_id = folder_id
+        self._http: Optional[httpx.AsyncClient] = None
+
+    def _client(self) -> httpx.AsyncClient:
+        if self._http is None:
+            self._http = httpx.AsyncClient(timeout=30.0)
+        return self._http
+
+    async def translate(self, texts: list[str]) -> list[str]:
+        """Translate a batch of texts from EN to RU. Returns translated strings in same order."""
+        payload = {
+            "folderId": self._folder_id,
+            "texts": texts,
+            "targetLanguageCode": "ru",
+            "sourceLanguageCode": "en",
+            "format": "PLAIN_TEXT",
+        }
+        headers = {
+            "Authorization": f"Api-Key {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async def _post():
+            r = await self._client().post(_TRANSLATE_ENDPOINT, json=payload, headers=headers)
+            r.raise_for_status()
+            return [t["text"] for t in r.json()["translations"]]
+
+        return await http_call_with_retry_async(_post)
+
+    async def close(self):
+        if self._http:
+            await self._http.aclose()
+            self._http = None
+
+
 class TranslationService:
-    """Async translation service via Yandex Cloud OpenAI-compatible API."""
+    """Async translation service via Yandex Translate REST API."""
 
     def __init__(self):
         self.api_key = settings.YANDEX_CLOUD_API_KEY
         self.folder_id = settings.YANDEX_CLOUD_FOLDER
-        self._client: Optional[AsyncOpenAI] = None
+        self._translator: Optional[_YandexTranslateClient] = None
 
-    def _get_client(self) -> AsyncOpenAI:
-        """Lazy client initialization."""
-        if self._client is None:
+    def _get_translator(self) -> _YandexTranslateClient:
+        if self._translator is None:
             if not self.api_key:
                 raise TranslationError("YANDEX_CLOUD_API_KEY not configured")
             if not self.folder_id:
                 raise TranslationError("YANDEX_CLOUD_FOLDER not configured")
-            self._client = AsyncOpenAI(
-                api_key=self.api_key,
-                base_url="https://llm.api.cloud.yandex.net/v1",
-                project=self.folder_id,
-            )
-        return self._client
+            self._translator = _YandexTranslateClient(self.api_key, self.folder_id.strip())
+        return self._translator
 
     async def translate_text(self, text: str, max_chars: int = 8000) -> str:
-        """
-        Translate text to Russian using deepseek-v32.
-
-        Args:
-            text: Text to translate (English)
-            max_chars: Maximum characters to translate (default: 8000)
-
-        Returns:
-            Translated text (Russian)
-
-        Raises:
-            TranslationError: If translation fails
-        """
+        """Translate a single text to Russian."""
         if not text or not text.strip():
             return ""
-
-        client = self._get_client()
-        folder = self.folder_id.strip()
-        model = f"gpt://{folder}/{settings.TRANSLATION_MODEL_ID}/latest"
-
         try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": TRANSLATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": f"Переведи на русский:\n\n{text[:max_chars]}"},
-                ],
-                temperature=0.1,  # Low temperature for consistent translation
-            )
-            translated = (response.choices[0].message.content or "").strip()
-            
-            # Remove any prefix that the model might add
-            if translated.lower().startswith("перевод:"):
-                translated = translated[8:].strip()
-            if translated.lower().startswith("translation:"):
-                translated = translated[12:].strip()
-            # Remove leading/trailing quotes
-            translated = translated.strip('"').strip("'")
-            
-            logger.debug("Translated %d chars → %d chars", len(text), len(translated))
-            return translated
-            
+            results = await self._get_translator().translate([text[:max_chars]])
+            return results[0].strip()
         except Exception as exc:
             raise TranslationError(f"Translation failed: {exc}")
 
@@ -127,35 +155,21 @@ class TranslationService:
         cve_id: str,
         raw_en_text: str,
     ) -> tuple[str, str]:
-        """
-        Translate CVE title and summary (legacy method for backward compatibility).
-
-        Returns:
-            Tuple of (ru_title, ru_summary)
-        """
+        """Translate CVE title and summary (legacy method for backward compatibility)."""
         if not raw_en_text:
             return "", ""
 
-        # Extract title (first sentence or first 150 chars)
-        title_text = raw_en_text[:150].split(".")[0].strip()
-        if not title_text:
-            title_text = raw_en_text[:100]
+        title_text = raw_en_text[:150].split(".")[0].strip() or raw_en_text[:100]
 
         try:
-            # Translate title and summary in parallel
-            ru_title_task = self.translate_text(title_text)
-            ru_summary_task = self.translate_text(raw_en_text[:3000])
-
-            ru_title, ru_summary = await asyncio.gather(
-                ru_title_task,
-                ru_summary_task,
-                return_exceptions=False,
-            )
-
+            results = await self._get_translator().translate([
+                title_text,
+                raw_en_text[:3000],
+            ])
+            ru_title, ru_summary = results[0].strip(), results[1].strip()
             logger.info("Translated CVE %s: title=%d chars, summary=%d chars",
-                       cve_id, len(ru_title), len(ru_summary))
-            return ru_title.strip(), ru_summary.strip()
-
+                        cve_id, len(ru_title), len(ru_summary))
+            return ru_title, ru_summary
         except Exception as exc:
             logger.warning("Translation failed for CVE %s: %s", cve_id, exc)
             return "", ""
@@ -164,55 +178,52 @@ class TranslationService:
         self,
         cve_id: str,
         raw_en_text: str,
+        model: Optional[str] = None,
     ) -> FullTranslationResult:
-        """Single-call structured translation: returns title + summary + explainer from one LLM request."""
+        """Translate CVE to Russian. If model key given, LLM synthesises EN first, then Yandex Translate."""
         if not raw_en_text:
             return FullTranslationResult(ru_title="", ru_summary="", ru_explainer="")
 
-        client = self._get_client()
-        folder = self.folder_id.strip()
-        model_id = settings.TRANSLATION_MODEL_ID
-        model = f"gpt://{folder}/{model_id}/latest"
-        reasoning_effort = settings.TRANSLATION_REASONING_EFFORT
+        title_slice = raw_en_text[:150].split(".")[0].strip() or raw_en_text[:100]
+
+        if model and model in _MODEL_URI_MAP:
+            folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+            model_uri = _MODEL_URI_MAP[model](folder)
+            try:
+                en_summary, en_explainer = await asyncio.to_thread(
+                    _generate_enrichment_sync, raw_en_text, model_uri
+                )
+            except Exception as exc:
+                logger.warning(
+                    "LLM enrichment failed for CVE %s (model=%s), using raw slices: %s",
+                    cve_id, model, exc,
+                )
+                en_summary = raw_en_text[:3000]
+                en_explainer = raw_en_text[:8000]
+        else:
+            en_summary = raw_en_text[:3000]
+            en_explainer = raw_en_text[:8000]
 
         try:
-            response = await client.chat.completions.create(
-                model=model,
-                reasoning_effort=reasoning_effort,
-                messages=[
-                    {"role": "system", "content": TRANSLATION_STRUCTURED_PROMPT},
-                    {"role": "user", "content": raw_en_text[:8000]},
-                ],
-            )
-            text = (response.choices[0].message.content or "").strip()
-            if text.startswith("```"):
-                lines = text.splitlines()
-                if lines[0].startswith("```"):
-                    lines = lines[1:]
-                if lines and lines[-1].strip().startswith("```"):
-                    lines = lines[:-1]
-                text = "\n".join(lines).strip()
-
-            parsed = json.loads(text)
+            results = await self._get_translator().translate([
+                title_slice,
+                en_summary or raw_en_text[:3000],
+                en_explainer or raw_en_text[:8000],
+            ])
             result = FullTranslationResult(
-                ru_title=(parsed.get("ru_title") or "").strip(),
-                ru_summary=(parsed.get("ru_summary") or "").strip(),
-                ru_explainer=(parsed.get("ru_explainer") or "").strip(),
+                ru_title=results[0].strip(),
+                ru_summary=results[1].strip(),
+                ru_explainer=results[2].strip(),
             )
             logger.info(
-                "Translated CVE %s (model=%s, effort=%s): title=%d, summary=%d, explainer=%d chars",
-                cve_id, model_id, reasoning_effort,
-                len(result.ru_title), len(result.ru_summary), len(result.ru_explainer),
+                "Translated CVE %s (model=%s): title=%d, summary=%d, explainer=%d chars",
+                cve_id, model or "raw", len(result.ru_title), len(result.ru_summary), len(result.ru_explainer),
             )
             return result
-
-        except json.JSONDecodeError as exc:
-            logger.warning("Structured translation JSON parse failed for CVE %s: %s", cve_id, exc)
-            return FullTranslationResult(ru_title="", ru_summary="", ru_explainer="")
         except Exception as exc:
             logger.warning("Full translation failed for CVE %s: %s", cve_id, exc)
             return FullTranslationResult(ru_title="", ru_summary="", ru_explainer="")
 
     async def close(self):
-        if self._client:
-            await self._client.close()
+        if self._translator:
+            await self._translator.close()

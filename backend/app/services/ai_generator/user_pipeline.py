@@ -29,6 +29,8 @@ from openai import OpenAI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.ai_generator.llm_retry import llm_call_with_retry
+
 from app.config import settings
 from app.models.ai_generation import AIGenerationBatch, AIGenerationVariant
 from app.models.user_task_variant import UserTaskVariantRequest
@@ -157,14 +159,14 @@ def _run_one_spec(
 
     start = time.monotonic()
     try:
-        response = client.chat.completions.create(
+        response = llm_call_with_retry(lambda: client.chat.completions.create(
             model=model,
             reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
-        )
+        ))
     except Exception as exc:
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.warning("LLM generation error: %s", exc)
