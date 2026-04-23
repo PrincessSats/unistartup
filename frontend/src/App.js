@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -122,7 +122,7 @@ function App() {
   }
 
   return (
-    <HashRouter>
+    <BrowserRouter>
       <MetrikaPageTracker />
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
@@ -154,7 +154,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </HashRouter>
+    </BrowserRouter>
   );
 }
 

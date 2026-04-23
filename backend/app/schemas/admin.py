@@ -3,6 +3,8 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.comments import KBComment
+
 
 class CveSearchResult(BaseModel):
     id: int
@@ -26,6 +28,10 @@ class AdminFeedback(BaseModel):
     message: str
     resolved: bool = False
     created_at: Optional[datetime] = None
+
+
+class AdminComment(KBComment):
+    entry_title: Optional[str] = None
 
 
 class AdminChampionship(BaseModel):
