@@ -27,6 +27,7 @@ from app.schemas.admin import (
     AdminDashboardResponse,
     AdminStats,
     AdminFeedback,
+    AdminComment,
     AdminChampionship,
     AdminArticle,
     AdminArticleCreateRequest,
@@ -312,6 +313,67 @@ async def resolve_feedback(
         resolved=bool(row.get("resolved")),
         created_at=row.get("created_at"),
     )
+
+@router.get("/admin/feedbacks", response_model=list[AdminFeedback])
+async def list_feedbacks_admin(
+    resolved: Optional[bool] = Query(None, description="Filter by resolved status"),
+    limit: int = 100,
+    offset: int = 0,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получить все отзывы (пагинация).
+    """
+    _user, _profile = current_user_data
+
+    rows = (
+        await db.execute(
+            text("""
+                SELECT f.id, f.user_id, p.username, f.topic, f.message, COALESCE(f.resolved, FALSE) AS resolved, f.created_at
+                FROM feedback f
+                LEFT JOIN user_profiles p ON p.user_id = f.user_id
+                WHERE (:resolved IS NULL OR COALESCE(f.resolved, FALSE) = :resolved)
+                ORDER BY f.created_at DESC
+                LIMIT :limit OFFSET :offset
+                """),
+            {"resolved": resolved, "limit": limit, "offset": offset},
+        )
+    ).mappings().all()
+
+    return [AdminFeedback(**row) for row in rows]
+
+
+@router.get("/admin/comments", response_model=list[AdminComment])
+async def list_comments_admin(
+    kb_entry_id: Optional[int] = Query(None, description="Filter comments by knowledge base entry"),
+    limit: int = 100,
+    offset: int = 0,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получить все комментарии к статьям (пагинация).
+    """
+    _user, _profile = current_user_data
+
+    rows = (
+        await db.execute(
+            text("""
+                SELECT c.*, p.username, p.avatar_url, k.ru_title as entry_title
+                FROM kb_comments c
+                LEFT JOIN user_profiles p ON p.user_id = c.user_id
+                LEFT JOIN kb_entries k ON k.id = c.kb_entry_id
+                WHERE (:kb_entry_id IS NULL OR c.kb_entry_id = :kb_entry_id)
+                ORDER BY c.created_at DESC
+                LIMIT :limit OFFSET :offset
+                """),
+            {"kb_entry_id": kb_entry_id, "limit": limit, "offset": offset},
+        )
+    ).mappings().all()
+
+    return [AdminComment(**row) for row in rows]
+
 
 
 def _normalize_tags(raw_tags: Optional[list[str]]) -> list[str]:

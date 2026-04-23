@@ -218,8 +218,8 @@ function extractErrorDetail(error) {
 
 function buildLoginHash(reason = '') {
   const encodedReason = String(reason || '').trim();
-  if (!encodedReason) return '#/login';
-  return `#/login?reason=${encodeURIComponent(encodedReason)}`;
+  if (!encodedReason) return '/login';
+  return `/login?reason=${encodeURIComponent(encodedReason)}`;
 }
 
 
@@ -818,6 +818,14 @@ export const adminAPI = {
   },
   resolveFeedback: async (feedbackId) => {
     const response = await api.post(`/admin/feedback/${feedbackId}/resolve`);
+    return response.data;
+  },
+  getFeedbacks: async (params = {}) => {
+    const response = await api.get('/admin/feedbacks', { params });
+    return response.data;
+  },
+  getComments: async (params = {}) => {
+    const response = await api.get('/admin/comments', { params });
     return response.data;
   },
   getActivityLog: async (params = {}) => {
