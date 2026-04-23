@@ -7,6 +7,7 @@ import StatCard from './Widgets/StatCard';
 import FeedbackPanel from './Dashboard/FeedbackPanel';
 import ChampionshipWidget from './Dashboard/ChampionshipWidget';
 import RecentArticleCard from './Dashboard/RecentArticleCard';
+import CommentsPanel from './Dashboard/CommentsPanel';
 import FeedbackResolver from './Widgets/FeedbackResolver';
 
 // Drawers
@@ -51,7 +52,6 @@ function Admin() {
   const stats = dashboard?.stats || {};
   const contest = dashboard?.current_championship || null;
   const lastArticle = dashboard?.last_article || null;
-  const feedbacks = dashboard?.latest_feedbacks || [];
 
   const paidConversion = stats.total_users
     ? ((stats.paid_users / stats.total_users) * 100).toFixed(1)
@@ -202,7 +202,6 @@ function Admin() {
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <FeedbackPanel
-          feedbacks={feedbacks}
           onResolve={handleStartResolveFeedback}
         />
         <ChampionshipWidget
@@ -215,6 +214,9 @@ function Admin() {
 
       {/* Recent Article */}
       <RecentArticleCard article={lastArticle} />
+
+      {/* Comments */}
+      <CommentsPanel />
 
       {/* Feedback Resolver Modal */}
       <FeedbackResolver
