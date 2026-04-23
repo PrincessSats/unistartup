@@ -770,7 +770,7 @@ function Championship() {
                               Войдите, чтобы участвовать в чемпионате
                             </span>
                             <a
-                              href="#/login"
+                              href="/login"
                               className="inline-flex h-9 items-center rounded-[8px] bg-[#9B6BFF] px-4 text-[14px] text-white transition-colors hover:bg-[#8452FF]"
                             >
                               Войти

@@ -852,7 +852,7 @@ export default function EducationTask() {
                     Войдите в аккаунт, чтобы сдать флаг
                   </span>
                   <a
-                    href="#/login"
+                    href="/login"
                     className="inline-flex h-10 items-center rounded-[8px] bg-[#9B6BFF] px-5 text-[15px] text-white transition-colors hover:bg-[#8452FF]"
                   >
                     Войти
