@@ -469,14 +469,7 @@ async def upload_user_avatar(
     
     # Читаем файл
     file_bytes = await file.read()
-    
-    # Проверяем размер (до сжатия)
-    if len(file_bytes) > 5 * 1024 * 1024:  # 5MB до сжатия
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Файл слишком большой. Максимум 5MB"
-        )
-    
+
     # Сохраняем старый URL для удаления
     old_avatar_url = profile.avatar_url
     

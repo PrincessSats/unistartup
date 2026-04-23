@@ -4,6 +4,8 @@ import { authAPI, profileAPI } from '../services/api';
 import { PageLoader } from '../components/LoadingState';
 import TariffPlans from '../components/TariffPlans';
 
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
 function Profile() {
   const navigate = useNavigate();
   // Берем данные пользователя из Layout, чтобы не дублировать сетевой запрос.
@@ -106,13 +108,13 @@ function Profile() {
     }
 
     // Проверяем тип
-    if (!file.type.startsWith('image/')) {
-      setError('Можно загружать только изображения');
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError('Можно загружать только JPEG, PNG, WebP или GIF');
       return;
     }
 
     setEditAvatar(file);
-    
+
     // Создаём превью
     const reader = new FileReader();
     reader.onload = (e) => {
