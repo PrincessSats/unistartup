@@ -10,6 +10,7 @@ import uuid
 from PIL import Image
 import io
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -57,28 +58,31 @@ async def upload_avatar(file_bytes: bytes, user_id: int) -> str:
     """
     if len(file_bytes) > MAX_FILE_SIZE:
         raise ValueError(f"Файл слишком большой. Максимум {MAX_FILE_SIZE // 1024 // 1024}MB")
-    
+
     compressed = compress_image(file_bytes)
-    
+
     # avatars/123/uuid.jpg — uuid чтобы браузер не кэшировал
     file_name = f"avatars/{user_id}/{uuid.uuid4().hex}.jpg"
-    
+
     s3_client = get_s3_client()
-    
-    try:
+
+    def _do_upload():
         s3_client.put_object(
             Bucket=settings.S3_BUCKET_NAME,
             Key=file_name,
             Body=compressed,
             ContentType='image/jpeg',
-            ACL='public-read',
         )
+
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, _do_upload)
     except ClientError:
         logger.exception("Avatar upload to Object Storage failed for user_id=%s", user_id)
         raise ValueError("Ошибка загрузки в хранилище. Попробуйте позже.")
-    
+
     public_url = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/{file_name}"
-    
+
     return public_url
 
 
@@ -86,18 +90,23 @@ async def delete_avatar(avatar_url: str) -> bool:
     """Удаляет старую аватарку из Object Storage."""
     if not avatar_url:
         return True
-    
+
     try:
         prefix = f"{settings.S3_ENDPOINT_URL}/{settings.S3_BUCKET_NAME}/"
         if avatar_url.startswith(prefix):
             file_key = avatar_url[len(prefix):]
-            
+
             s3_client = get_s3_client()
-            s3_client.delete_object(
-                Bucket=settings.S3_BUCKET_NAME,
-                Key=file_key
-            )
+
+            def _do_delete():
+                s3_client.delete_object(
+                    Bucket=settings.S3_BUCKET_NAME,
+                    Key=file_key
+                )
+
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _do_delete)
     except ClientError:
         pass
-    
+
     return True

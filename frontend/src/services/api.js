@@ -955,8 +955,10 @@ export const profileAPI = {
   uploadAvatar: async (file) => {
     const formData = new FormData();
     formData.append('file', file);
-    
-    const response = await api.post('/profile/avatar', formData);
+
+    const response = await api.post('/profile/avatar', formData, {
+      timeout: 60000,
+    });
     invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
