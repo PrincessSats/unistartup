@@ -193,7 +193,7 @@ class _DummyAsyncSession:
 
     async def execute(self, statement):
         self.statements.append(statement)
-        return SimpleNamespace(rowcount=1)
+        return SimpleNamespace(rowcount=1, scalar_one_or_none=lambda: None)
 
     def add(self, value):
         self.added.append(value)
