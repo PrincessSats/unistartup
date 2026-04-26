@@ -738,6 +738,14 @@ export const adminAPI = {
     const response = await api.put(`/admin/prompts/${code}`, payload);
     return response.data;
   },
+  getChatModel: async () => {
+    const response = await api.get('/admin/chat-model');
+    return response.data;
+  },
+  setChatModel: async (model) => {
+    const response = await api.put('/admin/chat-model', { model });
+    return response.data;
+  },
   listContests: async () => {
     const response = await api.get('/admin/contests');
     return response.data;

@@ -10,10 +10,11 @@ from typing import Any, Iterable, Optional
 
 from openai import AsyncOpenAI
 from sqlalchemy import delete, select
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.contest import Task, TaskChatMessage, TaskChatSession
+from app.models.contest import Task, TaskChatMessage, TaskChatSession, PromptTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +31,24 @@ LLM_COMPLETION_MAX_ATTEMPTS = 3
 LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
 CHAT_ASSISTANT_REPLY_MAX_ROUNDS = 8
 CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS = (0.35, 0.8, 1.3)
-YANDEX_CHAT_MODEL_ID = "deepseek-v32"
-YANDEX_CHAT_MODEL_VERSION = "latest"
+CHAT_MODEL_REGISTRY: dict[str, Any] = {
+    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
+    "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
+}
+DEFAULT_CHAT_MODEL_KEY = "deepseek"
+
+async def get_active_chat_model_key(db: AsyncSession) -> str:
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "chat_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError:
+        await db.rollback()
+        return DEFAULT_CHAT_MODEL_KEY
+    if row and (row.content or "").strip() in CHAT_MODEL_REGISTRY:
+        return row.content.strip()
+    return DEFAULT_CHAT_MODEL_KEY
+
 
 _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
@@ -639,11 +656,13 @@ async def _run_llm_chat_completion(
     messages: list[dict[str, str]],
     max_output_tokens: int,
     retry_round: int,
+    model_key: str = DEFAULT_CHAT_MODEL_KEY,
     log_context: Optional[dict[str, Any]] = None,
 ) -> Optional[str]:
     client = _build_async_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/{YANDEX_CHAT_MODEL_ID}/{YANDEX_CHAT_MODEL_VERSION}"
+    build_uri = CHAT_MODEL_REGISTRY.get(model_key, CHAT_MODEL_REGISTRY[DEFAULT_CHAT_MODEL_KEY])
+    model_name = build_uri(folder)
     reasoning_effort = "none"
     last_error: Optional[Exception] = None
     for attempt in range(LLM_COMPLETION_MAX_ATTEMPTS):
@@ -747,12 +766,14 @@ async def generate_chat_reply(
         "contest_id": session.contest_id,
         "user_id": session.user_id,
     }
+    active_model_key = await get_active_chat_model_key(db)
     assistant_text: Optional[str] = None
     for round_index in range(CHAT_ASSISTANT_REPLY_MAX_ROUNDS):
         assistant_text = await _run_llm_chat_completion(
             messages=payload_messages,
             max_output_tokens=limits.model_max_output_tokens,
             retry_round=round_index + 1,
+            model_key=active_model_key,
             log_context=log_context,
         )
         if assistant_text:
