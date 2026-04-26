@@ -290,3 +290,12 @@ class ActivityLogListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AdminChatModelResponse(BaseModel):
+    model: str
+    available: List[str]
+
+
+class AdminChatModelUpdate(BaseModel):
+    model: str

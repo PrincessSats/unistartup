@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader } from '../../components/LoadingState';
 
@@ -43,6 +43,33 @@ function Admin() {
   const [isContestHistoryOpen, setIsContestHistoryOpen] = useState(false);
   const [editingContestId, setEditingContestId] = useState(null);
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
+  const [chatModel, setChatModel] = useState('deepseek');
+  const [chatModelSaving, setChatModelSaving] = useState(false);
+  const [chatModelError, setChatModelError] = useState('');
+
+  useEffect(() => {
+    import('../../services/api').then(({ adminAPI }) => {
+      adminAPI.getChatModel().then((data) => {
+        if (data?.model) setChatModel(data.model);
+      }).catch(() => {});
+    });
+  }, []);
+
+  const handleChatModelChange = useCallback(async (e) => {
+    const model = e.target.value;
+    setChatModel(model);
+    setChatModelSaving(true);
+    setChatModelError('');
+    try {
+      const { adminAPI } = await import('../../services/api');
+      await adminAPI.setChatModel(model);
+    } catch (err) {
+      const detail = err?.response?.data?.detail;
+      setChatModelError(typeof detail === 'string' ? detail : 'Не удалось сохранить модель');
+    } finally {
+      setChatModelSaving(false);
+    }
+  }, []);
 
   // Feedback resolution state
   const [feedbackToResolve, setFeedbackToResolve] = useState(null);
@@ -144,6 +171,24 @@ function Admin() {
             >
               Prompt Manager
             </button>
+            <div className="flex items-center gap-2">
+              <select
+                value={chatModel}
+                onChange={handleChatModelChange}
+                disabled={chatModelSaving}
+                className="h-10 px-3 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white disabled:opacity-50 cursor-pointer appearance-none pr-7"
+                style={{ backgroundImage: 'none' }}
+              >
+                <option value="deepseek" className="bg-[#1a1a2e] text-white">DeepSeek 3.2</option>
+                <option value="qwen" className="bg-[#1a1a2e] text-white">Qwen 3.5</option>
+              </select>
+              {chatModelSaving && (
+                <span className="text-[12px] text-white/40">Сохранение...</span>
+              )}
+              {chatModelError && (
+                <span className="text-[12px] text-rose-300">{chatModelError}</span>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => setIsTaskOpen(true)}
