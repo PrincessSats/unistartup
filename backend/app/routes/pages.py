@@ -49,6 +49,8 @@ from app.schemas.admin import (
     AdminContestTask,
     AdminPromptTemplate,
     AdminPromptUpdateRequest,
+    AdminChatModelResponse,
+    AdminChatModelUpdate,
     ActivityLogItemResponse,
     ActivityLogListResponse,
     CveSearchResult,
@@ -74,9 +76,12 @@ from app.services.article_generation import (
 )
 from app.services.chat_task import (
     ChatTaskConfigError,
+    CHAT_MODEL_REGISTRY,
+    DEFAULT_CHAT_MODEL_KEY,
     DEFAULT_CHAT_MODEL_MAX_OUTPUT_TOKENS,
     DEFAULT_CHAT_SESSION_TTL_MINUTES,
     DEFAULT_CHAT_USER_MESSAGE_MAX_CHARS,
+    get_active_chat_model_key,
     validate_chat_task_config_values,
 )
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
@@ -333,7 +338,7 @@ async def list_feedbacks_admin(
                 SELECT f.id, f.user_id, p.username, f.topic, f.message, COALESCE(f.resolved, FALSE) AS resolved, f.created_at
                 FROM feedback f
                 LEFT JOIN user_profiles p ON p.user_id = f.user_id
-                WHERE (:resolved IS NULL OR COALESCE(f.resolved, FALSE) = :resolved)
+                WHERE (CAST(:resolved AS boolean) IS NULL OR COALESCE(f.resolved, FALSE) = CAST(:resolved AS boolean))
                 ORDER BY f.created_at DESC
                 LIMIT :limit OFFSET :offset
                 """),
@@ -364,7 +369,7 @@ async def list_comments_admin(
                 FROM kb_comments c
                 LEFT JOIN user_profiles p ON p.user_id = c.user_id
                 LEFT JOIN kb_entries k ON k.id = c.kb_entry_id
-                WHERE (:kb_entry_id IS NULL OR c.kb_entry_id = :kb_entry_id)
+                WHERE (CAST(:kb_entry_id AS integer) IS NULL OR c.kb_entry_id = CAST(:kb_entry_id AS integer))
                 ORDER BY c.created_at DESC
                 LIMIT :limit OFFSET :offset
                 """),
@@ -1607,6 +1612,61 @@ async def update_admin_prompt(
         is_overridden=True,
         updated_at=row.updated_at,
     )
+
+
+@router.get("/admin/chat-model", response_model=AdminChatModelResponse)
+async def get_admin_chat_model(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+    active = await get_active_chat_model_key(db)
+    return AdminChatModelResponse(model=active, available=list(CHAT_MODEL_REGISTRY.keys()))
+
+
+@router.put("/admin/chat-model", response_model=AdminChatModelResponse)
+async def set_admin_chat_model(
+    data: AdminChatModelUpdate,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    model_key = (data.model or "").strip()
+    if model_key not in CHAT_MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {list(CHAT_MODEL_REGISTRY.keys())}",
+        )
+
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "chat_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError as exc:
+        if "prompt_templates" in str(exc):
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="prompt_templates table missing. Apply schema.sql changes.",
+            ) from exc
+        raise
+
+    if row is None:
+        row = PromptTemplate(
+            code="chat_model",
+            title="Chat Model",
+            description="Active LLM model for chat tasks",
+            content=model_key,
+            updated_by=user.id,
+        )
+        db.add(row)
+    else:
+        row.content = model_key
+        row.updated_by = user.id
+        row.updated_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    return AdminChatModelResponse(model=model_key, available=list(CHAT_MODEL_REGISTRY.keys()))
 
 
 @router.get("/admin/contests", response_model=list[AdminContestListItem])
