@@ -571,7 +571,7 @@ function Register() {
                 checked={consents.marketing}
                 onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
               >
-                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Технологии и Решения" и на обработку своих персональных данных для указанной цели
               </ConsentCheckbox>
             </div>
           </div>
@@ -659,7 +659,7 @@ function Register() {
                 checked={consents.marketing}
                 onChange={(event) => handleConsentChange({ target: { name: 'marketing', checked: event.target.checked } })}
               >
-                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Technology и Решения" и на обработку своих персональных данных для указанной цели
+                Я даю согласие на получение рекламных и иных маркетинговых рассылок от ООО "Технологии и Решения" и на обработку своих персональных данных для указанной цели
               </ConsentCheckbox>
             </div>
           </div>
