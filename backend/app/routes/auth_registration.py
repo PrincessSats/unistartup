@@ -54,6 +54,7 @@ from app.services.registration import (
     generate_pkce_pair,
     hash_secret_token,
     normalize_email,
+    resolve_backend_github_callback_url,
     resolve_backend_telegram_callback_url,
     resolve_backend_yandex_callback_url,
     send_magic_link_email,
@@ -621,7 +622,7 @@ async def start_github_oauth(
 
     authorize_url = build_github_authorize_url(
         client_id=settings.GITHUB_CLIENT_ID,
-        redirect_uri=f"{resolve_backend_yandex_callback_url(request_scheme=_get_request_scheme(request), request_host=_get_request_host(request)).replace('/yandex/callback', '/github/callback')}",
+        redirect_uri=resolve_backend_github_callback_url(request_scheme=_get_request_scheme(request), request_host=_get_request_host(request)),
         scope=settings.GITHUB_OAUTH_SCOPES,
         state=state,
     )
@@ -704,7 +705,7 @@ async def github_oauth_callback(
     if flow is None or _is_expired(flow.expires_at) or flow.consumed_at is not None:
         return _flow_error_redirect(request, route_path="/login", error_code="github_state_invalid")
 
-    redirect_uri = f"{resolve_backend_yandex_callback_url(request_scheme=request_scheme, request_host=request_host).replace('/yandex/callback', '/github/callback')}"
+    redirect_uri = resolve_backend_github_callback_url(request_scheme=request_scheme, request_host=request_host)
     try:
         token_payload = await exchange_github_code_for_token(
             code=code,
@@ -712,7 +713,8 @@ async def github_oauth_callback(
         )
         oauth_access_token = str(token_payload.get("access_token") or "").strip()
         if not oauth_access_token:
-            raise ValueError("GitHub token response missing access_token")
+            github_error = token_payload.get("error") or token_payload.get("error_description") or str(token_payload)
+            raise ValueError(f"GitHub token response missing access_token: {github_error}")
         github_profile = await fetch_github_profile(oauth_access_token)
     except (httpx.HTTPError, ValueError) as exc:
         logger.exception("GitHub OAuth exchange failed")
