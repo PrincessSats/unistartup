@@ -154,7 +154,7 @@ def build_frontend_hash_url(
         [(key, str(value)) for key, value in (params or {}).items() if value is not None and str(value) != ""]
     )
     suffix = f"?{query}" if query else ""
-    return f"{resolve_frontend_base_url(request_host)}#{route_path}{suffix}"
+    return f"{resolve_frontend_base_url(request_host)}{route_path}{suffix}"
 
 
 def build_registration_flow_token(flow_id: int, *, expires_at: datetime) -> str:
