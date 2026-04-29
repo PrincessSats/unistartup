@@ -135,6 +135,11 @@ def resolve_backend_yandex_callback_url(*, request_scheme: str, request_host: st
     return f"{base_url}/api/auth/yandex/callback"
 
 
+def resolve_backend_github_callback_url(*, request_scheme: str, request_host: str) -> str:
+    base_url = resolve_backend_base_url(request_scheme=request_scheme, request_host=request_host)
+    return f"{base_url}/api/auth/github/callback"
+
+
 def resolve_frontend_base_url(request_host: str) -> str:
     return LOCAL_FRONTEND_URL if is_local_request_host(request_host) else PROD_FRONTEND_URL
 
