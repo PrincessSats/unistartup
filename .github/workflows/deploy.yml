@@ -219,3 +219,17 @@ jobs:
             --include "*.html" \
             --include "*.json" \
             --cache-control "no-cache, no-store, must-revalidate"
+
+      - name: Configure SPA fallback on bucket
+        run: |
+          set -euo pipefail
+          cat > /tmp/website.json <<'EOF'
+          {
+            "IndexDocument": {"Suffix": "index.html"},
+            "ErrorDocument": {"Key": "index.html"}
+          }
+          EOF
+          aws s3api put-bucket-website \
+            --endpoint-url=https://storage.yandexcloud.net \
+            --bucket "${{ env.FRONTEND_BUCKET_NAME }}" \
+            --website-configuration file:///tmp/website.json
