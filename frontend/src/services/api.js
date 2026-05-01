@@ -225,9 +225,9 @@ function buildLoginHash(reason = '') {
 
 function redirectToLogin(reason = '') {
   const target = buildLoginHash(reason);
-  if (window.location.hash !== target) {
-    window.location.hash = target;
-  }
+  const current = window.location.pathname + window.location.search;
+  if (current === target) return;
+  window.location.assign(target);
 }
 
 function serializeParams(params = {}) {
