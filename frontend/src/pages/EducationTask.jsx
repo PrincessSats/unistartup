@@ -882,7 +882,7 @@ export default function EducationTask() {
                   {/* Parent task link (if this is a UGC task) */}
                   {task?.parent_task_id && (
                     <a
-                      href={`#/education/${task.parent_task_id}`}
+                      href={`/education/${task.parent_task_id}`}
                       className="text-sm text-white/60 hover:text-[#9B6BFF] hover:underline transition-colors block mt-1"
                       onClick={(e) => {
                         e.preventDefault();
