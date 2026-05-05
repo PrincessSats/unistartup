@@ -20,8 +20,10 @@ function Profile() {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showDeleteAccountModal, setShowDeleteAccountModal] = useState(false);
+  const [showSubRequestModal, setShowSubRequestModal] = useState(false);
   const [isSavingAvatar, setIsSavingAvatar] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isRequestingSubscription, setIsRequestingSubscription] = useState(false);
   
   // Временные значения для редактирования
   const [editUsername, setEditUsername] = useState('');
@@ -243,6 +245,21 @@ function Profile() {
       setError(getErrorMessage(err, 'Не удалось удалить аккаунт'));
     } finally {
       setIsDeletingAccount(false);
+    }
+  };
+
+  const handleSubRequest = async () => {
+    setIsRequestingSubscription(true);
+    try {
+      const updated = await profileAPI.requestSubscription();
+      setUserData(updated);
+      setShowSubRequestModal(false);
+      setSuccess('Заявка принята! Мы свяжемся с вами.');
+      setTimeout(() => setSuccess(''), 4000);
+    } catch (err) {
+      setError(getErrorMessage(err, 'Ошибка отправки заявки'));
+    } finally {
+      setIsRequestingSubscription(false);
     }
   };
 
@@ -468,6 +485,37 @@ function Profile() {
               >
                 Удалить аккаунт
               </button>
+            </div>
+
+            {/* Подписка */}
+            <div className="pt-4">
+              <div className="bg-white/[0.03] border border-white/[0.06] rounded-[20px] px-6 py-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-[18px] leading-[24px] tracking-[0.02em] font-medium text-white">
+                    Подписка PRO
+                  </span>
+                  <span className="text-[14px] leading-[20px] tracking-[0.04em] text-white/50">
+                    {userData?.sub_request
+                      ? 'Заявка уже отправлена — мы свяжемся с вами'
+                      : 'Расширенный доступ к платформе'}
+                  </span>
+                </div>
+                {userData?.sub_request ? (
+                  <div className="h-11 px-5 rounded-[8px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[14px] leading-[20px] tracking-[0.04em] flex items-center gap-2 whitespace-nowrap">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Заявка отправлена
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowSubRequestModal(true)}
+                    className="h-11 px-5 rounded-[8px] bg-white/[0.08] hover:bg-white/[0.13] text-white text-[15px] leading-[20px] tracking-[0.04em] transition-colors whitespace-nowrap"
+                  >
+                    Оставить заявку на подписку
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Тарифный план */}
@@ -788,6 +836,56 @@ function Profile() {
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white" />
                 )}
                 {isDeletingAccount ? 'Удаление...' : 'Удалить'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка заявки на подписку */}
+      {showSubRequestModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#0B0A10] border border-white/[0.09] rounded-[20px] p-8 w-full max-w-md mx-4 font-sans-figma">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-16 h-16 bg-white/[0.06] rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                </svg>
+              </div>
+              <h3 className="text-white text-[24px] leading-[32px] font-medium mb-3">
+                Подписка PRO
+              </h3>
+              <p className="text-white/60 text-[15px] leading-[22px]">
+                Сейчас мы находимся на стадии <span className="text-white/80 font-medium">MVP</span> и собираем заявки от людей, заинтересованных в расширенном доступе к платформе.
+              </p>
+              <p className="text-white/50 text-[14px] leading-[20px] mt-3">
+                После отправки заявки мы свяжемся с вами по email и расскажем об условиях и сроках запуска.
+              </p>
+            </div>
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-2 rounded-[12px] mb-4 text-sm">
+                {error}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowSubRequestModal(false); setError(''); }}
+                disabled={isRequestingSubscription}
+                className="flex-1 h-12 bg-white/[0.03] hover:bg-white/[0.06] text-white rounded-[10px] transition-colors disabled:opacity-60"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleSubRequest}
+                disabled={isRequestingSubscription}
+                className="flex-1 h-12 bg-[#9B6BFF] hover:bg-[#8A5AEE] text-white rounded-[10px] transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {isRequestingSubscription && (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-white" />
+                )}
+                {isRequestingSubscription ? 'Отправка...' : 'Отправить заявку'}
               </button>
             </div>
           </div>

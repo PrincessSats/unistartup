@@ -13,6 +13,9 @@ from typing import Optional
 
 import httpx
 from openai import OpenAI
+from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.ai_generator.llm_retry import http_call_with_retry_async, llm_call_with_retry
@@ -31,7 +34,24 @@ _ENRICHMENT_SYSTEM = (
 _MODEL_URI_MAP = {
     "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
     "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
+    "qwen3": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.6-35b-a3b/latest",
 }
+TRANSLATION_MODEL_REGISTRY = _MODEL_URI_MAP
+DEFAULT_TRANSLATION_MODEL_KEY = "deepseek"
+
+
+async def get_active_translation_model_key(db: AsyncSession) -> str:
+    from app.models.contest import PromptTemplate
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "translation_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError:
+        await db.rollback()
+        return DEFAULT_TRANSLATION_MODEL_KEY
+    if row and (row.content or "").strip() in TRANSLATION_MODEL_REGISTRY:
+        return row.content.strip()
+    return DEFAULT_TRANSLATION_MODEL_KEY
 
 _LLM_CLIENT: Optional[OpenAI] = None
 

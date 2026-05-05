@@ -7,7 +7,7 @@ import boto3
 from botocore.exceptions import ClientError
 from app.config import settings
 import uuid
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import io
 import logging
 import asyncio
@@ -37,8 +37,11 @@ def compress_image(file_bytes: bytes, max_size: tuple = AVATAR_MAX_SIZE) -> byte
     Сжимает изображение до указанного размера.
     Конвертирует в JPEG с качеством 85%.
     """
-    image = Image.open(io.BytesIO(file_bytes))
-    
+    try:
+        image = Image.open(io.BytesIO(file_bytes))
+    except (UnidentifiedImageError, Exception) as e:
+        raise ValueError("Не удалось обработать изображение. Загрузите корректный файл изображения.") from e
+
     if image.mode in ('RGBA', 'P'):
         image = image.convert('RGB')
     
@@ -72,9 +75,10 @@ async def upload_avatar(file_bytes: bytes, user_id: int) -> str:
             Key=file_name,
             Body=compressed,
             ContentType='image/jpeg',
+            ACL='public-read',
         )
 
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     try:
         await loop.run_in_executor(None, _do_upload)
     except ClientError:
@@ -104,7 +108,7 @@ async def delete_avatar(avatar_url: str) -> bool:
                     Key=file_key
                 )
 
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, _do_delete)
     except ClientError:
         pass
