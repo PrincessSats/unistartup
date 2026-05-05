@@ -3,6 +3,9 @@ import json
 from typing import Any, Optional
 
 from openai import OpenAI
+from sqlalchemy import select
+from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.services.prompt_loader import load_prompt_text, PromptLoadError
@@ -10,6 +13,28 @@ from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 class TaskGenerationError(RuntimeError):
     pass
+
+
+TASK_MODEL_REGISTRY: dict[str, Any] = {
+    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
+    "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
+    "qwen3": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.6-35b-a3b/latest",
+}
+DEFAULT_TASK_MODEL_KEY = "deepseek"
+
+
+async def get_active_task_model_key(db: AsyncSession) -> str:
+    from app.models.contest import PromptTemplate
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "task_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError:
+        await db.rollback()
+        return DEFAULT_TASK_MODEL_KEY
+    if row and (row.content or "").strip() in TASK_MODEL_REGISTRY:
+        return row.content.strip()
+    return DEFAULT_TASK_MODEL_KEY
 
 
 def _load_system_prompt() -> str:
@@ -52,11 +77,13 @@ def _run_generation(
     tags: list[str],
     description: str,
     system_prompt: Optional[str] = None,
+    model_uri: Optional[str] = None,
 ) -> dict[str, Any]:
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/deepseek-v32/latest"
+    if not model_uri:
+        model_uri = TASK_MODEL_REGISTRY[DEFAULT_TASK_MODEL_KEY](folder)
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
     user_payload = {
         "difficulty": difficulty,
@@ -65,7 +92,7 @@ def _run_generation(
     }
     try:
         response = client.chat.completions.create(
-            model=model_name,
+            model=model_uri,
             reasoning_effort=reasoning_effort,
             messages=[
                 {"role": "system", "content": prompt_text},
@@ -85,7 +112,7 @@ def _run_generation(
             f"Model returned JSON root type '{type(parsed).__name__}', expected object"
         )
     return {
-        "model": model_name,
+        "model": model_uri,
         "reasoning_effort": reasoning_effort,
         "raw_text": text,
         "parsed": parsed,
@@ -93,8 +120,13 @@ def _run_generation(
     }
 
 
-async def generate_task_payload(difficulty: int, tags: list[str], description: str) -> dict[str, Any]:
-    return await asyncio.to_thread(_run_generation, difficulty, tags, description)
+async def generate_task_payload(
+    difficulty: int,
+    tags: list[str],
+    description: str,
+    model_uri: Optional[str] = None,
+) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_generation, difficulty, tags, description, None, model_uri)
 
 
 async def generate_task_payload_with_prompt(
@@ -102,5 +134,6 @@ async def generate_task_payload_with_prompt(
     tags: list[str],
     description: str,
     system_prompt: str,
+    model_uri: Optional[str] = None,
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(_run_generation, difficulty, tags, description, system_prompt)
+    return await asyncio.to_thread(_run_generation, difficulty, tags, description, system_prompt, model_uri)

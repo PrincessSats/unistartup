@@ -992,6 +992,12 @@ export const profileAPI = {
     invalidateGetCacheByPrefix('/profile');
     return response.data;
   },
+
+  requestSubscription: async () => {
+    const response = await api.post('/profile/sub-request');
+    invalidateGetCacheByPrefix('/profile');
+    return response.data;
+  },
 };
 
 export const contestAPI = {

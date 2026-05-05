@@ -41,7 +41,8 @@ class UserProfile(Base):
     timezone = Column(Text, default="Europe/Moscow")
     last_login = Column(TIMESTAMP(timezone=True), nullable=True)
     onboarding_status = Column(Text, nullable=True)  # NULL | pending | dismissed | completed
-    
+    sub_request = Column(Boolean, nullable=False, default=False, server_default='false')
+
     # Связь с пользователем
     user = relationship("User", back_populates="profile")
 

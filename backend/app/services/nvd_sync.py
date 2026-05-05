@@ -372,7 +372,7 @@ async def store_kb_entries(
         # Translation hook — translate ru_title, ru_summary, ru_explainer for new entries
         if translate_new_entries:
             try:
-                from app.services.ai_generator.translation_service import TranslationService, FullTranslationResult
+                from app.services.ai_generator.translation_service import TranslationService, FullTranslationResult, get_active_translation_model_key
 
                 svc = TranslationService()
                 try:
@@ -380,12 +380,14 @@ async def store_kb_entries(
                     translation_completed = 0
                     translation_failed = 0
                     sem = asyncio.Semaphore(CONCURRENCY_LIMIT)
+                    _translation_model = await get_active_translation_model_key(session)
 
                     async def translate_task(row: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[FullTranslationResult]]:
                         async with sem:
                             result = await svc.translate_full_cve(
                                 row["cve_id"],
                                 row["raw_en_text"] or "",
+                                model=_translation_model,
                             )
                             return row, result
 

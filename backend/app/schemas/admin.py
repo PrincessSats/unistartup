@@ -299,3 +299,21 @@ class AdminChatModelResponse(BaseModel):
 
 class AdminChatModelUpdate(BaseModel):
     model: str
+
+
+class AdminTaskModelResponse(BaseModel):
+    model: str
+    available: List[str]
+
+
+class AdminTaskModelUpdate(BaseModel):
+    model: str
+
+
+class AdminTranslationModelResponse(BaseModel):
+    model: str
+    available: List[str]
+
+
+class AdminTranslationModelUpdate(BaseModel):
+    model: str

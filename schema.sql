@@ -108,7 +108,8 @@ CREATE TABLE user_profiles (
     locale          TEXT DEFAULT 'ru-RU',
     timezone        TEXT DEFAULT 'Europe/Moscow',
     last_login      TIMESTAMPTZ,
-    onboarding_status TEXT                               -- NULL | pending | dismissed | completed
+    onboarding_status TEXT,                              -- NULL | pending | dismissed | completed
+    sub_request     BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX idx_user_profiles_username ON user_profiles(username);

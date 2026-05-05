@@ -11,7 +11,7 @@ API для работы с профилем пользователя.
 - POST /profile/avatar - загрузить аватарку
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete as sqlalchemy_delete, select, update
 from pydantic import BaseModel, EmailStr
@@ -25,10 +25,13 @@ from app.database import get_db
 from app.models.contest import LlmGeneration, PromptTemplate, Task
 from app.models.user import User, UserProfile, UserRating
 from app.services.auth_sessions import clear_refresh_cookie
-from app.services.storage import upload_avatar, delete_avatar
+from app.services.storage import upload_avatar, delete_avatar, MAX_FILE_SIZE
+from app.security.rate_limit import enforce_rate_limit, RateLimit
 from sqlalchemy import text
 
 router = APIRouter(prefix="/profile", tags=["Профиль"])
+
+_AVATAR_UPLOAD_LIMIT = RateLimit(max_requests=5, window_seconds=60)
 logger = logging.getLogger(__name__)
 
 
@@ -61,6 +64,7 @@ class ProfileResponse(BaseModel):
     bio: Optional[str] = None
     avatar_url: Optional[str] = None
     onboarding_status: Optional[str] = None
+    sub_request: bool = False
     contest_rating: int = 0
     practice_rating: int = 0
     first_blood: int = 0
@@ -165,6 +169,7 @@ def _build_profile_response(
         bio=profile.bio,
         avatar_url=profile.avatar_url,
         onboarding_status=profile.onboarding_status,
+        sub_request=profile.sub_request or False,
         contest_rating=contest_rating,
         practice_rating=practice_rating,
         first_blood=first_blood,
@@ -436,8 +441,34 @@ async def delete_account(
     return MessageResponse(message="Аккаунт удалён")
 
 
+@router.post("/sub-request", response_model=ProfileResponse)
+async def request_subscription(
+    current_user_data: tuple = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _ = current_user_data
+    user_id = user.id
+
+    user = await db.get(User, user_id)
+    result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
+    profile = result_profile.scalar_one()
+
+    profile.sub_request = True
+    await db.commit()
+    await db.refresh(profile)
+
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user_id)
+    current_tariff = await _get_current_tariff(db, user_id)
+    return _build_profile_response(
+        user=user, profile=profile,
+        contest_rating=contest_rating, practice_rating=practice_rating,
+        first_blood=first_blood, current_tariff=current_tariff,
+    )
+
+
 @router.post("/avatar", response_model=ProfileResponse)
 async def upload_user_avatar(
+    request: Request,
     file: UploadFile = File(...),
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -455,20 +486,28 @@ async def upload_user_avatar(
     user, profile = current_user_data
     user_id = user.id
 
+    enforce_rate_limit(request, scope="avatar_upload", rule=_AVATAR_UPLOAD_LIMIT, subject=str(user_id))
+
     # Перезагружаем в текущем `db`
     user = await db.get(User, user_id)
     result_profile = await db.execute(select(UserProfile).where(UserProfile.user_id == user_id))
     profile = result_profile.scalar_one()
-    
-    # Проверяем тип файла
-    if not file.content_type or not file.content_type.startswith('image/'):
+
+    # Проверяем тип файла (SVG запрещён — содержит JS)
+    content_type = file.content_type or ""
+    if not content_type.startswith('image/') or content_type == 'image/svg+xml':
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Можно загружать только изображения"
+            detail="Можно загружать только растровые изображения"
         )
-    
-    # Читаем файл
-    file_bytes = await file.read()
+
+    # Читаем с лимитом — защита от OOM
+    file_bytes = await file.read(MAX_FILE_SIZE + 1)
+    if len(file_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Файл слишком большой. Максимум {MAX_FILE_SIZE // 1024 // 1024}MB"
+        )
 
     # Сохраняем старый URL для удаления
     old_avatar_url = profile.avatar_url

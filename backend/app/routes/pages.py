@@ -8,6 +8,7 @@ from sqlalchemy import text, select, func, delete, update
 from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
+from app.config import settings
 from app.database import get_db, ensure_nvd_sync_schema_compatibility
 from app.models.user import User, UserProfile
 from app.models.activity import ActivityLog, EventType, EventSource
@@ -51,6 +52,10 @@ from app.schemas.admin import (
     AdminPromptUpdateRequest,
     AdminChatModelResponse,
     AdminChatModelUpdate,
+    AdminTaskModelResponse,
+    AdminTaskModelUpdate,
+    AdminTranslationModelResponse,
+    AdminTranslationModelUpdate,
     ActivityLogItemResponse,
     ActivityLogListResponse,
     CveSearchResult,
@@ -68,7 +73,13 @@ from app.services.nvd_sync import (
 )
 from app.services.task_generation import (
     generate_task_payload_with_prompt,
+    get_active_task_model_key,
+    TASK_MODEL_REGISTRY,
     TaskGenerationError,
+)
+from app.services.ai_generator.translation_service import (
+    get_active_translation_model_key,
+    TRANSLATION_MODEL_REGISTRY,
 )
 from app.services.article_generation import (
     generate_article_payload_with_prompt,
@@ -1114,11 +1125,15 @@ async def generate_admin_task(
 
     try:
         prompt_text = await _resolve_prompt_text(db, "task_prompt")
+        task_model_key = await get_active_task_model_key(db)
+        folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+        task_model_uri = TASK_MODEL_REGISTRY[task_model_key](folder)
         result = await generate_task_payload_with_prompt(
             data.difficulty,
             tags,
             data.description,
             prompt_text,
+            task_model_uri,
         )
     except TaskGenerationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
@@ -1667,6 +1682,104 @@ async def set_admin_chat_model(
 
     await db.commit()
     return AdminChatModelResponse(model=model_key, available=list(CHAT_MODEL_REGISTRY.keys()))
+
+
+@router.get("/admin/task-model", response_model=AdminTaskModelResponse)
+async def get_admin_task_model(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+    active = await get_active_task_model_key(db)
+    return AdminTaskModelResponse(model=active, available=list(TASK_MODEL_REGISTRY.keys()))
+
+
+@router.put("/admin/task-model", response_model=AdminTaskModelResponse)
+async def set_admin_task_model(
+    data: AdminTaskModelUpdate,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    model_key = (data.model or "").strip()
+    if model_key not in TASK_MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {list(TASK_MODEL_REGISTRY.keys())}",
+        )
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "task_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError as exc:
+        if "prompt_templates" in str(exc):
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="prompt_templates table missing.") from exc
+        raise
+    if row is None:
+        row = PromptTemplate(
+            code="task_model",
+            title="Task Generation Model",
+            description="Active LLM model for task generation",
+            content=model_key,
+            updated_by=user.id,
+        )
+        db.add(row)
+    else:
+        row.content = model_key
+        row.updated_by = user.id
+        row.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return AdminTaskModelResponse(model=model_key, available=list(TASK_MODEL_REGISTRY.keys()))
+
+
+@router.get("/admin/translation-model", response_model=AdminTranslationModelResponse)
+async def get_admin_translation_model(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+    active = await get_active_translation_model_key(db)
+    return AdminTranslationModelResponse(model=active, available=list(TRANSLATION_MODEL_REGISTRY.keys()))
+
+
+@router.put("/admin/translation-model", response_model=AdminTranslationModelResponse)
+async def set_admin_translation_model(
+    data: AdminTranslationModelUpdate,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    model_key = (data.model or "").strip()
+    if model_key not in TRANSLATION_MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {list(TRANSLATION_MODEL_REGISTRY.keys())}",
+        )
+    try:
+        row = (
+            await db.execute(select(PromptTemplate).where(PromptTemplate.code == "translation_model"))
+        ).scalar_one_or_none()
+    except ProgrammingError as exc:
+        if "prompt_templates" in str(exc):
+            await db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="prompt_templates table missing.") from exc
+        raise
+    if row is None:
+        row = PromptTemplate(
+            code="translation_model",
+            title="Translation Model",
+            description="Active LLM model for CVE translation/enrichment",
+            content=model_key,
+            updated_by=user.id,
+        )
+        db.add(row)
+    else:
+        row.content = model_key
+        row.updated_by = user.id
+        row.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return AdminTranslationModelResponse(model=model_key, available=list(TRANSLATION_MODEL_REGISTRY.keys()))
 
 
 @router.get("/admin/contests", response_model=list[AdminContestListItem])
