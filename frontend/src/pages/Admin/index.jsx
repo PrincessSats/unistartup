@@ -49,7 +49,6 @@ function Admin() {
   const [platformModel, setPlatformModel] = useState('deepseek');
   const [platformModelSaving, setPlatformModelSaving] = useState(false);
   const [platformModelError, setPlatformModelError] = useState('');
-  const [platformModelOptions, setPlatformModelOptions] = useState(['deepseek', 'qwen', 'qwen3']);
 
   useEffect(() => {
     import('../../services/api').then(({ adminAPI }) => {
@@ -58,7 +57,6 @@ function Admin() {
       }).catch(() => {});
       adminAPI.getPlatformModel().then((data) => {
         if (data?.model) setPlatformModel(data.model);
-        if (data?.available) setPlatformModelOptions(data.available);
       }).catch(() => {});
     });
   }, []);
