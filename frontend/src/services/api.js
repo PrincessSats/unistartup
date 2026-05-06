@@ -746,6 +746,14 @@ export const adminAPI = {
     const response = await api.put('/admin/chat-model', { model });
     return response.data;
   },
+  getPlatformModel: async () => {
+    const response = await api.get('/admin/platform-model');
+    return response.data;
+  },
+  setPlatformModel: async (model) => {
+    const response = await api.put('/admin/platform-model', { model });
+    return response.data;
+  },
   listContests: async () => {
     const response = await api.get('/admin/contests');
     return response.data;
@@ -804,10 +812,9 @@ export const adminAPI = {
     const response = await api.post('/admin/nvd_sync/stop');
     return response.data;
   },
-  triggerNvdTranslate: async (limit, model) => {
+  triggerNvdTranslate: async (limit) => {
     const params = {};
     if (limit) params.limit = limit;
-    if (model) params.model = model;
     const response = await api.post('/admin/nvd_sync/translate', null, {
       timeout: ADMIN_NVD_TIMEOUT_MS,
       params,

@@ -60,11 +60,11 @@ def _build_client() -> OpenAI:
     return _CLIENT
 
 
-def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> dict[str, Any]:
+def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None, model_uri: Optional[str] = None) -> dict[str, Any]:
     prompt_text = (system_prompt or "").strip() or _load_system_prompt()
     client = _build_client()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
-    model_name = f"gpt://{folder}/{settings.ARTICLE_MODEL_ID}/latest"
+    model_name = model_uri or f"gpt://{folder}/{settings.ARTICLE_MODEL_ID}/latest"
     reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
     logger.info(
         "KB generation started (model=%s, reasoning_effort=%s, chars=%s)",
@@ -111,9 +111,9 @@ def _run_generation(raw_en_text: str, system_prompt: Optional[str] = None) -> di
     }
 
 
-async def generate_article_payload(raw_en_text: str) -> dict[str, Any]:
-    return await asyncio.to_thread(_run_generation, raw_en_text)
+async def generate_article_payload(raw_en_text: str, model_uri: Optional[str] = None) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_generation, raw_en_text, None, model_uri)
 
 
-async def generate_article_payload_with_prompt(raw_en_text: str, system_prompt: str) -> dict[str, Any]:
-    return await asyncio.to_thread(_run_generation, raw_en_text, system_prompt)
+async def generate_article_payload_with_prompt(raw_en_text: str, system_prompt: str, model_uri: Optional[str] = None) -> dict[str, Any]:
+    return await asyncio.to_thread(_run_generation, raw_en_text, system_prompt, model_uri)

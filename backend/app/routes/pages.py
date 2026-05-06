@@ -841,7 +841,10 @@ async def generate_kb_entry_fields(
 
     try:
         prompt_text = await _resolve_prompt_text(db, "article_prompt")
-        result = await generate_article_payload_with_prompt(raw_text, prompt_text)
+        platform_model_key = await get_active_task_model_key(db)
+        folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+        platform_model_uri = TASK_MODEL_REGISTRY[platform_model_key](folder)
+        result = await generate_article_payload_with_prompt(raw_text, prompt_text, platform_model_uri)
     except ArticleGenerationError as exc:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
@@ -960,11 +963,12 @@ async def translate_nvd_entries(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
     limit: Optional[int] = Query(None, ge=1, le=50000),
-    model: Optional[str] = Query(None),
 ):
     """Translate kb_entries without ru_summary (newest first, optional limit)."""
     _user, _profile = current_user_data
     await ensure_nvd_sync_schema_compatibility()
+
+    model = await get_active_translation_model_key(db)
 
     try:
         active_row = await get_latest_sync_log(db, active_only=True)
@@ -1780,6 +1784,53 @@ async def set_admin_translation_model(
         row.updated_at = datetime.now(timezone.utc)
     await db.commit()
     return AdminTranslationModelResponse(model=model_key, available=list(TRANSLATION_MODEL_REGISTRY.keys()))
+
+
+@router.get("/admin/platform-model", response_model=AdminTaskModelResponse)
+async def get_admin_platform_model(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    _user, _profile = current_user_data
+    active = await get_active_task_model_key(db)
+    return AdminTaskModelResponse(model=active, available=list(TASK_MODEL_REGISTRY.keys()))
+
+
+@router.put("/admin/platform-model", response_model=AdminTaskModelResponse)
+async def set_admin_platform_model(
+    data: AdminTaskModelUpdate,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+    model_key = (data.model or "").strip()
+    if model_key not in TASK_MODEL_REGISTRY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid model. Available: {list(TASK_MODEL_REGISTRY.keys())}",
+        )
+    for db_key, title, description in [
+        ("task_model", "Task Generation Model", "Active LLM model for task generation"),
+        ("translation_model", "Translation Model", "Active LLM model for CVE translation/enrichment"),
+    ]:
+        try:
+            row = (
+                await db.execute(select(PromptTemplate).where(PromptTemplate.code == db_key))
+            ).scalar_one_or_none()
+        except ProgrammingError as exc:
+            if "prompt_templates" in str(exc):
+                await db.rollback()
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="prompt_templates table missing.") from exc
+            raise
+        if row is None:
+            row = PromptTemplate(code=db_key, title=title, description=description, content=model_key, updated_by=user.id)
+            db.add(row)
+        else:
+            row.content = model_key
+            row.updated_by = user.id
+            row.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return AdminTaskModelResponse(model=model_key, available=list(TASK_MODEL_REGISTRY.keys()))
 
 
 @router.get("/admin/contests", response_model=list[AdminContestListItem])

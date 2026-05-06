@@ -8,7 +8,6 @@ function useNvdSyncData() {
   const [nvdSync, setNvdSync] = useState(null);
   const [pendingOp, setPendingOp] = useState(null); // 'fetch' | 'translate' | 'embed' | null
   const [error, setError] = useState(null);
-  const [selectedModel, setSelectedModel] = useState('deepseek');
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -36,7 +35,7 @@ function useNvdSyncData() {
   }, []);
 
   const onFetch = useCallback(() => _trigger('fetch', adminAPI.fetchNvd24h), [_trigger]);
-  const onTranslate = useCallback((limit, model) => _trigger('translate', () => adminAPI.triggerNvdTranslate(limit, model)), [_trigger]);
+  const onTranslate = useCallback((limit) => _trigger('translate', () => adminAPI.triggerNvdTranslate(limit)), [_trigger]);
   const onEmbed = useCallback(() => _trigger('embed', adminAPI.triggerNvdEmbed), [_trigger]);
   const onStop = useCallback(() => _trigger('stop', adminAPI.stopNvdSync), [_trigger]);
   const onPurge = useCallback((keep) => _trigger('purge', () => adminAPI.purgeUntranslated(keep)), [_trigger]);
@@ -68,8 +67,6 @@ function useNvdSyncData() {
     onEmbed,
     onStop,
     onPurge,
-    selectedModel,
-    setSelectedModel,
   };
 }
 
