@@ -424,6 +424,7 @@ async def publish_variant(
         access_type=access_type,
         story=spec.get("story") or spec.get("description"),
         participant_description=participant_desc,
+        kb_entry_id=(batch.rag_context_ids[0] if batch.rag_context_ids else None),
         llm_raw_response=spec,  # full spec stored for admin reference
         created_by=user.id,
         **chat_extras,
