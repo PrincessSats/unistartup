@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Optional
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 # Minimum cosine similarity to include a CVE in the context.
 # Below this threshold the CVE is considered irrelevant and skipped.
-MIN_SIMILARITY = 0.35
+MIN_SIMILARITY = 0.20
 
 # Natural-language query templates per task type — used for semantic search
 _QUERY_TEMPLATES: dict[str, str] = {
@@ -250,11 +250,28 @@ def _cvss_severity_label(score: float) -> str:
     return "LOW"
 
 
+def _vector_to_floats(vector: Any) -> Optional[list[float]]:
+    if vector is None:
+        return None
+    return [float(value) for value in vector]
+
+
+def _format_pgvector(vector: Any) -> str:
+    values = _vector_to_floats(vector) or []
+    return "[" + ",".join(f"{value:.9g}" for value in values) + "]"
+
+
 class RAGContextBuilder:
     def __init__(self, db: AsyncSession, context_limit: Optional[int] = None) -> None:
         self._db = db
         self._limit = context_limit or settings.AI_GEN_RAG_CONTEXT_LIMIT
         self._svc: Optional[EmbeddingService] = None  # created lazily in build_context
+
+    async def _rollback_after_error(self) -> None:
+        try:
+            await self._db.rollback()
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("RAG rollback failed after DB error: %s", exc)
 
     async def build_context(
         self,
@@ -265,26 +282,39 @@ class RAGContextBuilder:
     ) -> RAGContext:
         """Build a RAGContext for the generation request."""
         try:
-            self._svc = EmbeddingService()
-        except EmbeddingError as exc:
-            logger.warning("EmbeddingService unavailable, skipping RAG: %s", exc)
-            return RAGContext()
-
-        try:
+            query_text = ""
             if specific_cve:
-                cve_entries = await self._fetch_cve_plus_similar(specific_cve, n=10)
-                query_text = specific_cve
+                query_text = specific_cve.strip().upper()
+                cve_entries = await self._fetch_cve_plus_similar(query_text, n=max(self._limit, 2))
             else:
                 query_text = self._build_query(task_type, difficulty, specific_topic)
                 try:
+                    self._svc = EmbeddingService()
                     query_vector = await self._svc.embed_query(query_text)
                     cve_entries = await self._two_stage_search(query_vector, task_type)
                 except EmbeddingError as exc:
-                    logger.warning("Embedding failed, RAG context will be empty: %s", exc)
+                    logger.warning("Embedding failed, using deterministic RAG fallback: %s", exc)
                     cve_entries = []
+                finally:
+                    if self._svc is not None:
+                        await self._svc.close()
 
-            existing_titles = await self._fetch_existing_tasks(task_type)
-            last_sync = await self._get_last_nvd_sync()
+            if not cve_entries:
+                cve_entries = await self._fetch_recent_relevant_cves(task_type)
+
+            existing_titles: list[str] = []
+            try:
+                existing_titles = await self._fetch_existing_tasks(task_type)
+            except Exception as exc:  # noqa: BLE001
+                await self._rollback_after_error()
+                logger.warning("RAG existing-task lookup failed: %s", exc)
+
+            last_sync: Optional[datetime] = None
+            try:
+                last_sync = await self._get_last_nvd_sync()
+            except Exception as exc:  # noqa: BLE001
+                await self._rollback_after_error()
+                logger.warning("RAG sync-log lookup failed: %s", exc)
 
             return RAGContext(
                 cve_entries=cve_entries,
@@ -295,10 +325,9 @@ class RAGContextBuilder:
                 task_type=task_type,
             )
         except Exception as exc:
+            await self._rollback_after_error()
             logger.warning("RAG context build failed: %s", exc)
             return RAGContext()
-        finally:
-            await self._svc.close()
 
     def _build_query(self, task_type: str, difficulty: str, topic: Optional[str]) -> str:
         base = _QUERY_TEMPLATES.get(task_type, task_type.replace("_", " "))
@@ -344,7 +373,7 @@ class RAGContextBuilder:
                         "LIMIT :lim"
                     ),
                     {
-                        "vec": str(query_vector),
+                        "vec": _format_pgvector(query_vector),
                         "cwes": list(relevant_cwes),
                         "lim": self._limit * 2,
                     },
@@ -360,6 +389,7 @@ class RAGContextBuilder:
                     if len(results) >= self._limit:
                         break
             except Exception as exc:
+                await self._rollback_after_error()
                 logger.warning("Stage 1 CWE-filtered search failed: %s", exc)
 
         # ── Stage 2: General semantic fallback ───────────────────────────────
@@ -379,7 +409,7 @@ class RAGContextBuilder:
                             "LIMIT :lim"
                         ),
                         {
-                            "vec": str(query_vector),
+                            "vec": _format_pgvector(query_vector),
                             "exclude_ids": list(seen_ids),
                             "lim": remaining * 2,
                         },
@@ -395,7 +425,7 @@ class RAGContextBuilder:
                             "ORDER BY embedding <=> CAST(:vec AS vector) "
                             "LIMIT :lim"
                         ),
-                        {"vec": str(query_vector), "lim": remaining * 2},
+                        {"vec": _format_pgvector(query_vector), "lim": remaining * 2},
                     )
 
                 for row in stage2_result.fetchall():
@@ -411,11 +441,50 @@ class RAGContextBuilder:
                     if len(results) >= self._limit:
                         break
             except Exception as exc:
+                await self._rollback_after_error()
                 logger.warning("Stage 2 semantic fallback search failed: %s", exc)
 
         # Sort by composite retrieval score descending
         results.sort(key=lambda e: e._retrieval_score, reverse=True)
         return results[: self._limit]
+
+    async def _fetch_recent_relevant_cves(self, task_type: str) -> list[CVEEntry]:
+        """Deterministic fallback when vector search returns no usable rows."""
+        from app.services.ai_generator.cwe_mapping import get_relevant_cwes_for_task_type
+
+        relevant_cwes = get_relevant_cwes_for_task_type(task_type)
+        try:
+            entries: list[CVEEntry] = []
+            if relevant_cwes:
+                result = await self._db.execute(
+                    select(KBEntry)
+                    .where(KBEntry.cwe_ids.is_not(None), KBEntry.cwe_ids.overlap(list(relevant_cwes)))
+                    .order_by(KBEntry.cvss_base_score.desc().nullslast(), KBEntry.updated_at.desc())
+                    .limit(self._limit)
+                )
+                entries = [
+                    self._model_to_cve_entry(entry, retrieval_score=0.1)
+                    for entry in result.scalars().all()
+                ]
+
+            if not entries:
+                result = await self._db.execute(
+                    select(KBEntry)
+                    .order_by(KBEntry.cvss_base_score.desc().nullslast(), KBEntry.updated_at.desc())
+                    .limit(self._limit)
+                )
+                entries = [
+                    self._model_to_cve_entry(entry, retrieval_score=0.05)
+                    for entry in result.scalars().all()
+                ]
+
+            if entries:
+                logger.info("RAG fallback selected %d entries for task_type=%s", len(entries), task_type)
+            return entries
+        except Exception as exc:
+            await self._rollback_after_error()
+            logger.warning("RAG deterministic fallback failed: %s", exc)
+            return []
 
     def _row_to_cve_entry(self, row: Any, retrieval_score: float = 0.0) -> CVEEntry:
         entry = CVEEntry(
@@ -426,7 +495,7 @@ class RAGContextBuilder:
             raw_en_text=row.raw_en_text,
             tags=row.tags or [],
             difficulty=row.difficulty,
-            stored_embedding=list(row.embedding) if row.embedding else None,
+            stored_embedding=_vector_to_floats(row.embedding),
             cwe_ids=list(row.cwe_ids) if row.cwe_ids else [],
             cvss_base_score=float(row.cvss_base_score) if row.cvss_base_score is not None else None,
             attack_vector=row.attack_vector,
@@ -434,29 +503,33 @@ class RAGContextBuilder:
         entry._retrieval_score = retrieval_score
         return entry
 
+    def _model_to_cve_entry(self, entry: KBEntry, retrieval_score: float = 0.0) -> CVEEntry:
+        embedding = getattr(entry, "embedding", None)
+        cve_entry = CVEEntry(
+            id=entry.id,
+            cve_id=entry.cve_id,
+            ru_title=entry.ru_title,
+            ru_summary=entry.ru_summary,
+            raw_en_text=entry.raw_en_text,
+            tags=entry.tags or [],
+            difficulty=entry.difficulty,
+            stored_embedding=_vector_to_floats(embedding),
+            cwe_ids=list(entry.cwe_ids) if getattr(entry, "cwe_ids", None) else [],
+            cvss_base_score=float(entry.cvss_base_score) if entry.cvss_base_score is not None else None,
+            attack_vector=entry.attack_vector,
+        )
+        cve_entry._retrieval_score = retrieval_score
+        return cve_entry
+
     async def _fetch_specific_cve(self, cve_id: str) -> list[CVEEntry]:
         result = await self._db.execute(
-            select(KBEntry).where(KBEntry.cve_id == cve_id).limit(1)
+            select(KBEntry).where(func.upper(KBEntry.cve_id) == cve_id.upper()).limit(1)
         )
         entry = result.scalar_one_or_none()
         if not entry:
             logger.warning("CVE %s not found in kb_entries", cve_id)
             return []
-        return [
-            CVEEntry(
-                id=entry.id,
-                cve_id=entry.cve_id,
-                ru_title=entry.ru_title,
-                ru_summary=entry.ru_summary,
-                raw_en_text=entry.raw_en_text,
-                tags=entry.tags or [],
-                difficulty=entry.difficulty,
-                stored_embedding=list(entry.embedding) if entry.embedding else None,
-                cwe_ids=list(entry.cwe_ids) if getattr(entry, "cwe_ids", None) else [],
-                cvss_base_score=getattr(entry, "cvss_base_score", None),
-                attack_vector=getattr(entry, "attack_vector", None),
-            )
-        ]
+        return [self._model_to_cve_entry(entry, retrieval_score=1.0)]
 
     async def _fetch_cve_plus_similar(self, cve_id: str, n: int = 10) -> list[CVEEntry]:
         """Fetch target CVE plus up to n-1 semantically similar entries."""
@@ -478,13 +551,14 @@ class RAGContextBuilder:
                     "ORDER BY embedding <=> CAST(:vec AS vector) "
                     "LIMIT :lim"
                 ),
-                {"vec": str(vec), "target_id": target.id, "lim": n - 1},
+                {"vec": _format_pgvector(vec), "target_id": target.id, "lim": n - 1},
             )
             similar = [
                 self._row_to_cve_entry(row, retrieval_score=float(row.similarity) if row.similarity else 0.0)
                 for row in result.fetchall()
             ]
         except Exception as exc:
+            await self._rollback_after_error()
             logger.warning("Failed to fetch similar CVEs for %s: %s", cve_id, exc)
             similar = []
         return primary + similar
