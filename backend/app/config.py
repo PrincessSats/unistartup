@@ -171,7 +171,9 @@ class Settings(BaseSettings):
     AI_GEN_BASE_TEMPERATURE: float = 0.7
     AI_GEN_TEMPERATURE_STEP: float = 0.1
     AI_GEN_RAG_CONTEXT_LIMIT: int = 5
+    AI_GEN_REQUIRE_RAG: bool = True
     AI_GEN_EMBEDDING_DIMENSION: int = 256
+    AI_GEN_EMBEDDING_MAX_CHARS: int = 3500
 
     class Config:
         # Support both backend/.env and repo-root .env for local/prod parity.
