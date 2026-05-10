@@ -15,9 +15,11 @@ class CveSearchResult(BaseModel):
 
 class AdminStats(BaseModel):
     total_users: int
+    real_users: int
     active_users_24h: int
     paid_users: int
     current_championship_submissions: int
+    pro_requests: int = 0
 
 
 class AdminFeedback(BaseModel):
@@ -308,6 +310,13 @@ class AdminTaskModelResponse(BaseModel):
 
 class AdminTaskModelUpdate(BaseModel):
     model: str
+
+
+class ProRequestItem(BaseModel):
+    user_id: int
+    username: Optional[str] = None
+    email: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AdminTranslationModelResponse(BaseModel):

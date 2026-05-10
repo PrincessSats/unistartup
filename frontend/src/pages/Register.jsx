@@ -9,6 +9,7 @@ import {
   SocialAuthButtons,
 } from '../components/AuthUI';
 import { authAPI } from '../services/api';
+import TermsModal from '../components/TermsModal';
 
 const PROFESSION_OPTIONS = [
   'Студент',
@@ -221,6 +222,7 @@ function Register() {
     username: '',
     password: '',
   });
+  const [showTerms, setShowTerms] = useState(false);
   const [consents, setConsents] = useState({
     terms: false,
     marketing: false,
@@ -565,7 +567,14 @@ function Register() {
                 checked={consents.terms}
                 onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
               >
-                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+                {'Я принимаю '}
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setShowTerms(true); }}
+                  className="text-[#A87FFF] hover:text-[#C4A3FF] underline underline-offset-2 transition"
+                >
+                  условия пользования платформой и согласие на обработку персональных данных
+                </button>
               </ConsentCheckbox>
               <ConsentCheckbox
                 checked={consents.marketing}
@@ -653,7 +662,14 @@ function Register() {
                 checked={consents.terms}
                 onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
               >
-                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+                {'Я принимаю '}
+                <button
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); setShowTerms(true); }}
+                  className="text-[#A87FFF] hover:text-[#C4A3FF] underline underline-offset-2 transition"
+                >
+                  условия пользования платформой и согласие на обработку персональных данных
+                </button>
               </ConsentCheckbox>
               <ConsentCheckbox
                 checked={consents.marketing}
@@ -906,7 +922,12 @@ function Register() {
     return renderEmailSent();
   }
   if (step === 'flowEmail') {
-    return renderFlowEmail();
+    return (
+      <>
+        {renderFlowEmail()}
+        <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
+      </>
+    );
   }
   if (step === 'details') {
     return renderDetails();
@@ -951,7 +972,12 @@ function Register() {
     return renderWelcome();
   }
 
-  return renderEmailForm();
+  return (
+    <>
+      {renderEmailForm()}
+      <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
+    </>
+  );
 }
 
 export default Register;

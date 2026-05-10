@@ -46,6 +46,14 @@ export const FlagIcon = ({ className }) => (
   </svg>
 );
 
+export const ProRequestIcon = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="m7 15l5 5 5-5" />
+    <path d="M7 11l5 5 5-5" />
+    <circle cx="12" cy="7" r="3" />
+  </svg>
+);
+
 export const FileIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
     <path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z" />
@@ -60,6 +68,7 @@ const Icons = {
   TrophyIcon,
   MessageIcon,
   FlagIcon,
+  ProRequestIcon,
   FileIcon,
 };
 
