@@ -59,6 +59,7 @@ from app.schemas.admin import (
     ActivityLogItemResponse,
     ActivityLogListResponse,
     CveSearchResult,
+    ProRequestItem,
 )
 from app.services.nvd_sync import (
     create_sync_log,
@@ -146,6 +147,17 @@ async def admin_panel(
     _user, _profile = current_user_data
 
     total_users = (await db.execute(text("SELECT COUNT(*) FROM users"))).scalar_one() or 0
+    real_users = (
+        await db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM users
+                WHERE email NOT LIKE '%@seed.local'
+                """
+            )
+        )
+    ).scalar_one() or 0
     active_users = (
         await db.execute(
             text(
@@ -169,6 +181,17 @@ async def admin_panel(
                   AND ut.is_promo IS FALSE
                   AND ut.valid_from <= now()
                   AND (ut.valid_to IS NULL OR ut.valid_to > now())
+                """
+            )
+        )
+    ).scalar_one() or 0
+    pro_requests = (
+        await db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM user_profiles
+                WHERE sub_request = TRUE
                 """
             )
         )
@@ -269,9 +292,11 @@ async def admin_panel(
     return AdminDashboardResponse(
         stats=AdminStats(
             total_users=total_users,
+            real_users=real_users,
             active_users_24h=active_users,
             paid_users=paid_users,
             current_championship_submissions=submissions_count,
+            pro_requests=pro_requests,
         ),
         latest_feedbacks=latest_feedbacks,
         current_championship=AdminChampionship(**contest_row) if contest_row else None,
@@ -2222,3 +2247,39 @@ async def get_activity_log(
         page_size=page_size,
         has_more=(offset + page_size) < total,
     )
+
+
+@router.get("/admin/pro_requests", response_model=list[ProRequestItem])
+async def list_pro_requests(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Список пользователей, подавших заявку на Pro подписку.
+    Доступно только admin.
+    """
+    _user, _profile = current_user_data
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT p.user_id, p.username, u.email, u.created_at
+                FROM user_profiles p
+                JOIN users u ON u.id = p.user_id
+                WHERE p.sub_request = TRUE
+                ORDER BY u.created_at DESC
+                """
+            )
+        )
+    ).mappings().all()
+
+    return [
+        ProRequestItem(
+            user_id=row["user_id"],
+            username=row.get("username"),
+            email=row.get("email"),
+            created_at=row.get("created_at"),
+        )
+        for row in rows
+    ]

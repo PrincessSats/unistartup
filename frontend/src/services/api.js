@@ -856,6 +856,10 @@ export const adminAPI = {
 
     return api.get(`/admin/activity-log?${query.toString()}`);
   },
+  getProRequests: async () => {
+    const response = await api.get('/admin/pro_requests');
+    return response.data;
+  },
 };
 
 export const knowledgeAPI = {
