@@ -9,7 +9,10 @@ import {
   SocialAuthButtons,
 } from '../components/AuthUI';
 import { authAPI } from '../services/api';
+<<<<<<< HEAD
 import TermsModal from '../components/TermsModal';
+=======
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
 
 const PROFESSION_OPTIONS = [
   'Студент',
@@ -567,6 +570,7 @@ function Register() {
                 checked={consents.terms}
                 onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
               >
+<<<<<<< HEAD
                 {'Я принимаю '}
                 <button
                   type="button"
@@ -575,6 +579,9 @@ function Register() {
                 >
                   условия пользования платформой и согласие на обработку персональных данных
                 </button>
+=======
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
               </ConsentCheckbox>
               <ConsentCheckbox
                 checked={consents.marketing}
@@ -662,6 +669,7 @@ function Register() {
                 checked={consents.terms}
                 onChange={(event) => handleConsentChange({ target: { name: 'terms', checked: event.target.checked } })}
               >
+<<<<<<< HEAD
                 {'Я принимаю '}
                 <button
                   type="button"
@@ -670,6 +678,9 @@ function Register() {
                 >
                   условия пользования платформой и согласие на обработку персональных данных
                 </button>
+=======
+                Я принимаю условия пользования платформой и даю согласие на обработку персональных данных
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
               </ConsentCheckbox>
               <ConsentCheckbox
                 checked={consents.marketing}
@@ -810,6 +821,7 @@ function Register() {
         </form>
       </AuthSurface>
     </AuthShell>
+<<<<<<< HEAD
   );
 
   const renderQuestionnaire = ({
@@ -977,7 +989,166 @@ function Register() {
       {renderEmailForm()}
       <TermsModal open={showTerms} onClose={() => setShowTerms(false)} />
     </>
+=======
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
   );
+
+  const renderQuestionnaire = ({
+    counter,
+    title,
+    hint,
+    options,
+    field,
+    single = false,
+    nextLabel,
+    onNext,
+    onBack,
+  }) => (
+    <AuthShell title={null} className="justify-center">
+      <div className="w-full max-w-[480px] space-y-10">
+        {renderStatus()}
+
+        <div className="space-y-2 text-center">
+          <p className="text-[14px] leading-5 text-white/54">{counter}</p>
+          <h2 className="text-[44px] font-medium leading-[1] tracking-[-0.03em] text-white">{title}</h2>
+        </div>
+
+        <div className="space-y-4">
+          <p className={`text-[14px] leading-5 text-white/54 ${single ? 'text-left' : 'text-center'}`}>{hint}</p>
+          <div className="space-y-2">
+            {options.map((option) => {
+              const selected = single
+                ? questionnaire[field] === option
+                : questionnaire[field].includes(option);
+
+              return (
+                <QuestionOption
+                  key={option}
+                  label={option}
+                  selected={selected}
+                  single={single}
+                  compact={!single}
+                  onToggle={() => {
+                    if (single) {
+                      setQuestionnaire((current) => ({ ...current, [field]: option }));
+                      return;
+                    }
+                    toggleMultiValue(field, option);
+                  }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        <div className={`grid gap-2 ${onBack ? 'grid-cols-2' : 'grid-cols-1'}`}>
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              className="h-14 rounded-[10px] border border-white/[0.06] bg-white/[0.05] text-[18px] tracking-[0.04em] text-white transition hover:bg-white/[0.07]"
+            >
+              Назад
+            </button>
+          ) : null}
+          <AuthPrimaryButton
+            onClick={onNext}
+            disabled={
+              loading
+              || (single ? !questionnaire[field] : questionnaire[field].length === 0)
+            }
+          >
+            {loading && field === 'interestTags' ? 'Завершаем...' : nextLabel}
+          </AuthPrimaryButton>
+        </div>
+      </div>
+    </AuthShell>
+  );
+
+  const renderWelcome = () => (
+    <AuthShell title={null} className="justify-center">
+      <div className="w-full max-w-[334px] text-center">
+        <h2 className="text-[64px] font-medium leading-[1] tracking-[-0.05em] text-white">{successName},</h2>
+        <p className="mt-5 text-[28px] leading-8 text-white/75">Добро пожаловать в&nbsp;Hacknet!</p>
+      </div>
+    </AuthShell>
+  );
+
+  useEffect(() => {
+    if (step !== 'welcome') {
+      return undefined;
+    }
+    const timerId = window.setTimeout(() => {
+      setStep('profession');
+    }, 1300);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [step]);
+
+  if (loadingFlow) {
+    return (
+      <AuthShell title="Регистрация">
+        <AuthSurface className="max-w-[420px] px-10 py-10 text-center">
+          <div className="space-y-3">
+            <p className="text-[15px] leading-6 text-white/70">Восстанавливаем шаг регистрации и проверяем ссылку.</p>
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-white/15 border-t-[#8452FF]" aria-hidden="true" />
+          </div>
+        </AuthSurface>
+      </AuthShell>
+    );
+  }
+
+  if (step === 'emailSent') {
+    return renderEmailSent();
+  }
+  if (step === 'flowEmail') {
+    return renderFlowEmail();
+  }
+  if (step === 'details') {
+    return renderDetails();
+  }
+  if (step === 'profession') {
+    return renderQuestionnaire({
+      counter: '1 / 3 вопросов',
+      title: 'Твоя профессия',
+      hint: 'Выбери хотя бы один вариант',
+      options: PROFESSION_OPTIONS,
+      field: 'professionTags',
+      nextLabel: 'Далее',
+      onNext: () => setStep('grade'),
+    });
+  }
+  if (step === 'grade') {
+    return renderQuestionnaire({
+      counter: '2 / 3 вопросов',
+      title: 'Твой грейд',
+      hint: 'Выбери один вариант',
+      options: GRADE_OPTIONS,
+      field: 'grade',
+      single: true,
+      nextLabel: 'Далее',
+      onNext: () => setStep('interests'),
+      onBack: () => setStep('profession'),
+    });
+  }
+  if (step === 'interests') {
+    return renderQuestionnaire({
+      counter: '3 / 3 вопросов',
+      title: 'Что тебя интересует',
+      hint: 'Выбери хотя бы один вариант',
+      options: INTEREST_OPTIONS,
+      field: 'interestTags',
+      nextLabel: 'Завершить регистрацию',
+      onNext: completeRegistration,
+      onBack: () => setStep('grade'),
+    });
+  }
+  if (step === 'welcome') {
+    return renderWelcome();
+  }
+
+  return renderEmailForm();
 }
 
 export default Register;

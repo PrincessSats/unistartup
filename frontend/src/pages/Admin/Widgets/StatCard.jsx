@@ -2,7 +2,11 @@ import React from 'react';
 
 const cardBase = 'bg-white/[0.05] border border-white/[0.08] rounded-[18px]';
 
+<<<<<<< HEAD
 function StatCard({ label, value, subValue, subLabel, hint, icon, tone }) {
+=======
+function StatCard({ label, value, hint, icon, tone }) {
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
   return (
     <div className={`${cardBase} p-5 flex flex-col gap-3`}>
       <div className="flex items-center justify-between">
@@ -13,6 +17,7 @@ function StatCard({ label, value, subValue, subLabel, hint, icon, tone }) {
           {icon}
         </span>
       </div>
+<<<<<<< HEAD
       <div className="flex items-baseline gap-2 flex-wrap">
         <div className="text-[28px] leading-[32px] font-mono-figma text-white">
           {value}
@@ -25,6 +30,10 @@ function StatCard({ label, value, subValue, subLabel, hint, icon, tone }) {
             {subValue}
           </div>
         )}
+=======
+      <div className="text-[28px] leading-[32px] font-mono-figma text-white">
+        {value}
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
       </div>
       <div className="text-[13px] text-white/50">
         {hint}
