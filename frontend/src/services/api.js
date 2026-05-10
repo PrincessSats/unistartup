@@ -802,7 +802,6 @@ export const adminAPI = {
     const response = await api.post('/admin/nvd_sync', null, {
       timeout: ADMIN_NVD_TIMEOUT_MS,
     });
-<<<<<<< HEAD
     return response.data;
   },
   getNvdSyncStatus: async () => {
@@ -859,8 +858,6 @@ export const adminAPI = {
   },
   getProRequests: async () => {
     const response = await api.get('/admin/pro_requests');
-=======
->>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
     return response.data;
   },
   getNvdSyncStatus: async () => {
