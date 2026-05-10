@@ -312,7 +312,6 @@ class AdminTaskModelUpdate(BaseModel):
     model: str
 
 
-<<<<<<< HEAD
 class ProRequestItem(BaseModel):
     user_id: int
     username: Optional[str] = None
@@ -320,8 +319,6 @@ class ProRequestItem(BaseModel):
     created_at: Optional[datetime] = None
 
 
-=======
->>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
 class AdminTranslationModelResponse(BaseModel):
     model: str
     available: List[str]

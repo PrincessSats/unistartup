@@ -59,10 +59,7 @@ from app.schemas.admin import (
     ActivityLogItemResponse,
     ActivityLogListResponse,
     CveSearchResult,
-<<<<<<< HEAD
     ProRequestItem,
-=======
->>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
 )
 from app.services.nvd_sync import (
     create_sync_log,
@@ -2250,7 +2247,6 @@ async def get_activity_log(
         page_size=page_size,
         has_more=(offset + page_size) < total,
     )
-<<<<<<< HEAD
 
 
 @router.get("/admin/pro_requests", response_model=list[ProRequestItem])
@@ -2287,5 +2283,3 @@ async def list_pro_requests(
         )
         for row in rows
     ]
-=======
->>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
