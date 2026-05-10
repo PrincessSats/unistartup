@@ -48,6 +48,7 @@ audit_logs/
 security_keys/
 *.crt
 *.cer
+schema.sql
 
 # Reports (keep SECURITY_REPORT.md, add to gitignore as requested)
 SECURITY_REPORT.md
@@ -59,6 +60,7 @@ CODEX.md
 GEMINI.md
 guidev1.md
 guidev3.md
+AGENTS.md
 qwen.md
 hermes.md
 explain.txt

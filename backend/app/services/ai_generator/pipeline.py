@@ -249,6 +249,29 @@ async def run_pipeline(
         "RAG context: %d entries, query=%r",
         len(rag_context.cve_entries), rag_context.query_text,
     )
+    batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
+    batch = batch_result.scalar_one_or_none()
+    if batch:
+        batch.rag_context_ids = rag_context.entry_ids or None
+        batch.rag_query_text = rag_context.query_text or None
+        batch.rag_context_summary = rag_context_text[:500] if rag_context_text else None
+        batch.stage_meta = {
+            "rag_entries": len(rag_context.cve_entries),
+            "rag_required": settings.AI_GEN_REQUIRE_RAG,
+        }
+        await db.commit()
+        if settings.AI_GEN_REQUIRE_RAG and rag_context.is_empty:
+            from datetime import datetime, timezone
+            batch.status = "failed"
+            batch.current_stage = "failed"
+            batch.failure_reasons_summary = {
+                "failure_context": ["RAG context is required but no KB entries were loaded"],
+                "rag_query_text": rag_context.query_text,
+            }
+            batch.completed_at = datetime.now(timezone.utc)
+            await db.commit()
+            logger.error("Pipeline FAILED batch=%s: required RAG context is empty", batch_id)
+            return
 
     # Build feedback context from historical generations (few-shot examples)
     feedback_ctx = FeedbackContext()
@@ -279,11 +302,6 @@ async def run_pipeline(
             return
         batch.attempt = attempt
         batch.status = "generating"
-        # Store RAG context metadata on first attempt
-        if attempt == 1 and not rag_context.is_empty:
-            batch.rag_context_ids = rag_context.entry_ids or None
-            batch.rag_query_text = rag_context.query_text or None
-            batch.rag_context_summary = rag_context_text[:500] if rag_context_text else None
         await db.commit()
 
         # ── Step 1: Generate N specs in parallel ─────────────────────────────

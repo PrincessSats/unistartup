@@ -72,9 +72,9 @@ def sync_log_to_admin_payload(row: Optional[Dict[str, Any]]) -> Optional[Dict[st
 def _build_embedding_text(row: Dict[str, Any]) -> str:
     parts = [
         row.get("cve_id") or "",
-        row.get("raw_en_text") or "",
         " ".join(row.get("cwe_ids") or []),
         row.get("attack_vector") or "",
+        row.get("raw_en_text") or "",
     ]
     return " ".join(filter(None, parts)).strip()
 
