@@ -860,58 +860,6 @@ export const adminAPI = {
     const response = await api.get('/admin/pro_requests');
     return response.data;
   },
-  getNvdSyncStatus: async () => {
-    const response = await api.get('/admin/nvd_sync');
-    return response.data;
-  },
-  stopNvdSync: async () => {
-    const response = await api.post('/admin/nvd_sync/stop');
-    return response.data;
-  },
-  triggerNvdTranslate: async (limit) => {
-    const params = {};
-    if (limit) params.limit = limit;
-    const response = await api.post('/admin/nvd_sync/translate', null, {
-      timeout: ADMIN_NVD_TIMEOUT_MS,
-      params,
-    });
-    return response.data;
-  },
-  triggerNvdEmbed: async () => {
-    const response = await api.post('/admin/nvd_sync/embed', null, {
-      timeout: ADMIN_NVD_TIMEOUT_MS,
-    });
-    return response.data;
-  },
-  purgeUntranslated: async (keep = 300) => {
-    const response = await api.delete('/admin/nvd_sync/untranslated', { params: { keep } });
-    return response.data;
-  },
-  resolveFeedback: async (feedbackId) => {
-    const response = await api.post(`/admin/feedback/${feedbackId}/resolve`);
-    return response.data;
-  },
-  getFeedbacks: async (params = {}) => {
-    const response = await api.get('/admin/feedbacks', { params });
-    return response.data;
-  },
-  getComments: async (params = {}) => {
-    const response = await api.get('/admin/comments', { params });
-    return response.data;
-  },
-  getActivityLog: async (params = {}) => {
-    const query = new URLSearchParams();
-    if (params.page) query.append('page', params.page);
-    if (params.page_size) query.append('page_size', params.page_size);
-    if (params.event_type) query.append('event_type', params.event_type);
-    if (params.contest_id) query.append('contest_id', params.contest_id);
-    if (params.source) query.append('source', params.source);
-    if (params.search_text) query.append('search_text', params.search_text);
-    if (params.date_from) query.append('date_from', params.date_from);
-    if (params.date_to) query.append('date_to', params.date_to);
-
-    return api.get(`/admin/activity-log?${query.toString()}`);
-  },
 };
 
 export const knowledgeAPI = {

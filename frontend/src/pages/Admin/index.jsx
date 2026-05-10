@@ -20,7 +20,7 @@ import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
 // Icons
-import { UsersIcon, ActivityIcon, CreditIcon, TrophyIcon, ProRequestIcon } from './Widgets/Icons';
+import { UsersIcon, ActivityIcon, CreditIcon, ProRequestIcon } from './Widgets/Icons';
 
 // Hooks
 import { useAdminDashboard } from './hooks/useAdminDashboard';
