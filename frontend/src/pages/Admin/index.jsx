@@ -5,7 +5,10 @@ import { PageLoader } from '../../components/LoadingState';
 // Dashboard Components
 import StatCard from './Widgets/StatCard';
 import FeedbackPanel from './Dashboard/FeedbackPanel';
+<<<<<<< HEAD
 import ProRequestsPanel from './Dashboard/ProRequestsPanel';
+=======
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
 import ChampionshipWidget from './Dashboard/ChampionshipWidget';
 import RecentArticleCard from './Dashboard/RecentArticleCard';
 import CommentsPanel from './Dashboard/CommentsPanel';
@@ -20,7 +23,11 @@ import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
 // Icons
+<<<<<<< HEAD
 import { UsersIcon, ActivityIcon, CreditIcon, TrophyIcon, ProRequestIcon } from './Widgets/Icons';
+=======
+import { UsersIcon, ActivityIcon, CreditIcon, TrophyIcon } from './Widgets/Icons';
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
 
 // Hooks
 import { useAdminDashboard } from './hooks/useAdminDashboard';
@@ -260,8 +267,11 @@ function Admin() {
         <StatCard
           label="Всего пользователей"
           value={formatNumber(stats.total_users)}
+<<<<<<< HEAD
           subValue={formatNumber(stats.real_users)}
           subLabel="Без @seed.local"
+=======
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
           hint="Все зарегистрированные аккаунты"
           icon={<UsersIcon className="w-4 h-4" />}
           tone="bg-white/10 text-white"
@@ -281,11 +291,19 @@ function Admin() {
           tone="bg-[#9B6BFF]/15 text-[#CBB6FF]"
         />
         <StatCard
+<<<<<<< HEAD
           label="Заявки на Pro"
           value={formatNumber(stats.pro_requests)}
           hint="Количество поданных заявок на Pro подписку"
           icon={<ProRequestIcon className="w-4 h-4" />}
           tone="bg-emerald-500/15 text-emerald-300"
+=======
+          label="Сабмиты в чемпионате"
+          value={formatNumber(stats.current_championship_submissions)}
+          hint="Количество отправок в текущем чемпионате"
+          icon={<TrophyIcon className="w-4 h-4" />}
+          tone="bg-amber-400/15 text-amber-200"
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
         />
       </div>
 
@@ -308,9 +326,12 @@ function Admin() {
       {/* Comments */}
       <CommentsPanel />
 
+<<<<<<< HEAD
       {/* Pro requests */}
       <ProRequestsPanel />
 
+=======
+>>>>>>> b9996daf2f4eee22070927117cd54418c78f5df6
       {/* Feedback Resolver Modal */}
       <FeedbackResolver
         feedback={feedbackToResolve}
