@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import text
 
@@ -50,7 +50,7 @@ async def _select_top_cves(hours: int = _TOP_CVE_HOURS, limit: int = 10) -> list
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             text(_TOP_CVE_SQL),
-            {"hours_interval": f"{hours} hours", "limit": limit},
+            {"hours_interval": timedelta(hours=hours), "limit": limit},
         )
         return result.mappings().all()
 
