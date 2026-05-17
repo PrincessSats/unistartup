@@ -120,7 +120,7 @@ jobs:
           TRANSLATION_MODEL_ID: ${{ secrets.TRANSLATION_MODEL_ID }}
           TRANSLATION_REASONING_EFFORT: ${{ secrets.TRANSLATION_REASONING_EFFORT }}
           ARTICLE_MODEL_ID: ${{ secrets.ARTICLE_MODEL_ID }}
-
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
           if [ -z "$YANDEX_CLOUD_API_KEY" ] || [ -z "$YANDEX_CLOUD_FOLDER" ] || [ -z "$YANDEX_CLIENT_ID" ] || [ -z "$YANDEX_CLIENT_SECRET" ] || [ -z "$CLIENT_GIT" ] || [ -z "$CLIENT_GIT_SECRET" ] || [ -z "$TG_BOT_API_TOKEN" ] || [ -z "$TG_CLIENT_ID" ] || [ -z "$TG_CLIENT_SECRET" ] || [ -z "$YANDEX_MAIL_LOGIN" ] || [ -z "$YANDEX_MAIL_PASSWORD" ]; then
@@ -144,6 +144,9 @@ jobs:
           ENV_VARS="${ENV_VARS},TRANSLATION_MODEL_ID=${TRANSLATION_MODEL_ID:-deepseek-v32}"
           ENV_VARS="${ENV_VARS},TRANSLATION_REASONING_EFFORT=${TRANSLATION_REASONING_EFFORT:-low}"
           ENV_VARS="${ENV_VARS},ARTICLE_MODEL_ID=${ARTICLE_MODEL_ID:-deepseek-v32}"
+          if [ -n "${CRON_SECRET:-}" ]; then
+            ENV_VARS="${ENV_VARS},CRON_SECRET=${CRON_SECRET}"
+          fi
           yc serverless container revision deploy \
             --container-name hacknet-backend \
             --image "$IMAGE_URL" \

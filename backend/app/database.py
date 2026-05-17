@@ -322,6 +322,19 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
     logger.info("NVD sync schema compatibility check completed")
 
 
+async def ensure_daily_pipeline_schema_compatibility() -> None:
+    """Add referenced_cve_ids column to kb_entries for digest rows."""
+    statements = [
+        "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS referenced_cve_ids text[] DEFAULT '{}'::text[]",
+        "CREATE INDEX IF NOT EXISTS idx_kb_entries_source ON kb_entries(source)",
+        "CREATE INDEX IF NOT EXISTS idx_kb_entries_source_created ON kb_entries(source, created_at DESC)",
+    ]
+    async with engine.begin() as conn:
+        for stmt in statements:
+            await conn.execute(text(stmt))
+    logger.info("Daily pipeline schema compatibility check completed")
+
+
 async def ensure_performance_indexes() -> None:
     """
     Создает недостающие индексы для горячих запросов интерфейса.
