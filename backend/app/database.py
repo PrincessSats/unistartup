@@ -323,11 +323,13 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
 
 
 async def ensure_daily_pipeline_schema_compatibility() -> None:
-    """Add referenced_cve_ids column to kb_entries for digest rows."""
+    """Add daily-pipeline columns to kb_entries: referenced_cve_ids + visible_in_kb_list."""
     statements = [
         "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS referenced_cve_ids text[] DEFAULT '{}'::text[]",
+        "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS visible_in_kb_list boolean NOT NULL DEFAULT true",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source ON kb_entries(source)",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source_created ON kb_entries(source, created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_kb_entries_visible_source_created ON kb_entries(visible_in_kb_list, source, created_at DESC)",
     ]
     async with engine.begin() as conn:
         for stmt in statements:

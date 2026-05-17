@@ -1,4 +1,5 @@
 from sqlalchemy import Column, BigInteger, Integer, Float, SmallInteger, Text, Boolean, ForeignKey, UniqueConstraint
+from sqlalchemy import true as sa_true
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB
 from sqlalchemy.orm import relationship
@@ -42,6 +43,7 @@ class KBEntry(Base):
     affected_products = Column(ARRAY(Text), default=list)
     cve_metadata = Column(JSONB)
     referenced_cve_ids = Column(ARRAY(Text), default=list)
+    visible_in_kb_list = Column(Boolean, nullable=False, default=True, server_default=sa_true())
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     embedding = Column(Vector(256))
