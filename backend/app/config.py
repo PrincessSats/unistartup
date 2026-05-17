@@ -164,6 +164,12 @@ class Settings(BaseSettings):
     PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW: int = 60
     PROMPTS_DIR: str = ""
 
+    # Daily automated NVD pipeline (cron)
+    CRON_SECRET: str = ""
+    DAILY_DIGEST_ENABLED: bool = True
+    DAILY_TASK_COUNT: int = 10
+    DAILY_PIPELINE_CONCURRENCY: int = 3
+
     # AI Generator (GRPO pipeline)
     AI_GEN_NUM_VARIANTS: int = 5
     AI_GEN_MAX_RETRIES: int = 2

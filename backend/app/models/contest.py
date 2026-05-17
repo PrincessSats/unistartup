@@ -41,6 +41,7 @@ class KBEntry(Base):
     attack_complexity = Column(Text)
     affected_products = Column(ARRAY(Text), default=list)
     cve_metadata = Column(JSONB)
+    referenced_cve_ids = Column(ARRAY(Text), default=list)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     embedding = Column(Vector(256))

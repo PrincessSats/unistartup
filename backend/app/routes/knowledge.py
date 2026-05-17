@@ -22,15 +22,18 @@ async def list_kb_entries(
     order: Literal["asc", "desc"] = Query("desc"),
     tag: Optional[str] = Query(None),
     only_with_title: bool = Query(False),
+    source: Optional[str] = Query(None),
 ):
     """
     Список записей базы знаний.
     order: asc | desc (по created_at)
     tag: фильтр по тегу (если указан)
+    source: фильтр по источнику (nvd, digest; если не указан — все)
     """
     # Validate sort order to prevent SQL injection
     order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
+    source_value = source.strip() if isinstance(source, str) and source.strip() else None
 
     stmt = text(
         f"""
@@ -38,6 +41,7 @@ async def list_kb_entries(
         FROM kb_entries
         WHERE (:tag IS NULL OR :tag = ANY(tags))
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+          AND (:source IS NULL OR source = :source)
         ORDER BY COALESCE(updated_at, created_at) {order_sql}
         LIMIT :limit
         OFFSET :offset
@@ -52,6 +56,7 @@ async def list_kb_entries(
                 "offset": offset,
                 "tag": tag_value,
                 "only_with_title": only_with_title,
+                "source": source_value,
             },
         )
     ).mappings().all()
@@ -82,13 +87,16 @@ async def list_kb_entries_paged(
     order: Literal["asc", "desc"] = Query("desc"),
     tag: Optional[str] = Query(None),
     only_with_title: bool = Query(True),
+    source: Optional[str] = Query(None),
 ):
     """
     Пагинация для базы знаний (с total).
+    source: фильтр по источнику (nvd, digest; если не указан — все)
     """
     # Validate sort order to prevent SQL injection
     order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
+    source_value = source.strip() if isinstance(source, str) and source.strip() else None
 
     count_stmt = text(
         """
@@ -96,13 +104,14 @@ async def list_kb_entries_paged(
         FROM kb_entries
         WHERE (:tag IS NULL OR :tag = ANY(tags))
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+          AND (:source IS NULL OR source = :source)
         """
     ).bindparams(bindparam("tag", type_=Text))
 
     total = (
         await db.execute(
             count_stmt,
-            {"tag": tag_value, "only_with_title": only_with_title},
+            {"tag": tag_value, "only_with_title": only_with_title, "source": source_value},
         )
     ).scalar_one() or 0
 
@@ -114,12 +123,13 @@ async def list_kb_entries_paged(
                 FROM kb_entries
                 WHERE (:tag IS NULL OR :tag = ANY(tags))
                   AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+                  AND (:source IS NULL OR source = :source)
                 ORDER BY COALESCE(updated_at, created_at) {order_sql}
                 LIMIT :limit
                 OFFSET :offset
                 """
             ).bindparams(bindparam("tag", type_=Text)),
-            {"limit": limit, "offset": offset, "tag": tag_value, "only_with_title": only_with_title},
+            {"limit": limit, "offset": offset, "tag": tag_value, "only_with_title": only_with_title, "source": source_value},
         )
     ).mappings().all()
 
