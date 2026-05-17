@@ -42,6 +42,7 @@ async def list_kb_entries(
         WHERE (:tag IS NULL OR :tag = ANY(tags))
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
           AND (:source IS NULL OR source = :source)
+          AND visible_in_kb_list = true
         ORDER BY COALESCE(updated_at, created_at) {order_sql}
         LIMIT :limit
         OFFSET :offset
@@ -105,6 +106,7 @@ async def list_kb_entries_paged(
         WHERE (:tag IS NULL OR :tag = ANY(tags))
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
           AND (:source IS NULL OR source = :source)
+          AND visible_in_kb_list = true
         """
     ).bindparams(bindparam("tag", type_=Text), bindparam("source", type_=Text))
 
@@ -124,6 +126,7 @@ async def list_kb_entries_paged(
                 WHERE (:tag IS NULL OR :tag = ANY(tags))
                   AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
                   AND (:source IS NULL OR source = :source)
+                  AND visible_in_kb_list = true
                 ORDER BY COALESCE(updated_at, created_at) {order_sql}
                 LIMIT :limit
                 OFFSET :offset
@@ -174,6 +177,7 @@ async def list_kb_tags(
                 FROM kb_entries
                 WHERE tags IS NOT NULL
                   AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
+                  AND visible_in_kb_list = true
                 ORDER BY tag ASC
                 """
             ),
@@ -201,6 +205,7 @@ async def list_kb_feed(
                 FROM kb_entries
                 WHERE ru_title IS NOT NULL
                   AND length(trim(ru_title)) > 0
+                  AND visible_in_kb_list = true
                 ORDER BY COALESCE(updated_at, created_at) DESC
                 LIMIT :limit
                 """
