@@ -46,7 +46,7 @@ async def list_kb_entries(
         LIMIT :limit
         OFFSET :offset
         """
-    ).bindparams(bindparam("tag", type_=Text))
+    ).bindparams(bindparam("tag", type_=Text), bindparam("source", type_=Text))
 
     rows = (
         await db.execute(
@@ -106,7 +106,7 @@ async def list_kb_entries_paged(
           AND (:only_with_title IS FALSE OR (ru_title IS NOT NULL AND length(trim(ru_title)) > 0))
           AND (:source IS NULL OR source = :source)
         """
-    ).bindparams(bindparam("tag", type_=Text))
+    ).bindparams(bindparam("tag", type_=Text), bindparam("source", type_=Text))
 
     total = (
         await db.execute(
@@ -128,7 +128,7 @@ async def list_kb_entries_paged(
                 LIMIT :limit
                 OFFSET :offset
                 """
-            ).bindparams(bindparam("tag", type_=Text)),
+            ).bindparams(bindparam("tag", type_=Text), bindparam("source", type_=Text)),
             {"limit": limit, "offset": offset, "tag": tag_value, "only_with_title": only_with_title, "source": source_value},
         )
     ).mappings().all()
