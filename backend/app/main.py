@@ -151,6 +151,8 @@ async def health_check():
 async def startup_tasks():
     # Всегда сбрасываем зависшие синхронизации NVD, независимо от флага DB maintenance
     await cleanup_stale_sync_logs()
+    # Always run — adds referenced_cve_ids column if missing (idempotent)
+    await ensure_daily_pipeline_schema_compatibility()
 
     if not settings.RUN_STARTUP_DB_MAINTENANCE:
         logger.info(
