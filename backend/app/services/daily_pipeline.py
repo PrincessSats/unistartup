@@ -20,15 +20,15 @@ from app.services.task_generation import (
 
 logger = logging.getLogger(__name__)
 
-_TOP_CVE_HOURS = 24
+_TOP_CVE_HOURS = 168  # 7 days — covers re-synced entries (updated_at refreshed on upsert)
 _TOP_CVE_SQL = """
     SELECT id, cve_id, ru_title, ru_summary, cvss_base_score, tags, difficulty
     FROM kb_entries
     WHERE source = 'nvd'
       AND ru_title IS NOT NULL
       AND length(trim(ru_title)) > 0
-      AND created_at >= now() - (:hours_interval)::interval
-    ORDER BY cvss_base_score DESC NULLS LAST, created_at DESC
+      AND updated_at >= now() - (:hours_interval)::interval
+    ORDER BY cvss_base_score DESC NULLS LAST, updated_at DESC
     LIMIT :limit
 """
 
