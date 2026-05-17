@@ -794,7 +794,8 @@ CREATE TABLE public.kb_entries (
     attack_vector text,
     attack_complexity text,
     affected_products text[] DEFAULT '{}'::text[],
-    cve_metadata jsonb
+    cve_metadata jsonb,
+    referenced_cve_ids text[] DEFAULT '{}'::text[]
 );
 
 
