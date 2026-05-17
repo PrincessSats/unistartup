@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import text
 
@@ -20,15 +22,19 @@ from app.services.task_generation import (
 
 logger = logging.getLogger(__name__)
 
-_TOP_CVE_HOURS = 168  # 7 days — covers re-synced entries (updated_at refreshed on upsert)
+RU_MONTHS = [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+]
+
 _TOP_CVE_SQL = """
     SELECT id, cve_id, ru_title, ru_summary, cvss_base_score, tags, difficulty
     FROM kb_entries
     WHERE source = 'nvd'
       AND ru_title IS NOT NULL
       AND length(trim(ru_title)) > 0
-      AND updated_at >= now() - (:hours_interval)::interval
-    ORDER BY cvss_base_score DESC NULLS LAST, updated_at DESC
+      AND cvss_base_score IS NOT NULL
+    ORDER BY cvss_base_score DESC NULLS LAST, created_at DESC
     LIMIT :limit
 """
 
@@ -46,12 +52,9 @@ async def _is_recently_completed() -> bool:
         return result.scalar() is not None
 
 
-async def _select_top_cves(hours: int = _TOP_CVE_HOURS, limit: int = 10) -> list:
+async def _select_top_cves(limit: int = 10) -> list:
     async with AsyncSessionLocal() as session:
-        result = await session.execute(
-            text(_TOP_CVE_SQL),
-            {"hours_interval": timedelta(hours=hours), "limit": limit},
-        )
+        result = await session.execute(text(_TOP_CVE_SQL), {"limit": limit})
         return result.mappings().all()
 
 
@@ -84,7 +87,13 @@ async def _generate_digest(top_entries: list) -> int | None:
         return None
 
     parsed = result.get("parsed", {})
-    ru_title = parsed.get("ru_title") or f"Дайджест угроз {date.today().isoformat()}"
+    today = date.today()
+    subject = (parsed.get("ru_title") or "критические уязвимости").strip()
+    for junk in ("Дайджест угроз:", "Дайджест угроз", "Дайджест:", "Дайджест", "Digest:", "Digest"):
+        if subject.startswith(junk):
+            subject = subject[len(junk):].lstrip(": -—").strip()
+            break
+    ru_title = f"Дайджест угроз {RU_MONTHS[today.month - 1]} {today.day} {today.year}: {subject}"
     ru_summary = parsed.get("ru_summary") or ""
     ru_explainer = parsed.get("ru_explainer") or ""
     tags = parsed.get("tags") or ["cve", "digest"]
@@ -93,24 +102,31 @@ async def _generate_digest(top_entries: list) -> int | None:
     ]
 
     async with AsyncSessionLocal() as session:
-        entry = KBEntry(
-            source="digest",
-            source_id=f"digest-{date.today().isoformat()}",
-            cve_id=None,
-            raw_en_text=input_text,
-            ru_title=ru_title,
-            ru_summary=ru_summary,
-            ru_explainer=ru_explainer,
-            tags=tags,
-            difficulty=None,
-            referenced_cve_ids=referenced_cve_ids,
-        )
-        session.add(entry)
         try:
+            result = await session.execute(
+                text("""
+                    INSERT INTO kb_entries
+                        (source, source_id, cve_id, raw_en_text, ru_title, ru_summary,
+                         ru_explainer, tags, referenced_cve_ids)
+                    VALUES
+                        ('digest', :source_id, NULL, :raw_en_text, :ru_title, :ru_summary,
+                         :ru_explainer, :tags, :referenced_cve_ids)
+                    RETURNING id
+                """),
+                {
+                    "source_id": f"digest-{date.today().isoformat()}",
+                    "raw_en_text": input_text,
+                    "ru_title": ru_title,
+                    "ru_summary": ru_summary,
+                    "ru_explainer": ru_explainer,
+                    "tags": tags,
+                    "referenced_cve_ids": referenced_cve_ids,
+                },
+            )
+            entry_id = result.scalar_one()
             await session.commit()
-            await session.refresh(entry)
-            logger.info("daily_pipeline: digest created id=%s", entry.id)
-            return entry.id
+            logger.info("daily_pipeline: digest created id=%s", entry_id)
+            return entry_id
         except Exception as exc:
             await session.rollback()
             logger.error("daily_pipeline: failed to save digest: %s", exc)
@@ -216,7 +232,7 @@ async def run_daily_pipeline(*, force: bool = False) -> dict:
     logger.info("daily_pipeline: starting NVD sync")
     try:
         sync_result = await run_sync(
-            hours=_TOP_CVE_HOURS,
+            hours=24,
             embed_new_entries=True,
             translate_new_entries=True,
         )
@@ -232,7 +248,7 @@ async def run_daily_pipeline(*, force: bool = False) -> dict:
     if not settings.DAILY_DIGEST_ENABLED:
         return {"status": "done", "sync": sync_result, "digest_id": None, "task_ids": []}
 
-    top_entries = await _select_top_cves(hours=_TOP_CVE_HOURS, limit=settings.DAILY_TASK_COUNT)
+    top_entries = await _select_top_cves(limit=settings.DAILY_TASK_COUNT)
     logger.info("daily_pipeline: selected %d top CVEs", len(top_entries))
 
     digest_id = await _generate_digest(top_entries)
