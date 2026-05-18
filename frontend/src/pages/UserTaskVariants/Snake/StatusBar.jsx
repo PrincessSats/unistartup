@@ -2,13 +2,13 @@ import React from 'react';
 import AppIcon from '../../../components/AppIcon';
 
 /**
- * Snake game status bar
- * Shows score, high score, and game state
+ * Строка статуса игры Змейка
+ * Показывает счёт, рекорд и состояние игры
  */
 export default function StatusBar({ score, highScore, gameOver, isPaused, gamesPlayed }) {
   return (
     <div className="flex flex-col items-center gap-4 w-full max-w-[400px]">
-      {/* Score display */}
+      {/* Отображение счёта */}
       <div className="flex items-center gap-6">
         <div className="text-center">
           <div className="text-xs text-white/40 mb-1">Счёт</div>
@@ -29,8 +29,8 @@ export default function StatusBar({ score, highScore, gameOver, isPaused, gamesP
           <div className="text-2xl font-bold text-[#9B6BFF]">{gamesPlayed}</div>
         </div>
       </div>
-      
-      {/* Game state indicator */}
+
+      {/* Индикатор состояния игры */}
       <div className={`
         text-sm font-medium transition-colors duration-300
         ${gameOver ? 'text-[#FF5A6E]' : isPaused ? 'text-[#F2C94C]' : 'text-white/60'}

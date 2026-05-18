@@ -53,7 +53,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Suppress verbose HTTP client logs
+# Подавляем многословные логи HTTP-клиента
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
@@ -146,7 +146,7 @@ async def translate_existing_entries(
         delay_seconds: Pause between entries (seconds), set to 0 to disable
     """
     async with AsyncSessionLocal() as session:
-        # Count entries needing translation
+        # Считаем записи, которым нужен перевод
         result = await session.execute(
             text(
                 """

@@ -116,7 +116,7 @@ function NvdSync() {
 
   return (
     <div className="flex-1 min-w-0 space-y-4">
-      {/* Header */}
+      {/* Заголовок */}
       <div className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <div className="text-[22px] leading-[26px] font-semibold tracking-[0.02em] text-white">NVD Sync</div>
@@ -130,7 +130,7 @@ function NvdSync() {
         </div>
       )}
 
-      {/* Status row */}
+      {/* Строка статуса */}
       <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] px-5 py-4 flex items-center gap-4 flex-wrap">
         {status ? <StatusBadge status={status} /> : <span className="text-[12px] text-white/30 italic">Нет данных</span>}
         {s.detailed_status && (
@@ -149,9 +149,9 @@ function NvdSync() {
         )}
       </div>
 
-      {/* 3 stage cards */}
+      {/* 3 карточки этапов */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Fetch */}
+        {/* Загрузка */}
         <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -189,7 +189,7 @@ function NvdSync() {
           )}
         </div>
 
-        {/* Translate */}
+        {/* Перевод */}
         <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -206,7 +206,7 @@ function NvdSync() {
             />
           </div>
 
-          {/* Untranslated count + limit input */}
+          {/* Количество непереведённых + ввод лимита */}
           <div className="flex items-center gap-2">
             {s.untranslated_count != null && (
               <span className="text-[11px] text-purple-400/70">
@@ -226,7 +226,7 @@ function NvdSync() {
               />
             </div>
           </div>
-          {/* Purge untranslated */}
+          {/* Очистить непереведённые */}
           <button
             type="button"
             onClick={() => {
@@ -259,7 +259,7 @@ function NvdSync() {
           </div>
         </div>
 
-        {/* Embed */}
+        {/* Вложение */}
         <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5 flex flex-col gap-3">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -296,7 +296,7 @@ function NvdSync() {
         </div>
       </div>
 
-      {/* Event log */}
+      {/* Журнал событий */}
       <div className="bg-white/[0.04] border border-white/[0.07] rounded-[16px] p-5">
         <div className="mb-3">
           <div className="text-[11px] uppercase tracking-[0.15em] text-white/25 mb-1">Event Log</div>

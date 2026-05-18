@@ -2,7 +2,7 @@
 
 import axios from 'axios';
 
-// local or prod env
+// локальное или продакшн окружение
 const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 function normalizeLocalApiBaseUrl(rawUrl) {
@@ -51,7 +51,7 @@ export const AUTH_BOOTSTRAP_TIMEOUT_MS = Number.isFinite(parsedRefreshTimeout) &
 const ACCESS_TOKEN_CLOCK_SKEW_SECONDS = 30;
 
 if (!API_URL) {
-  // Helps catch broken cloud builds where REACT_APP_API_BASE_URL was not provided.
+  // Помогает выявить неправильные облачные сборки где REACT_APP_API_BASE_URL не был предоставлен.
   // eslint-disable-next-line no-console
   console.error('REACT_APP_API_BASE_URL is not configured for this build');
 }
@@ -60,8 +60,8 @@ function shouldSendAuthorizationHeader() {
   if (!API_URL) return true;
   try {
     const { hostname } = new URL(API_URL);
-    // Yandex Serverless Containers may treat Authorization as IAM auth header.
-    // Keep app token in X-Auth-Token for this host family to avoid edge 403.
+    // Контейнеры Yandex Serverless могут рассматривать Authorization как IAM заголовок аутентификации.
+    // Сохраняем токен приложения в X-Auth-Token для этого семейства хостов чтобы избежать ошибки 403.
     return !hostname.endsWith('.containers.yandexcloud.net');
   } catch {
     return true;
@@ -130,7 +130,7 @@ function clearProfileSessionCache() {
   try {
     sessionStorage.removeItem(PROFILE_CACHE_STORAGE_KEY);
   } catch {
-    // Session storage cleanup is best-effort.
+    // Очистка хранилища сессии - максимум возможного.
   }
 }
 
@@ -356,6 +356,7 @@ async function refreshAccessToken({ timeoutMs = AUTH_BOOTSTRAP_TIMEOUT_MS } = {}
 }
 
 // Добавляем токен к защищенным запросам (не к /auth/*).
+// Добавляем токен авторизации к защищённым запросам (но не к /auth/*).
 api.interceptors.request.use((config) => {
   const normalizedPath = resolveRequestPath(config);
   const isAuthRequest = isAuthPath(normalizedPath);
@@ -394,6 +395,7 @@ api.interceptors.response.use(
     }
 
     // Гость (нет токена) — не пытаемся рефрешить и не редиректим на логин.
+    // Гость (без токена) — не пытаемся обновить и не перенаправляем на логин.
     if (!getStoredAccessToken()) {
       return Promise.reject(error);
     }
@@ -421,7 +423,7 @@ api.interceptors.response.use(
         ? 'session_expired'
         : (isTimeoutError(refreshErr) ? 'network_timeout' : 'session_unavailable');
       // eslint-disable-next-line no-console
-      console.warn('Auth refresh failed after 401', { reason });
+      console.warn('Auth refresh failed after 401', { reason }); // Ошибка обновления авторизации после 401
       if (sessionExpired) {
         authAPI.logout({ remote: false, redirect: true, reason });
       }
@@ -431,6 +433,7 @@ api.interceptors.response.use(
 );
 
 // API методы авторизации
+// Методы API для аутентификации
 export const authAPI = {
   register: async (email, username, password) => {
     if (!API_URL) {
@@ -606,7 +609,7 @@ export const authAPI = {
         __skipAuthRefresh: true,
       });
     } catch {
-      // Warmup is best-effort and must not affect UX.
+      // Разминка - максимум возможного и не должна влиять на UX.
     }
   },
 
@@ -687,7 +690,7 @@ export const authAPI = {
   },
 };
 
-// Запросы к защищенным endpoints
+// Запросы к защищенным endpoints (конечным точкам)
 export const userAPI = {
   getWelcome: async () => {
     const response = await api.get('/welcome');

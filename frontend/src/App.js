@@ -84,12 +84,12 @@ function App() {
   useEffect(() => {
     let cancelled = false;
 
-    // Fire warmup immediately so the container starts before the user interacts.
+    // Запустить разминку сразу, чтобы контейнер запустился до взаимодействия пользователя.
     authAPI.warmup();
 
     const bootstrap = async () => {
       if (!authAPI.hasSessionHint()) {
-        // Not authenticated — no need to verify session, just let them browse.
+        // Не аутентифицирован — не нужно проверять сессию, просто позволим браузить.
         setAuthReason('');
         setAuthReady(true);
         return;

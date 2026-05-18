@@ -107,7 +107,7 @@ from app.services.activity_logger import (
 router = APIRouter(tags=["Тестовые страницы"])
 logger = logging.getLogger(__name__)
 
-# Keep strong references to fire-and-forget asyncio tasks so they survive client disconnect
+# Сохраняем сильные ссылки на асинхронные задачи, чтобы они пережили отключение клиента
 _nvd_background_tasks: set[asyncio.Task] = set()
 
 

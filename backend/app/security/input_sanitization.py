@@ -16,13 +16,13 @@ except ImportError:
     bleach = None
 
 
-# Allowed HTML tags for rich text (if needed in future)
-ALLOWED_TAGS = []  # No HTML tags allowed by default
+# Разрешённые HTML теги для форматированного текста (если понадобится в будущем)
+ALLOWED_TAGS = []  # По умолчанию теги HTML не разрешены
 
-# Allowed attributes for allowed tags
+# Разрешённые атрибуты для разрешённых тегов
 ALLOWED_ATTRIBUTES = {}
 
-# Common XSS patterns to detect and block
+# Распространённые паттерны XSS для обнаружения и блокировки
 XSS_PATTERNS = [
     re.compile(r'<\s*script', re.IGNORECASE),
     re.compile(r'javascript\s*:', re.IGNORECASE),
@@ -58,7 +58,7 @@ def sanitize_html(text: str, allowed_tags: Optional[list] = None) -> str:
             strip=True
         )
     else:
-        # Fallback: strip all HTML tags and escape
+        # Резервный вариант: удалить все HTML теги и экранировать
         return strip_html_tags(text)
 
 
@@ -75,7 +75,7 @@ def strip_html_tags(text: str) -> str:
     if not text:
         return ""
     
-    # Remove HTML tags using regex
+    # Удалить HTML теги с помощью регулярного выражения
     clean = re.sub(r'<[^>]+>', '', text)
     return clean
 
@@ -132,10 +132,10 @@ def sanitize_username(username: str) -> str:
     if not username:
         return ""
     
-    # Remove any character that's not alphanumeric, underscore, or hyphen
+    # Удалить любой символ, который не является буквой, цифрой, подчёркиванием или дефисом
     clean = re.sub(r'[^\w\-]', '', username)
-    
-    # Limit length
+
+    # Ограничить длину
     return clean[:50]
 
 
@@ -152,7 +152,7 @@ def sanitize_email(email: str) -> str:
     if not email:
         return ""
     
-    # Lowercase and trim
+    # Преобразовать в нижний регистр и обрезать
     return email.lower().strip()[:254]
 
 
@@ -174,13 +174,13 @@ def sanitize_comment(body: str, max_length: int = 2000) -> str:
     if not body:
         return ""
     
-    # Strip HTML tags
+    # Удалить HTML теги
     clean = strip_html_tags(body)
-    
-    # Escape HTML entities
+
+    # Экранировать HTML сущности
     clean = escape_html(clean)
-    
-    # Enforce length limit
+
+    # Применить ограничение длины
     return clean[:max_length]
 
 
@@ -198,10 +198,10 @@ def sanitize_feedback_message(message: str, max_length: int = 500) -> str:
     if not message:
         return ""
     
-    # Strip and escape
+    # Удалить и экранировать
     clean = strip_html_tags(message)
     clean = escape_html(clean)
-    
+
     return clean[:max_length]
 
 
@@ -219,10 +219,10 @@ def sanitize_topic(topic: str, max_length: int = 100) -> str:
     if not topic:
         return ""
     
-    # Strip HTML and escape
+    # Удалить HTML теги и экранировать
     clean = strip_html_tags(topic)
     clean = escape_html(clean)
-    
+
     return clean[:max_length]
 
 

@@ -21,13 +21,13 @@ def _read_prompt_file(path: Path, filename: str) -> str:
 
 
 def load_prompt_text(filename: str) -> str:
-    # 1) Explicit directory override.
+    # 1) Явное переопределение каталога.
     if settings.PROMPTS_DIR:
         content = _read_prompt_file(Path(settings.PROMPTS_DIR).expanduser(), filename)
         if content:
             return content
 
-    # 2) Packaged prompt bundled with backend app.
+    # 2) Упакованный промпт, входящий в приложение backend.
     try:
         content = resources.files("app.prompts").joinpath(filename).read_text(encoding="utf-8").strip()
     except (FileNotFoundError, ModuleNotFoundError):
@@ -35,13 +35,13 @@ def load_prompt_text(filename: str) -> str:
     if content:
         return content
 
-    # 3) Legacy fallback paths for local/dev compatibility.
+    # 3) Наследуемые пути для совместимости локальной/разработческой версии.
     current = Path(__file__).resolve()
     legacy_dirs = [
         current.parent,               # backend/app/services
         current.parent.parent,        # backend/app
         current.parent.parent.parent, # backend
-        current.parent.parent.parent.parent, # repo root
+        current.parent.parent.parent.parent, # корневой каталог репо
     ]
     for directory in legacy_dirs:
         content = _read_prompt_file(directory, filename)

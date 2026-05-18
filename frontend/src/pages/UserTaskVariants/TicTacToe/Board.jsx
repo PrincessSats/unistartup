@@ -2,23 +2,23 @@ import React from 'react';
 import Cell from './Cell';
 
 /**
- * Tic-Tac-Toe board component (3x3 grid)
+ * Компонент доски для крестиков-ноликов (сетка 3x3)
  */
 export default function Board({ board, onCellClick, disabled, winningLine, playerSymbol, botSymbol }) {
   /**
-   * Check if a cell is part of the winning line
+   * Проверка, является ли ячейка частью выигрышной линии
    */
   const isWinningCell = (row, col) => {
     if (!winningLine) return false;
-    
-    // Check rows
+
+    // Проверка строк
     if (winningLine.type === 'row' && winningLine.index === row) return true;
-    // Check columns
+    // Проверка столбцов
     if (winningLine.type === 'col' && winningLine.index === col) return true;
-    // Check diagonals
+    // Проверка диагоналей
     if (winningLine.type === 'diag-main' && row === col) return true;
     if (winningLine.type === 'diag-anti' && row + col === 2) return true;
-    
+
     return false;
   };
   

@@ -68,25 +68,25 @@ class ActivityLog(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    # Admin who performed the action (NULL for system/participant events)
+    # Администратор, выполнивший действие (NULL для системных/событий участника)
     admin_id = Column(BIGINT, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    # Contest this event is related to (nullable for some events)
+    # Конкурс, с которым связано это событие (может быть NULL для некоторых событий)
     contest_id = Column(BIGINT, ForeignKey("contests.id", ondelete="SET NULL"), nullable=True, index=True)
 
-    # Event type (e.g., "contest_created", "submission_correct")
+    # Тип события (например, "contest_created", "submission_correct")
     event_type = Column(SQLEnum(EventType, native_enum=False), nullable=False, index=True)
 
-    # Source of the event (admin_action, system_event, participant_action)
+    # Источник события (admin_action, system_event, participant_action)
     source = Column(SQLEnum(EventSource, native_enum=False), nullable=False, default=EventSource.ADMIN_ACTION)
 
-    # Human-readable action description (e.g., "Created contest 'HackNet Summer'")
+    # Понятное описание действия (например, "Создан конкурс 'HackNet Summer'")
     action = Column(String(255), nullable=False)
 
-    # Additional details in JSON format (before/after values, user info, etc.)
+    # Дополнительные детали в формате JSON (значения до/после, информация о пользователе и т.д.)
     details = Column(JSONB, nullable=True, default=dict)
 
-    # Timestamp (automatically set)
+    # Временная метка (устанавливается автоматически)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -94,7 +94,7 @@ class ActivityLog(Base):
         index=True,
     )
 
-    # Indexes for common queries
+    # Индексы для частых запросов
     __table_args__ = (
         Index("idx_activity_log_admin_id", "admin_id"),
         Index("idx_activity_log_contest_id", "contest_id"),

@@ -19,7 +19,7 @@ class PasswordResetToken(Base):
     expires_at = Column(TIMESTAMP(timezone=True), nullable=False)
     used_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
-    # Relationship to User
+    # Отношение к пользователю
     user = relationship("User", foreign_keys=[user_id])
 
     __table_args__ = (

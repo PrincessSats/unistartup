@@ -17,7 +17,7 @@ export default function ResetPassword() {
 
   useEffect(() => {
     if (!token) {
-      setError('Reset token is missing. Please use the link from your email.');
+      setError('Токен восстановления отсутствует. Используйте ссылку из вашего письма.');
       setTokenValid(false);
       return;
     }

@@ -44,10 +44,10 @@ router = APIRouter(tags=["AI Generator"])
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _require_admin_or_pro(user: User, profile: UserProfile) -> None:
-    """Allow admin or users with PRO/CORP tariff."""
+    """Разрешить админу или пользователям с PRO/CORP тарифом."""
     if profile.role == "admin":
         return
-    # For now only admin can generate; extend when tariff checks are needed
+    # Пока только админ может генерировать; расширить когда нужны проверки тарифа
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Generating challenges requires admin access.",
@@ -67,11 +67,11 @@ def _variant_to_schema(v: AIGenerationVariant) -> VariantSchema:
             )
             for c in v.reward_checks
         ]
-    # Extract safe fields from spec (never expose flag)
+    # Извлекаем безопасные поля из spec (никогда не раскрываем flag)
     spec = v.generated_spec or {}
     spec_title = spec.get("title") if spec else None
     spec_description = spec.get("description") if spec else None
-    # Extract artifact content (ciphertext only, no verification_data)
+    # Извлекаем содержимое артефакта (только зашифрованный текст, без verification_data)
     artifact = v.artifact_result or {}
     artifact_content = artifact.get("content") if artifact else None
     return VariantSchema(
@@ -153,7 +153,7 @@ async def start_generation(
     user, profile = current_user_data
     _require_admin_or_pro(user, profile)
 
-    # Infer task_type from CVE CWE data when not explicitly provided
+    # Определяем task_type из CVE CWE данных когда не указано явно
     task_type = request.task_type
     if task_type is None:
         if request.cve_id:
@@ -215,7 +215,7 @@ async def get_batch_status(
     if not batch:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found")
 
-    # Non-admins can only view their own batches
+    # Не-админы могут видеть только свои batches
     if profile.role != "admin" and batch.requested_by != user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
@@ -336,7 +336,7 @@ async def publish_variant(
     except ValueError:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid UUID format")
 
-    # Load variant with user_variant_request relationship
+    # Загружаем вариант с user_variant_request relationship
     variant_result = await db.execute(
         select(AIGenerationVariant)
         .options(joinedload(AIGenerationVariant.user_variant_request))
@@ -360,7 +360,7 @@ async def publish_variant(
 
     spec = variant.generated_spec or {}
 
-    # Map task_type to access_type
+    # Маппируем task_type в access_type
     batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == bid))
     batch = batch_result.scalar_one_or_none()
     if not batch:
@@ -379,8 +379,8 @@ async def publish_variant(
     file_url = artifact.get("file_url")
     verification_data = artifact.get("verification_data") or {}
 
-    # Build participant_description: base description + ciphertext if present
-    # For chat tasks, artifact content is the system prompt — don't append to participant_desc
+    # Строим participant_description: базовое описание + зашифрованный текст если присутствует
+    # Для chat задач artifact содержит system prompt — не добавляем к participant_desc
     base_desc = spec.get("description") or spec.get("participant_description") or ""
     is_chat = access_type == "chat"
     if not is_chat and ciphertext and ciphertext not in base_desc:
@@ -388,7 +388,7 @@ async def publish_variant(
     else:
         participant_desc = base_desc
 
-    # Reject duplicate task titles
+    # Отклоняем дублирующиеся названия задач
     title = spec.get("title", f"AI Generated — {batch.task_type}")
     dup = await db.execute(select(Task.id).where(Task.title == title))
     if dup.scalar_one_or_none():
@@ -397,13 +397,13 @@ async def publish_variant(
             detail=f"Task '{title}' already exists",
         )
 
-    # Create the task
+    # Создаем задачу
     difficulty_to_points = {"beginner": 50, "intermediate": 100, "advanced": 200}
-    
-    # Check if this is a user variant request (relationship is now eagerly loaded)
+
+    # Проверяем это ли user variant request (relationship уже загружена)
     is_user_variant = variant.user_variant_request is not None
-    
-    # For chat tasks, pick up optional limit overrides from spec
+
+    # Для chat задач подбираем опциональные переопределения limit из spec
     chat_extras: dict = {}
     if is_chat:
         chat_extras["chat_system_prompt_template"] = ciphertext or ""
@@ -430,14 +430,14 @@ async def publish_variant(
         **chat_extras,
     )
 
-    # If this variant is linked to a user request, set the parent_id
+    # Если вариант связан с user request установляем parent_id
     if is_user_variant:
         task.parent_id = variant.user_variant_request.parent_task_id
 
     db.add(task)
     await db.flush()  # get task.id
 
-    # Create task flag — skipped for chat tasks (flags are dynamic per-session)
+    # Создаем task flag — пропускаем для chat задач (флаги динамичны в сессии)
     flag_value = spec.get("flag", "")
     if flag_value and not is_chat:
         db.add(TaskFlag(
@@ -448,7 +448,7 @@ async def publish_variant(
             description="Auto-generated flag",
         ))
 
-    # Store artifact as TaskMaterial so it's always retrievable
+    # Сохраняем артефакт как TaskMaterial чтобы он всегда был доступен
     if ciphertext or file_url:
         crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
         mat_kwargs: dict = dict(
@@ -463,13 +463,13 @@ async def publish_variant(
                 "task_type": batch.task_type,
             },
         )
-        # For file-based artifacts, set storage_key so presigned-URL download works
+        # Для файловых артефактов устанавливаем storage_key чтобы presigned-URL работал
         if file_url and batch.task_type == "forensics_image_metadata":
             mat_kwargs["name"] = "Forensics image"
             mat_kwargs["storage_key"] = file_url
         db.add(TaskMaterial(**mat_kwargs))
 
-    # Store author solution (crypto chain reversal steps)
+    # Сохраняем решение автора (шаги разворачивания цепи шифрования)
     crypto_chain = verification_data.get("chain") or spec.get("crypto_chain")
     if crypto_chain:
         reversed_steps = [
@@ -488,7 +488,7 @@ async def publish_variant(
             steps={"encrypt": forward_steps, "decrypt": reversed_steps},
         ))
 
-    # Store forensics author solution
+    # Сохраняем решение автора для forensics
     if batch.task_type == "forensics_image_metadata":
         hide_in = spec.get("hide_in", "unknown")
         db.add(TaskAuthorSolution(
@@ -498,11 +498,11 @@ async def publish_variant(
             steps={"hide_in": hide_in, "decoy_metadata": spec.get("decoy_metadata", {})},
         ))
 
-    # Store XSS author solution
+    # Сохраняем решение автора для XSS
     if batch.task_type == "web_static_xss":
-        # Also store file_url as TaskMaterial storage_key for download
+        # Также сохраняем file_url как TaskMaterial storage_key для скачивания
         if file_url:
-            # Update the already-added TaskMaterial with storage_key
+            # Обновляем уже добавленный TaskMaterial с storage_key
             mat_kwargs["name"] = "XSS challenge page"
             mat_kwargs["storage_key"] = file_url
         xss_type = spec.get("xss_type", "reflected")
@@ -519,7 +519,7 @@ async def publish_variant(
             },
         ))
 
-    # Configure chat_llm task
+    # Конфигурируем chat_llm задачу
     if batch.task_type == "chat_llm":
         system_prompt_template = artifact.get("content") or spec.get("system_prompt_template", "")
         if system_prompt_template:
@@ -535,16 +535,16 @@ async def publish_variant(
             },
         ))
 
-    # Mark variant as published
+    # Отмечаем вариант как опубликованный
     variant.is_selected = True
     variant.published_task_id = task.id
 
-    # Update batch
+    # Обновляем batch
     batch.selected_variant_id = variant.id
 
     await db.commit()
 
-    # Embed the published task for future duplicate detection (non-critical)
+    # Встраиваем опубликованную задачу для обнаружения дубликатов в будущем (не критично)
     try:
         from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
         embed_text = " ".join(filter(None, [

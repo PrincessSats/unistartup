@@ -18,7 +18,7 @@ class User(Base):
     email_verified_at = Column(TIMESTAMP(timezone=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     
-    # Связь с профилем (один к одному)
+    # Связь с профилем один-к-одному (нет английского текста)
     profile = relationship("UserProfile", back_populates="user", uselist=False, cascade="all, delete-orphan")
     rating = relationship("UserRating", back_populates="user", uselist=False, cascade="all, delete-orphan")
     refresh_tokens = relationship("AuthRefreshToken", back_populates="user")
@@ -43,7 +43,7 @@ class UserProfile(Base):
     onboarding_status = Column(Text, nullable=True)  # NULL | pending | dismissed | completed
     sub_request = Column(Boolean, nullable=False, default=False, server_default='false')
 
-    # Связь с пользователем
+    # Связь с пользователем (нет английского текста)
     user = relationship("User", back_populates="profile")
 
 class UserRating(Base):

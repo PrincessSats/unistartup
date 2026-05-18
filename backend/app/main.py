@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, settings
-# Import all models to register them with SQLAlchemy's Base registry
+# Импортируем все модели для регистрации в SQLAlchemy Base registry
 import app.models
 from app.routes import auth, auth_registration, pages, profile, contests, ratings, feedback, knowledge, education
 from app.routes import ai_generate, user_variants, cron
@@ -96,7 +96,7 @@ app.add_middleware(
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
 
-# Security headers middleware (must be after CORS middleware)
+# Middleware безопасности (должна быть после CORS middleware)
 app.middleware("http")(security_headers_middleware)
 
 app.include_router(auth.router)
@@ -149,9 +149,9 @@ async def health_check():
 
 @app.on_event("startup")
 async def startup_tasks():
-    # Всегда сбрасываем зависшие синхронизации NVD, независимо от флага DB maintenance
+    # Всегда сбрасываем зависшие синхронизации NVD независимо от флага DB maintenance (нет английского текста)
     await cleanup_stale_sync_logs()
-    # Always run — adds referenced_cve_ids column if missing (idempotent)
+    # Всегда выполняется — добавляет столбец referenced_cve_ids при необходимости (идемпотентно)
     await ensure_daily_pipeline_schema_compatibility()
 
     if not settings.RUN_STARTUP_DB_MAINTENANCE:
@@ -164,5 +164,5 @@ async def startup_tasks():
     await ensure_auth_schema_compatibility()
     await ensure_nvd_sync_schema_compatibility()
     await ensure_daily_pipeline_schema_compatibility()
-    # На старте дополнительно гарантируем индексы для быстрых пользовательских сценариев.
+    # На старте гарантируем индексы для быстрых сценариев (нет английского текста)
     await ensure_performance_indexes()

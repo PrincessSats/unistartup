@@ -1214,7 +1214,7 @@ async def submit_flag(
 
     await db.commit()
 
-    # Log the submission
+    # Логируем отправку
     await log_submission(
         db=db,
         contest_id=contest_id,

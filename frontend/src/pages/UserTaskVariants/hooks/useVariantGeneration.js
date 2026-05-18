@@ -2,13 +2,13 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { userVariantsAPI } from '../../../services/api';
 
 /**
- * Hook for managing task variant generation
- * 
- * Features:
- * - Start generation
- * - Poll status
- * - Handle errors
- * - Auto-stop polling on completion
+ * Хук для управления генерацией вариантов задания
+ *
+ * Возможности:
+ * - Запуск генерации
+ * - Опрос статуса
+ * - Обработка ошибок
+ * - Автоматическая остановка опроса после завершения
  */
 export function useVariantGeneration(parentTaskId) {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -19,7 +19,7 @@ export function useVariantGeneration(parentTaskId) {
   const pollIntervalRef = useRef(null);
 
   /**
-   * Stop polling
+   * Остановка опроса
    */
   const stopPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -29,7 +29,7 @@ export function useVariantGeneration(parentTaskId) {
   }, []);
 
   /**
-   * Start generation
+   * Запуск генерации
    */
   const startGeneration = useCallback(async (userRequest) => {
     try {
@@ -37,17 +37,17 @@ export function useVariantGeneration(parentTaskId) {
       setGeneratedVariant(null);
       setStatus('pending');
       setIsGenerating(true);
-      
+
       const response = await userVariantsAPI.startGeneration(parentTaskId, { user_request: userRequest });
       setRequestId(response.request_id);
       setStatus('pending');
-      
-      // Start polling
+
+      // Запуск опроса
       pollIntervalRef.current = setInterval(async () => {
         try {
           const statusResponse = await userVariantsAPI.getRequestStatus(response.request_id);
           setStatus(statusResponse.status);
-          
+
           if (statusResponse.status === 'completed') {
             stopPolling();
             setIsGenerating(false);
@@ -65,20 +65,20 @@ export function useVariantGeneration(parentTaskId) {
           setIsGenerating(false);
           setError('Ошибка проверки статуса');
         }
-      }, 2500); // Poll every 2.5 seconds
-      
+      }, 2500); // Опрос каждые 2.5 секунды
+
     } catch (err) {
       console.error('Start generation error:', err);
       setIsGenerating(false);
       setStatus('failed');
-      
+
       const detail = err?.response?.data?.detail;
       setError(typeof detail === 'string' ? detail : 'Не удалось запустить генерацию');
     }
   }, [parentTaskId, stopPolling]);
 
   /**
-   * Reset state
+   * Сброс состояния
    */
   const reset = useCallback(() => {
     stopPolling();
@@ -90,7 +90,7 @@ export function useVariantGeneration(parentTaskId) {
   }, [stopPolling]);
 
   /**
-   * Cleanup on unmount
+   * Очистка при размонтировании
    */
   useEffect(() => {
     return () => {

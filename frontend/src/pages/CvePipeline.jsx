@@ -18,14 +18,14 @@ const DIFFICULTIES = [
 ];
 
 const PIPELINE_STAGE_ORDER = [
-  { key: 'rag_context',        label: 'RAG Context',  desc: 'Building context from knowledge base' },
-  { key: 'spec_generation',    label: 'Spec Gen',     desc: 'Generating task specifications' },
-  { key: 'artifact_creation',  label: 'Artifacts',    desc: 'Creating challenge artifacts' },
-  { key: 'validation',         label: 'Validation',   desc: 'Running binary reward checks' },
-  { key: 'llm_quality_review', label: 'Quality',      desc: 'LLM judge quality assessment' },
-  { key: 'grpo_computation',   label: 'GRPO',         desc: 'Computing group-relative advantages' },
-  { key: 'selection',          label: 'Selection',    desc: 'Selecting best variant' },
-  { key: 'completed',          label: 'Done',         desc: 'Pipeline complete' },
+  { key: 'rag_context',        label: 'RAG Context',  desc: 'Построение контекста из базы знаний' },
+  { key: 'spec_generation',    label: 'Spec Gen',     desc: 'Генерация спецификаций задач' },
+  { key: 'artifact_creation',  label: 'Artifacts',    desc: 'Создание артефактов челленджа' },
+  { key: 'validation',         label: 'Validation',   desc: 'Запуск проверок бинарного вознаграждения' },
+  { key: 'llm_quality_review', label: 'Quality',      desc: 'Оценка качества судьей LLM' },
+  { key: 'grpo_computation',   label: 'GRPO',         desc: 'Вычисление групповых относительных преимуществ' },
+  { key: 'selection',          label: 'Selection',    desc: 'Выбор лучшего варианта' },
+  { key: 'completed',          label: 'Done',         desc: 'Конвейер завершен' },
 ];
 
 const DIFFICULTY_COLORS = {
@@ -41,7 +41,7 @@ const STATUS_COLORS = {
   failed:     'text-red-400 bg-red-500/10 border-red-500/30',
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Вспомогательные функции ────────────────────────────────────────────────────────────────────
 
 function getStageIndex(stage) {
   return PIPELINE_STAGE_ORDER.findIndex(s => s.key === stage);
@@ -57,7 +57,7 @@ function fmtFloat(v, digits = 3) {
   return v != null ? v.toFixed(digits) : '—';
 }
 
-// ── Stage Visualizer ───────────────────────────────────────────────────────────
+// ── Визуализатор этапов ───────────────────────────────────────────────────────────
 
 function StageNode({ stageKey, label, currentStage, isFailed }) {
   const currentIdx = getStageIndex(currentStage);
@@ -110,7 +110,7 @@ function StageVisualizer({ currentStage, isFailed }) {
   );
 }
 
-// ── Stage Detail Panel ─────────────────────────────────────────────────────────
+// ── Панель деталей этапа ─────────────────────────────────────────────────────────
 
 function StageDetailPanel({ batchStatus }) {
   const {
@@ -214,7 +214,7 @@ function StageDetailPanel({ batchStatus }) {
   );
 }
 
-// ── Review Modal ───────────────────────────────────────────────────────────────
+// ── Модальное окно проверки ───────────────────────────────────────────────────────────────────
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -359,23 +359,23 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
 
           {r && (
             <>
-              <ReviewSection title="Task Specification">
-                <ReviewField label="Title" value={r.spec_title} />
-                <ReviewField label="Description" value={r.spec_description} />
-                {r.spec_story && <ReviewField label="Story / Participant Description" value={r.spec_story} />}
-                {r.spec_hint && <ReviewField label="Hint" value={r.spec_hint} />}
-                {r.spec_category && <ReviewField label="Category" value={r.spec_category} />}
-                <ReviewField label="FLAG (admin only)" value={r.spec_flag} secret pre />
+              <ReviewSection title="Спецификация задачи">
+                <ReviewField label="Название" value={r.spec_title} />
+                <ReviewField label="Описание" value={r.spec_description} />
+                {r.spec_story && <ReviewField label="История / Описание участника" value={r.spec_story} />}
+                {r.spec_hint && <ReviewField label="Подсказка" value={r.spec_hint} />}
+                {r.spec_category && <ReviewField label="Категория" value={r.spec_category} />}
+                <ReviewField label="ФЛАГ (только для админов)" value={r.spec_flag} secret pre />
               </ReviewSection>
 
               {r.artifact_verification?.chain ? (
-                <ReviewSection title="Encryption Chain (flag → ciphertext)">
+                <ReviewSection title="Цепь шифрования (флаг → шифротекст)">
                   <p className="text-[11px] text-white/40 mb-3">
-                    How the flag was transformed. Player receives the ciphertext and must reverse each step.
+                    Как флаг был преобразован. Игрок получает шифротекст и должен обратить каждый шаг.
                   </p>
                   <div className="space-y-1">
                     <ChainStep
-                      label="Original flag"
+                      label="Исходный флаг"
                       value={r.artifact_verification.flag || r.spec_flag}
                       isFlag
                       isFirst
@@ -395,7 +395,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                           </div>
                           {i === r.artifact_verification.chain.length - 1 && (
                             <ChainStep
-                              label="Ciphertext (what the player sees)"
+                              label="Шифротекст (что видит игрок)"
                               value={r.artifact_content}
                               isCiphertext
                               isLast
@@ -406,9 +406,9 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                     })}
                   </div>
                   <div className="mt-4 pt-3 border-t border-white/[0.06]">
-                    <p className="text-[10px] text-white/30 uppercase tracking-[0.05em] mb-2">Player solution path (reversed)</p>
+                    <p className="text-[10px] text-white/30 uppercase tracking-[0.05em] mb-2">Путь решения игрока (в обратном порядке)</p>
                     <div className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-[11px] font-mono px-2 py-1 rounded bg-white/[0.06] text-white/60">ciphertext</span>
+                      <span className="text-[11px] font-mono px-2 py-1 rounded bg-white/[0.06] text-white/60">шифротекст</span>
                       {[...r.artifact_verification.chain].reverse().map((op, i) => {
                         const name = op.cipher || op.type || '?';
                         const params = op.params || {};
@@ -423,32 +423,32 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                         );
                       })}
                       <span className="text-white/20 text-[10px]">→</span>
-                      <span className="text-[11px] font-mono px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">flag ✓</span>
+                      <span className="text-[11px] font-mono px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">флаг ✓</span>
                     </div>
                   </div>
                 </ReviewSection>
               ) : (
-                <ReviewSection title="Artifact">
-                  {r.artifact_file_url && <ReviewField label="File URL" value={r.artifact_file_url} />}
-                  {r.artifact_content && <ReviewField label="Content" value={r.artifact_content} pre />}
+                <ReviewSection title="Артефакт">
+                  {r.artifact_file_url && <ReviewField label="URL файла" value={r.artifact_file_url} />}
+                  {r.artifact_content && <ReviewField label="Содержимое" value={r.artifact_content} pre />}
                   {r.artifact_verification && Object.keys(r.artifact_verification).length > 0 && (
-                    <ReviewField label="Verification Data" value={JSON.stringify(r.artifact_verification, null, 2)} pre />
+                    <ReviewField label="Данные проверки" value={JSON.stringify(r.artifact_verification, null, 2)} pre />
                   )}
                   {r.artifact_error && <p className="text-[12px] text-red-400">{r.artifact_error}</p>}
                   {!r.artifact_content && !r.artifact_file_url && !r.artifact_error && (
-                    <p className="text-[12px] text-white/30 italic">No artifact available</p>
+                    <p className="text-[12px] text-white/30 italic">Артефакт не доступен</p>
                   )}
                 </ReviewSection>
               )}
 
-              <ReviewSection title="Reward Checks">
+              <ReviewSection title="Проверки вознаграждения">
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
-                    <p className="text-[11px] text-white/40 mb-1">Total Reward</p>
+                    <p className="text-[11px] text-white/40 mb-1">Всего вознаграждение</p>
                     <ScoreBar value={r.reward_total} />
                   </div>
                   <div>
-                    <p className="text-[11px] text-white/40 mb-1">Quality Score</p>
+                    <p className="text-[11px] text-white/40 mb-1">Оценка качества</p>
                     <ScoreBar value={r.quality_score} />
                   </div>
                 </div>
@@ -474,7 +474,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
               </ReviewSection>
 
               {r.quality_details && Object.keys(r.quality_details).length > 0 && (
-                <ReviewSection title="Quality Dimensions">
+                <ReviewSection title="Измерения качества">
                   {Object.entries(r.quality_details).map(([k, v]) => (
                     <div key={k}>
                       <p className="text-[11px] text-white/40 capitalize mb-1">{k.replace(/_/g, ' ')}</p>
@@ -486,16 +486,16 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 </ReviewSection>
               )}
 
-              <ReviewSection title="Generation Stats">
+              <ReviewSection title="Статистика генерации">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
                   {[
-                    ['Temperature', r.temperature?.toFixed(3)],
-                    ['Model', r.model_used?.split('/').pop()],
-                    ['Generation time', formatMs(r.generation_time_ms)],
-                    ['Tokens in', r.tokens_input],
-                    ['Tokens out', r.tokens_output],
-                    ['Advantage', fmtFloat(r.advantage)],
-                    ['Rank in group', r.rank_in_group != null ? `#${r.rank_in_group}` : null],
+                    ['Температура', r.temperature?.toFixed(3)],
+                    ['Модель', r.model_used?.split('/').pop()],
+                    ['Время генерации', formatMs(r.generation_time_ms)],
+                    ['Токены входа', r.tokens_input],
+                    ['Токены выхода', r.tokens_output],
+                    ['Преимущество', fmtFloat(r.advantage)],
+                    ['Ранг в группе', r.rank_in_group != null ? `#${r.rank_in_group}` : null],
                   ].filter(([, v]) => v != null).map(([label, value]) => (
                     <div key={label}>
                       <span className="block text-[10px] text-white/30 uppercase tracking-[0.05em]">{label}</span>
@@ -506,8 +506,8 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
               </ReviewSection>
 
               {r.spec_raw && (
-                <ReviewSection title="Full LLM Spec (raw JSON)">
-                  <p className="text-[10px] text-white/30 mb-2">Complete output from the generator, including flag and crypto_chain.</p>
+                <ReviewSection title="Полная спецификация LLM (raw JSON)">
+                  <p className="text-[10px] text-white/30 mb-2">Полный вывод генератора, включая флаг и цепь шифрования.</p>
                   <ReviewField value={JSON.stringify(r.spec_raw, null, 2)} pre />
                 </ReviewSection>
               )}
@@ -521,7 +521,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
             onClick={onClose}
             className="h-10 px-5 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] hover:bg-white/15 transition-colors"
           >
-            Close
+            Закрыть
           </button>
           {variant.passed_all_binary && onPublish && (
             <button
@@ -530,7 +530,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
               disabled={publishing}
               className="h-10 px-5 rounded-[12px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white text-[14px] transition-colors disabled:opacity-50"
             >
-              {publishing ? 'Publishing…' : 'Publish Task'}
+              {publishing ? 'Публикация…' : 'Опубликовать задачу'}
             </button>
           )}
         </div>
@@ -539,7 +539,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
   );
 }
 
-// ── Variant Cards ──────────────────────────────────────────────────────────────
+// ── Карточки вариантов ──────────────────────────────────────────────────────────────
 
 function CheckIcon({ passed }) {
   return passed
@@ -589,9 +589,9 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center flex-wrap gap-1.5">
           <span className="text-[13px] font-semibold text-white">#{variant.variant_number}</span>
-          {isSelected && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-yellow-400/10 border-yellow-400/30 text-yellow-400">★ Selected</span>}
-          {failed && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-red-500/10 border-red-500/20 text-red-400/80">Discarded</span>}
-          {!failed && variant.passed_all_binary && !isSelected && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">Passed</span>}
+          {isSelected && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-yellow-400/10 border-yellow-400/30 text-yellow-400">★ Выбран</span>}
+          {failed && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-red-500/10 border-red-500/20 text-red-400/80">Отклонен</span>}
+          {!failed && variant.passed_all_binary && !isSelected && <span className="px-1.5 py-0.5 rounded-full text-[10px] border bg-emerald-500/10 border-emerald-500/20 text-emerald-400">Прошел</span>}
         </div>
         {variant.temperature != null && (
           <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-white/[0.06] text-white/40 shrink-0">T={variant.temperature.toFixed(2)}</span>
@@ -600,7 +600,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
 
       <div>
         <div className="flex justify-between text-[10px] text-white/40 mb-1">
-          <span>Total Reward</span>
+          <span>Всего вознаграждение</span>
           <span className="font-mono">{variant.reward_total != null ? variant.reward_total.toFixed(3) : '—'}</span>
         </div>
         <ScoreBar value={variant.reward_total} />
@@ -625,7 +625,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
       )}
 
       <button type="button" onClick={() => setExpanded(!expanded)} className="text-[10px] text-white/30 hover:text-white/60 transition-colors text-left">
-        {expanded ? '▲ Hide checks' : '▼ Checks'}
+        {expanded ? '▲ Скрыть проверки' : '▼ Проверки'}
       </button>
       {expanded && <RewardChecks checks={variant.reward_checks} />}
 
@@ -635,7 +635,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
           onClick={() => onReview(variant)}
           className="flex-1 h-8 rounded-[10px] text-[12px] bg-white/[0.07] hover:bg-white/[0.12] border border-white/[0.08] text-white/70 transition-colors"
         >
-          Review
+          Проверить
         </button>
         {isSelected && (
           <button
@@ -644,7 +644,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
             disabled={publishing}
             className="flex-1 h-8 rounded-[10px] text-[12px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white transition-colors disabled:opacity-50"
           >
-            {publishing ? '…' : 'Publish'}
+            {publishing ? '…' : 'Опубликовать'}
           </button>
         )}
       </div>
@@ -652,7 +652,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
   );
 }
 
-// ── Batch History ──────────────────────────────────────────────────────────────
+// ── История партий ──────────────────────────────────────────────────────────────
 
 function BatchHistoryItem({ batch, isActive, onClick }) {
   const taskTypeShort = (batch.task_type || 'CVE').split('_')[0].toUpperCase();
@@ -678,26 +678,26 @@ function BatchHistoryItem({ batch, isActive, onClick }) {
   );
 }
 
-// ── Confirm Publish Modal ──────────────────────────────────────────────────────
+// ── Модальное окно подтверждения публикации ──────────────────────────────────────────────────
 
 function ConfirmPublishModal({ variant, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-[#13121A] border border-white/[0.1] rounded-[20px] p-6 max-w-sm w-full">
-        <h3 className="text-[16px] font-semibold text-white mb-2">Publish Task?</h3>
+        <h3 className="text-[16px] font-semibold text-white mb-2">Опубликовать задачу?</h3>
         {variant.spec_title && <p className="text-[13px] text-[#9B6BFF] mb-2">{variant.spec_title}</p>}
         {variant.spec_description && <p className="text-[12px] text-white/50 mb-4 line-clamp-3">{variant.spec_description}</p>}
-        <p className="text-[11px] text-white/30 mb-5">Creates a live CTF task from Variant #{variant.variant_number}.</p>
+        <p className="text-[11px] text-white/30 mb-5">Создает активную задачу CTF из варианта #{variant.variant_number}.</p>
         <div className="flex gap-3">
-          <button type="button" onClick={onCancel} className="flex-1 h-9 rounded-[10px] bg-white/10 border border-white/10 text-white/70 text-[13px] hover:bg-white/15 transition-colors">Cancel</button>
-          <button type="button" onClick={onConfirm} className="flex-1 h-9 rounded-[10px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white text-[13px] transition-colors">Publish</button>
+          <button type="button" onClick={onCancel} className="flex-1 h-9 rounded-[10px] bg-white/10 border border-white/10 text-white/70 text-[13px] hover:bg-white/15 transition-colors">Отмена</button>
+          <button type="button" onClick={onConfirm} className="flex-1 h-9 rounded-[10px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white text-[13px] transition-colors">Опубликовать</button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── CVE Search Widget ─────────────────────────────────────────────────────────��
+// ── Виджет поиска CVE ─────────────────────────────────────────────────────────
 
 function CveSearchWidget({ selectedCve, onSelect }) {
   const [query, setQuery] = useState('');
@@ -735,6 +735,7 @@ function CveSearchWidget({ selectedCve, onSelect }) {
       loadRecent();
     }
   }
+
 
   function handleQueryChange(e) {
     const val = e.target.value;
@@ -801,19 +802,19 @@ function CveSearchWidget({ selectedCve, onSelect }) {
             value={query}
             onChange={handleQueryChange}
             onFocus={handleFocus}
-            placeholder="Search or pick recent CVE…"
+            placeholder="Поиск или выбор недавних CVE…"
             className="w-full h-9 px-3 rounded-[10px] bg-white/[0.06] border border-white/[0.09] text-white text-[12px] placeholder-white/20 focus:outline-none focus:border-[#9B6BFF]/50"
           />
           {open && (
             <div className="absolute z-20 top-full mt-1 left-0 right-0 bg-[#13121A] border border-white/[0.1] rounded-[12px] overflow-hidden shadow-xl max-h-64 overflow-y-auto">
               {searching && (
-                <p className="text-[11px] text-white/30 text-center py-3">Searching…</p>
+                <p className="text-[11px] text-white/30 text-center py-3">Поиск…</p>
               )}
               {!searching && results.length === 0 && (
-                <p className="text-[11px] text-white/25 text-center py-3">No results</p>
+                <p className="text-[11px] text-white/25 text-center py-3">Результатов не найдено</p>
               )}
               {!searching && results.length > 0 && query.trim().length === 0 && (
-                <p className="text-[9px] text-white/20 uppercase tracking-widest px-3 pt-2 pb-1">Recent (newest first)</p>
+                <p className="text-[9px] text-white/20 uppercase tracking-widest px-3 pt-2 pb-1">Недавние (новейшие сначала)</p>
               )}
               {!searching && results.map(cve => (
                 <button
@@ -960,6 +961,7 @@ export default function CvePipeline() {
         }`}>{toast.message}</div>
       )}
 
+
       {publishTarget && (
         <ConfirmPublishModal
           variant={publishTarget}
@@ -980,33 +982,33 @@ export default function CvePipeline() {
       <h1 className="text-[28px] leading-[32px] tracking-[0.02em] text-white font-semibold">1 CVE Pipeline</h1>
 
       <div className="flex gap-5 items-start">
-        {/* Main column */}
+        {/* Основная колонка */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Task Constructor */}
+          {/* Конструктор задач */}
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-5">
-            <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-4">Task Constructor</h2>
+            <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-4">Конструктор задач</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5 mb-4">
               <div className="sm:col-span-2">
                 <label className="block text-[11px] text-white/40 mb-1.5">CVE</label>
                 <CveSearchWidget selectedCve={selectedCve} onSelect={setSelectedCve} />
               </div>
               <div>
-                <label className="block text-[11px] text-white/40 mb-1.5">Task Type</label>
+                <label className="block text-[11px] text-white/40 mb-1.5">Тип задачи</label>
                 <select value={taskType} onChange={e => setTaskType(e.target.value)}
                   className="w-full h-9 px-3 rounded-[10px] bg-white/[0.06] border border-white/[0.09] text-white text-[12px] focus:outline-none focus:border-[#9B6BFF]/50">
                   {TASK_TYPES.map(t => <option key={t.value} value={t.value} className="bg-[#0B0A10]">{t.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] text-white/40 mb-1.5">Difficulty</label>
+                <label className="block text-[11px] text-white/40 mb-1.5">Сложность</label>
                 <select value={difficulty} onChange={e => setDifficulty(e.target.value)}
                   className="w-full h-9 px-3 rounded-[10px] bg-white/[0.06] border border-white/[0.09] text-white text-[12px] focus:outline-none focus:border-[#9B6BFF]/50">
                   {DIFFICULTIES.map(d => <option key={d.value} value={d.value} className="bg-[#0B0A10]">{d.label}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-[11px] text-white/40 mb-1.5">Variants: {numVariants}</label>
+                <label className="block text-[11px] text-white/40 mb-1.5">Варианты: {numVariants}</label>
                 <input type="range" min={3} max={7} value={numVariants} onChange={e => setNumVariants(Number(e.target.value))}
                   className="w-full mt-2.5 accent-[#9B6BFF]" />
               </div>
@@ -1014,28 +1016,28 @@ export default function CvePipeline() {
             <div className="flex items-center gap-3">
               <button type="button" onClick={handleGenerate} disabled={generating || !selectedCve}
                 className="h-10 px-6 rounded-[12px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white text-[14px] font-medium transition-colors disabled:opacity-50">
-                {generating ? 'Starting…' : 'Generate'}
+                {generating ? 'Начинаем…' : 'Сгенерировать'}
               </button>
-              {!selectedCve && <p className="text-[11px] text-white/30">Select a CVE to generate</p>}
+              {!selectedCve && <p className="text-[11px] text-white/30">Выберите CVE для генерации</p>}
               {generateError && <p className="text-[12px] text-red-400">{generateError}</p>}
             </div>
           </div>
 
-          {/* Pipeline Stage Flow + Detail */}
+          {/* Поток этапов конвейера + детали */}
           {batchStatus && (
             <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-5">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-                <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase">Pipeline Stages</h2>
+                <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase">Этапы конвейера</h2>
                 <div className="flex items-center gap-3 text-[11px] flex-wrap">
                   {batchStatus.pass_rate != null && (
-                    <span className="text-white/40">Pass rate: <span className="text-white font-medium">{(batchStatus.pass_rate * 100).toFixed(0)}%</span></span>
+                    <span className="text-white/40">Процент прохождения: <span className="text-white font-medium">{(batchStatus.pass_rate * 100).toFixed(0)}%</span></span>
                   )}
                   {batchStatus.group_mean_reward != null && (
-                    <span className="text-white/40">Mean reward: <span className="text-white font-medium">{batchStatus.group_mean_reward.toFixed(3)}</span></span>
+                    <span className="text-white/40">Среднее вознаграждение: <span className="text-white font-medium">{batchStatus.group_mean_reward.toFixed(3)}</span></span>
                   )}
                   {pollError && <span className="text-red-400">{pollError}</span>}
-                  {isFailed && <span className="text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full bg-red-500/10">Failed</span>}
-                  {batchStatus.status === 'completed' && <span className="text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full bg-emerald-500/10">✓ Complete</span>}
+                  {isFailed && <span className="text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full bg-red-500/10">Не пройдено</span>}
+                  {batchStatus.status === 'completed' && <span className="text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full bg-emerald-500/10">✓ Завершено</span>}
                 </div>
               </div>
 
@@ -1044,10 +1046,10 @@ export default function CvePipeline() {
             </div>
           )}
 
-          {/* Variant Cards */}
+          {/* Карточки вариантов */}
           {variants.length > 0 && (
             <div>
-              <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-3">Variants</h2>
+              <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-3">Варианты</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                 {variants.map(v => (
                   <VariantCard
@@ -1063,29 +1065,29 @@ export default function CvePipeline() {
               </div>
               {publishSuccess && (
                 <div className="mt-3 px-4 py-3 rounded-[12px] bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[13px]">
-                  ✓ Task #{publishSuccess} published successfully.
+                  ✓ Задача #{publishSuccess} успешно опубликована.
                 </div>
               )}
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Пустое состояние */}
           {!batchStatus && (
             <div className="bg-white/[0.03] border border-dashed border-white/[0.07] rounded-[18px] p-12 text-center">
-              <p className="text-white/25 text-[13px]">Select a CVE and generate a task to see pipeline results.</p>
+              <p className="text-white/25 text-[13px]">Выберите CVE и сгенерируйте задачу, чтобы увидеть результаты конвейера.</p>
             </div>
           )}
         </div>
 
-        {/* History sidebar */}
+        {/* Боковая панель истории */}
         <div className="w-60 shrink-0">
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase">History</h2>
+              <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase">История</h2>
               <button type="button" onClick={loadBatches} className="text-[11px] text-white/25 hover:text-white/60 transition-colors">↻</button>
             </div>
-            {batchesLoading && <p className="text-[11px] text-white/25 text-center py-4">Loading…</p>}
-            {!batchesLoading && batches.length === 0 && <p className="text-[11px] text-white/20 text-center py-4">No batches yet</p>}
+            {batchesLoading && <p className="text-[11px] text-white/25 text-center py-4">Загрузка…</p>}
+            {!batchesLoading && batches.length === 0 && <p className="text-[11px] text-white/20 text-center py-4">Партий еще нет</p>}
             <div className="space-y-1.5 max-h-[70vh] overflow-y-auto">
               {batches.map(b => (
                 <BatchHistoryItem

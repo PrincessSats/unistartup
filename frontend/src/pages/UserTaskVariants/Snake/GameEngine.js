@@ -1,25 +1,25 @@
 /**
- * Snake Game Engine
+ * Движок игры Змейка
  *
- * Features:
- * - Classic snake gameplay
- * - Arrow key controls
- * - Score tracking
- * - Endless mode (auto-restart on death)
+ * Возможности:
+ * - Классическая игра "Змейка"
+ * - Управление стрелками
+ * - Отслеживание счёта
+ * - Бесконечный режим (автоперезагрузка после смерти)
  */
 
-// Game constants
+// Константы игры
 export const GRID_SIZE = 20;
 export const INITIAL_SNAKE = [
   { x: 10, y: 10 },
   { x: 10, y: 11 },
   { x: 10, y: 12 },
 ];
-export const INITIAL_DIRECTION = { x: 0, y: -1 }; // Moving up
-export const GAME_SPEED = 150; // ms per tick
+export const INITIAL_DIRECTION = { x: 0, y: -1 }; // Движение вверх
+export const GAME_SPEED = 150; // мс за тик
 
 /**
- * Direction vectors
+ * Векторы направления
  */
 export const DIRECTIONS = {
   UP: { x: 0, y: -1 },
@@ -29,14 +29,14 @@ export const DIRECTIONS = {
 };
 
 /**
- * Check if direction is opposite (can't reverse)
+ * Проверка, является ли направление противоположным (нельзя развернуться)
  */
 export function isOppositeDirection(dir1, dir2) {
   return dir1.x === -dir2.x && dir1.y === -dir2.y;
 }
 
 /**
- * Create initial game state
+ * Создание начального состояния игры
  */
 export function createInitialState() {
   return {
@@ -51,11 +51,11 @@ export function createInitialState() {
 }
 
 /**
- * Spawn food at random position (not on snake)
+ * Спавнить еду в случайной позиции (не на змейке)
  */
 export function spawnFood(snake) {
   const snakeSet = new Set(snake.map(segment => `${segment.x},${segment.y}`));
-  
+
   let food;
   do {
     food = {
@@ -63,12 +63,12 @@ export function spawnFood(snake) {
       y: Math.floor(Math.random() * GRID_SIZE),
     };
   } while (snakeSet.has(`${food.x},${food.y}`));
-  
+
   return food;
 }
 
 /**
- * Process game tick (move snake, check collisions, eat food)
+ * Обработка тика игры (движение змейки, проверка коллизий, поедание еды)
  */
 export function gameTick(state) {
   if (state.gameOver || state.isPaused) {
@@ -76,43 +76,43 @@ export function gameTick(state) {
   }
   
   const { snake, direction, nextDirection, food, score } = state;
-  
-  // Update direction (prevent 180° turns)
+
+  // Обновление направления (предотвращение поворотов на 180°)
   const newDirection = isOppositeDirection(direction, nextDirection)
     ? direction
     : nextDirection;
-  
-  // Calculate new head position
+
+  // Вычисление новой позиции головы
   const head = snake[0];
   const newHead = {
     x: head.x + newDirection.x,
     y: head.y + newDirection.y,
   };
-  
-  // Check wall collision
+
+  // Проверка коллизии со стеной
   if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
     return { ...state, gameOver: true };
   }
-  
-  // Check self collision
+
+  // Проверка коллизии с собой
   const snakeSet = new Set(snake.map(segment => `${segment.x},${segment.y}`));
   if (snakeSet.has(`${newHead.x},${newHead.y}`)) {
     return { ...state, gameOver: true };
   }
-  
-  // Create new snake
+
+  // Создание новой змейки
   const newSnake = [newHead, ...snake];
-  
-  // Check food collision
+
+  // Проверка коллизии с едой
   let newFood = food;
   let newScore = score;
-  
+
   if (newHead.x === food.x && newHead.y === food.y) {
-    // Ate food - don't remove tail, spawn new food
+    // Съедена еда - не удалять хвост, спавнить новую еду
     newScore += 10;
     newFood = spawnFood(newSnake);
   } else {
-    // Didn't eat - remove tail
+    // Не съедена - удалить хвост
     newSnake.pop();
   }
   
@@ -126,15 +126,15 @@ export function gameTick(state) {
 }
 
 /**
- * Handle keyboard input
+ * Обработка ввода клавиатуры
  */
 export function handleKeyPress(state, key) {
   if (state.gameOver) {
     return state;
   }
-  
+
   let newDirection = state.nextDirection;
-  
+
   switch (key) {
     case 'ArrowUp':
     case 'w':
@@ -165,17 +165,17 @@ export function handleKeyPress(state, key) {
       }
       break;
     case ' ':
-      // Space to pause
+      // Пробел для паузы
       return { ...state, isPaused: !state.isPaused };
     default:
       break;
   }
-  
+
   return { ...state, nextDirection: newDirection };
 }
 
 /**
- * Get game status message
+ * Получить сообщение о статусе игры
  */
 export function getGameStatus(state) {
   if (state.gameOver) {
@@ -188,7 +188,7 @@ export function getGameStatus(state) {
 }
 
 /**
- * Check if game should restart (for endless mode)
+ * Проверка, должна ли игра перезагрузиться (для бесконечного режима)
  */
 export function shouldRestart(state) {
   return state.gameOver;

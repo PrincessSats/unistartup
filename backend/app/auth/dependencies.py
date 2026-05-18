@@ -9,7 +9,7 @@ from app.auth.security import decode_access_token
 
 async def get_current_user(
     authorization: Optional[str] = Header(None),
-    x_auth_token: Optional[str] = Header(None),  # Legacy fallback
+    x_auth_token: Optional[str] = Header(None),  # Устаревший fallback
     db: AsyncSession = Depends(get_db)
 ) -> tuple[User, UserProfile]:
     """
@@ -32,7 +32,7 @@ async def get_current_user(
             detail="Токен не предоставлен"
         )
     
-    # Расшифровываем токен
+    # Расшифровываем токен (нет английского текста)
     payload = decode_access_token(token)
     
     if payload is None:
@@ -49,7 +49,7 @@ async def get_current_user(
             detail="Невалидный токен"
         )
     
-    # Ищем пользователя в БД. Retry once on stale pooled connection in serverless env.
+    # Ищем пользователя в БД. Повторяем один раз при устаревшем соединении из пула в serverless среде.
     user_data = None
     for attempt in range(2):
         try:
@@ -78,7 +78,7 @@ async def get_current_user(
     user, profile = user_data
     
     # Блокируем только явно отключенный аккаунт.
-    # Legacy-значение NULL считаем активным, чтобы не ломать старые записи.
+    # Значение NULL считаем активным для совместимости со старыми записями.
     if user.is_active is False:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

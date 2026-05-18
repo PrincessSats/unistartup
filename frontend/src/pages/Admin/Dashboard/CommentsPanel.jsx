@@ -31,7 +31,7 @@ function CommentsPanel() {
       setComments((prev) => replace ? data : [...prev, ...data]);
       setHasMore(data.length === LIMIT);
     } catch {
-      // silent
+      // молча
     } finally {
       setLoading(false);
     }

@@ -20,11 +20,11 @@ from app.services.ai_generator.embedding_service import EmbeddingService, Embedd
 
 logger = logging.getLogger(__name__)
 
-# Minimum cosine similarity to include a CVE in the context.
-# Below this threshold the CVE is considered irrelevant and skipped.
+# Минимальное косинусное сходство для включения CVE в контекст.
+# Ниже этого порога CVE считается неактуальным и пропускается.
 MIN_SIMILARITY = 0.20
 
-# Natural-language query templates per task type — used for semantic search
+# Шаблоны запросов на естественном языке по типам задач — используется для семантического поиска
 _QUERY_TEMPLATES: dict[str, str] = {
     "crypto_text_web": (
         "cryptographic cipher encryption decryption weak algorithm key exchange "
@@ -54,7 +54,7 @@ _QUERY_TEMPLATES: dict[str, str] = {
     ),
 }
 
-# Scenario templates: how to transform a CVE into a CTF challenge scenario per task type
+# Шаблоны сценариев: как преобразовать CVE в сценарий вызова CTF по типам задач
 _SCENARIO_TEMPLATES: dict[str, list[str]] = {
     "crypto_text_web": [
         (
@@ -143,11 +143,11 @@ class CVEEntry:
     tags: list[str] = field(default_factory=list)
     difficulty: Optional[str] = None
     stored_embedding: Optional[list[float]] = None  # Pre-computed embedding vector from DB
-    # Structured metadata (populated after Phase 1 migration)
+    # Структурированные метаданные (заполняются после миграции Фазы 1)
     cwe_ids: list[str] = field(default_factory=list)
     cvss_base_score: Optional[float] = None
     attack_vector: Optional[str] = None
-    # Internal composite retrieval score (not exposed to prompts)
+    # Внутренний составной балл поиска (не раскрыт в подсказках)
     _retrieval_score: float = field(default=0.0, compare=False, repr=False)
 
 
@@ -253,12 +253,12 @@ def _cvss_severity_label(score: float) -> str:
 def _vector_to_floats(vector: Any) -> Optional[list[float]]:
     if vector is None:
         return None
-    return [float(value) for value in vector]
+    return [float(value) for value in vector]  # Преобразовать в список чисел
 
 
 def _format_pgvector(vector: Any) -> str:
     values = _vector_to_floats(vector) or []
-    return "[" + ",".join(f"{value:.9g}" for value in values) + "]"
+    return "[" + ",".join(f"{value:.9g}" for value in values) + "]"  # Форматировать для pgvector
 
 
 class RAGContextBuilder:
@@ -343,13 +343,13 @@ class RAGContextBuilder:
         query_vector: list[float],
         task_type: str,
     ) -> list[CVEEntry]:
-        """Two-stage CVE retrieval:
+        """Двухэтапный поиск CVE:
 
-        Stage 1 — CWE-filtered: entries whose cwe_ids overlap with the task type's relevant CWEs.
-        Stage 2 — Semantic fallback: fills remaining slots from general semantic search.
+        Этап 1 — Отфильтровано по CWE: записи, у которых cwe_ids совпадают с соответствующими CWE типа задачи.
+        Этап 2 — Резервный семантический: заполняет оставшиеся слоты из общего семантического поиска.
 
-        Both stages apply MIN_SIMILARITY threshold.
-        Composite score: 0.6 * similarity + 0.4 * cwe_match_bonus.
+        Оба этапа применяют порог MIN_SIMILARITY.
+        Составной балл: 0.6 * сходство + 0.4 * бонус совпадения cwe.
         """
         from app.services.ai_generator.cwe_mapping import get_relevant_cwes_for_task_type
 
@@ -357,7 +357,7 @@ class RAGContextBuilder:
         seen_ids: set[int] = set()
         results: list[CVEEntry] = []
 
-        # ── Stage 1: CWE-filtered semantic search ────────────────────────────
+        # ── Этап 1: Семантический поиск, отфильтрованный по CWE ────────────────────────────
         if relevant_cwes:
             try:
                 stage1_result = await self._db.execute(
@@ -392,7 +392,7 @@ class RAGContextBuilder:
                 await self._rollback_after_error()
                 logger.warning("Stage 1 CWE-filtered search failed: %s", exc)
 
-        # ── Stage 2: General semantic fallback ───────────────────────────────
+        # ── Этап 2: Общий семантический резервный вариант ───────────────────────────────
         if len(results) < self._limit:
             remaining = self._limit - len(results)
             try:
@@ -444,7 +444,7 @@ class RAGContextBuilder:
                 await self._rollback_after_error()
                 logger.warning("Stage 2 semantic fallback search failed: %s", exc)
 
-        # Sort by composite retrieval score descending
+        # Отсортировать по составному баллу поиска в порядке убывания
         results.sort(key=lambda e: e._retrieval_score, reverse=True)
         return results[: self._limit]
 
@@ -532,7 +532,7 @@ class RAGContextBuilder:
         return [self._model_to_cve_entry(entry, retrieval_score=1.0)]
 
     async def _fetch_cve_plus_similar(self, cve_id: str, n: int = 10) -> list[CVEEntry]:
-        """Fetch target CVE plus up to n-1 semantically similar entries."""
+        """Получить целевой CVE плюс до n-1 семантически похожих записей."""
         primary = await self._fetch_specific_cve(cve_id)
         if not primary:
             return []

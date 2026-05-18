@@ -1,4 +1,4 @@
-"""Security utilities."""
+"""Утилиты безопасности."""
 
 from app.security.input_sanitization import (
     sanitize_html,
@@ -26,7 +26,7 @@ from app.security.audit_logger import (
 )
 
 __all__ = [
-    # Input sanitization
+    # Санитизация входных данных
     "sanitize_html",
     "strip_html_tags",
     "escape_html",
@@ -37,11 +37,11 @@ __all__ = [
     "sanitize_feedback_message",
     "sanitize_topic",
     "validate_sql_sort_order",
-    
-    # Security headers
+
+    # Заголовки безопасности
     "security_headers_middleware",
-    
-    # Audit logging
+
+    # Логирование аудита
     "log_audit_event",
     "log_auth_event",
     "log_admin_action",

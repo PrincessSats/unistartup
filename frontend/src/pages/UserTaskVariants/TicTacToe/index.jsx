@@ -9,13 +9,13 @@ import {
 } from './GameEngine';
 
 /**
- * Main Tic-Tac-Toe game component
+ * Основной компонент игры крестиков-ноликов
  *
- * Features:
- * - Endless mode (auto-restart after game ends)
- * - Unbeatable AI (minimax)
- * - Player alternates between 'X' and 'O' each game
- * - Visual feedback for game state
+ * Возможности:
+ * - Бесконечный режим (автоперезагрузка после окончания)
+ * - Непобедимый ИИ (minimax)
+ * - Игрок чередуется между 'X' и 'O' в каждой игре
+ * - Визуальная обратная связь для состояния игры
  */
 export default function TicTacToe({ mode = 'endless', onGameEnd }) {
   const [board, setBoard] = useState(createEmptyBoard());
@@ -24,44 +24,44 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
   const [winningLine, setWinningLine] = useState(null);
   const [gameCount, setGameCount] = useState(0);
   const [stats, setStats] = useState({ wins: 0, losses: 0, draws: 0 });
-  
-  // Player alternates: even games = X (goes first), odd games = O (goes second)
+
+  // Игрок чередуется: четные игры = X (ходит первым), нечетные игры = O (ходит вторым)
   const playerSymbol = gameCount % 2 === 0 ? 'X' : 'O';
   const botSymbol = playerSymbol === 'X' ? 'O' : 'X';
 
   /**
-   * Find the winning line after game ends
+   * Найти выигрышную линию после окончания игры
    */
   const findWinningLine = useCallback((board, winner) => {
     if (!winner || winner === 'draw') return null;
-    
-    // Check rows
+
+    // Проверка строк
     for (let i = 0; i < 3; i++) {
       if (board[i][0] === winner && board[i][1] === winner && board[i][2] === winner) {
         return { type: 'row', index: i };
       }
     }
-    
-    // Check columns
+
+    // Проверка столбцов
     for (let i = 0; i < 3; i++) {
       if (board[0][i] === winner && board[1][i] === winner && board[2][i] === winner) {
         return { type: 'col', index: i };
       }
     }
-    
-    // Check diagonals
+
+    // Проверка диагоналей
     if (board[0][0] === winner && board[1][1] === winner && board[2][2] === winner) {
       return { type: 'diag-main' };
     }
     if (board[0][2] === winner && board[1][1] === winner && board[2][0] === winner) {
       return { type: 'diag-anti' };
     }
-    
+
     return null;
   }, []);
 
   /**
-   * Handle game end
+   * Обработка окончания игры
    */
   const handleGameEnd = useCallback((result) => {
     setGameResult(result);
@@ -82,7 +82,7 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
   }, [onGameEnd, playerSymbol]);
 
   /**
-   * Bot move effect
+   * Эффект хода бота
    */
   useEffect(() => {
     if (!isPlayerTurn && !gameResult) {
@@ -104,14 +104,14 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
             setIsPlayerTurn(true);
           }
         }
-      }, 500); // Delay for natural feel
+      }, 500); // Задержка для естественного ощущения
 
       return () => clearTimeout(timer);
     }
   }, [isPlayerTurn, gameResult, board, botSymbol, findWinningLine, handleGameEnd]);
 
   /**
-   * Handle player click
+   * Обработка клика игрока
    */
   const handleCellClick = (row, col) => {
     if (!isPlayerTurn || gameResult || board[row][col] !== null) {
@@ -134,11 +134,11 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
   };
 
   /**
-   * Start new game (endless mode)
+   * Начать новую игру (бесконечный режим)
    */
   const startNewGame = useCallback(() => {
     setBoard(createEmptyBoard());
-    // Player goes first if X, bot goes first if O
+    // Игрок ходит первым если X, бот ходит первым если O
     setIsPlayerTurn(playerSymbol === 'X');
     setGameResult(null);
     setWinningLine(null);
@@ -154,20 +154,20 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
 
   return (
     <div className="flex flex-col items-center gap-4 p-6">
-      {/* Status */}
+      {/* Статус */}
       <div className={`text-lg font-medium ${statusColor} transition-colors duration-300`}>
         {status}
       </div>
-      
-      {/* Stats */}
+
+      {/* Статистика */}
       <div className="flex gap-6 text-sm text-white/40">
         <span>Игр: {gameCount}</span>
         <span className="text-[#3FD18A]">Побед: {stats.wins}</span>
         <span className="text-[#F2C94C]">Ничьих: {stats.draws}</span>
         <span className="text-[#FF5A6E]">Поражений: {stats.losses}</span>
       </div>
-      
-      {/* Board */}
+
+      {/* Доска */}
       <Board
         board={board}
         onCellClick={handleCellClick}
@@ -176,8 +176,8 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
         playerSymbol={playerSymbol}
         botSymbol={botSymbol}
       />
-      
-      {/* Manual restart button */}
+
+      {/* Кнопка ручного перезапуска */}
       {gameResult && mode === 'endless' && (
         <button
           type="button"
@@ -187,8 +187,8 @@ export default function TicTacToe({ mode = 'endless', onGameEnd }) {
           Начать заново
         </button>
       )}
-      
-      {/* Hint text */}
+
+      {/* Подсказка */}
       <p className="text-xs text-white/30 text-center max-w-[280px]">
         Совет: бот играет идеально. Лучший результат — ничья!
       </p>

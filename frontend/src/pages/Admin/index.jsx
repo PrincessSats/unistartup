@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader } from '../../components/LoadingState';
 
-// Dashboard Components
+// Компоненты Dashboard
 import StatCard from './Widgets/StatCard';
 import FeedbackPanel from './Dashboard/FeedbackPanel';
 import ProRequestsPanel from './Dashboard/ProRequestsPanel';
@@ -11,7 +11,7 @@ import RecentArticleCard from './Dashboard/RecentArticleCard';
 import CommentsPanel from './Dashboard/CommentsPanel';
 import FeedbackResolver from './Widgets/FeedbackResolver';
 
-// Drawers
+// Выдвижные панели
 import KnowledgeBaseDrawer from './Drawers/KnowledgeBaseDrawer';
 import TaskManagerDrawer from './Drawers/TaskManagerDrawer';
 import TaskEditDrawer from './Drawers/TaskEditDrawer';
@@ -19,10 +19,10 @@ import ContestPlannerDrawer from './Drawers/ContestPlannerDrawer';
 import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
-// Icons
+// Иконки
 import { UsersIcon, ActivityIcon, CreditIcon, ProRequestIcon } from './Widgets/Icons';
 
-// Hooks
+// Хуки
 import { useAdminDashboard } from './hooks/useAdminDashboard';
 
 function formatNumber(value) {
@@ -35,7 +35,7 @@ function Admin() {
   const navigate = useNavigate();
   const { loading, dashboard, error, refresh, setDashboard } = useAdminDashboard(navigate);
 
-  // Drawer states
+  // Состояния выдвижных панелей
   const [isKbOpen, setIsKbOpen] = useState(false);
   const [isTaskOpen, setIsTaskOpen] = useState(false);
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
@@ -94,7 +94,7 @@ function Admin() {
     }
   }, []);
 
-  // Feedback resolution state
+  // Состояние разрешения отзывов
   const [feedbackToResolve, setFeedbackToResolve] = useState(null);
   const [isResolvingFeedback, setIsResolvingFeedback] = useState(false);
   const [feedbackResolveError, setFeedbackResolveError] = useState('');
@@ -161,7 +161,7 @@ function Admin() {
 
   return (
     <div className="font-sans-figma text-white flex flex-col gap-6 pb-12">
-      {/* Header */}
+      {/* Заголовок */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-[28px] leading-[32px] tracking-[0.02em]">
@@ -255,7 +255,7 @@ function Admin() {
         </div>
       </div>
 
-      {/* Stats Grid */}
+      {/* Сетка статистики */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           label="Всего пользователей"
@@ -289,7 +289,7 @@ function Admin() {
         />
       </div>
 
-      {/* Main Content Grid */}
+      {/* Основная сетка контента */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <FeedbackPanel
           onResolve={handleStartResolveFeedback}
@@ -302,16 +302,16 @@ function Admin() {
         />
       </div>
 
-      {/* Recent Article */}
+      {/* Последняя статья */}
       <RecentArticleCard article={lastArticle} />
 
-      {/* Comments */}
+      {/* Комментарии */}
       <CommentsPanel />
 
-      {/* Pro requests */}
+      {/* Заявки на Pro */}
       <ProRequestsPanel />
 
-      {/* Feedback Resolver Modal */}
+      {/* Модальное окно разрешения отзывов */}
       <FeedbackResolver
         feedback={feedbackToResolve}
         onConfirm={handleConfirmResolveFeedback}
@@ -320,7 +320,7 @@ function Admin() {
         error={feedbackResolveError}
       />
 
-      {/* Drawers */}
+      {/* Выдвижные панели */}
       <KnowledgeBaseDrawer
         open={isKbOpen}
         onClose={() => setIsKbOpen(false)}

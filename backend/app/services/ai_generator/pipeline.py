@@ -64,9 +64,9 @@ def _build_generator_client() -> OpenAI:
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
     missing: list[str] = []
     if not api_key:
-        missing.append("YANDEX_CLOUD_API_KEY (or YANDEX_API_KEY / YC_API_KEY)")
+        missing.append("YANDEX_CLOUD_API_KEY (или YANDEX_API_KEY / YC_API_KEY)")
     if not folder:
-        missing.append("YANDEX_CLOUD_FOLDER (or YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID)")
+        missing.append("YANDEX_CLOUD_FOLDER (или YANDEX_CLOUD_FOLDER_ID / YANDEX_FOLDER_ID)")
     if missing:
         raise PipelineError(f"Missing Yandex LLM config: {', '.join(missing)}")
     if _generator_client is None:
@@ -83,9 +83,9 @@ def _strip_code_fence(text: str) -> str:
         return text
     lines = text.splitlines()
     if lines and lines[0].startswith("```"):
-        lines = lines[1:]
+        lines = lines[1:]  # Удалить открывающий блок кода
     if lines and lines[-1].strip().startswith("```"):
-        lines = lines[:-1]
+        lines = lines[:-1]  # Удалить закрывающий блок кода
     return "\n".join(lines).strip()
 
 
@@ -136,7 +136,7 @@ def _run_one_spec(
     client = _build_generator_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"  # Уровень аргументации для LLM
     system_prompt = _load_system_prompt(task_type)
     user_message = _build_user_message(difficulty, failure_context, rag_context_text, feedback_text)
 
@@ -194,7 +194,7 @@ async def _generate_one_spec(
 
 
 async def _update_stage(db: AsyncSession, batch_id: uuid.UUID, stage: str, meta: Optional[dict] = None) -> None:
-    """Update the current pipeline stage on the batch row."""
+    """Обновить текущий этап конвейера на строке пакета."""
     from datetime import datetime, timezone
     result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
     batch = result.scalar_one_or_none()
@@ -228,8 +228,8 @@ async def run_pipeline(
     temp_step = settings.AI_GEN_TEMPERATURE_STEP
     threshold = settings.AI_GEN_MIN_REWARD_THRESHOLD
 
-    # Build RAG context in its own session so any DB error (e.g. missing table)
-    # cannot abort the pipeline session's transaction.
+    # Построить контекст RAG в отдельной сессии, чтобы любая ошибка БД (например, отсутствующая таблица)
+    # не могла прервать транзакцию сессии конвейера.
     await _update_stage(db, batch_id, "rag_context")
     from app.database import AsyncSessionLocal
     rag_context: RAGContext = RAGContext()
@@ -294,7 +294,7 @@ async def run_pipeline(
     for attempt in range(1, max_retries + 1):
         logger.info("Pipeline batch=%s attempt=%d/%d", batch_id, attempt, max_retries)
 
-        # Update batch attempt counter
+        # Обновить счетчик попыток пакета
         batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
         batch = batch_result.scalar_one_or_none()
         if not batch:
@@ -304,7 +304,7 @@ async def run_pipeline(
         batch.status = "generating"
         await db.commit()
 
-        # ── Step 1: Generate N specs in parallel ─────────────────────────────
+        # ── Шаг 1: Генерировать N спецификаций параллельно ─────────────────────────────
         await _update_stage(db, batch_id, "spec_generation", {"num_variants": num_variants})
         temperatures = [base_temp + i * temp_step for i in range(num_variants)]
         generation_tasks = [
@@ -320,7 +320,7 @@ async def run_pipeline(
         ]
         gen_results = await asyncio.gather(*generation_tasks, return_exceptions=True)
 
-        # ── Step 2: Create artifacts in parallel ─────────────────────────────
+        # ── Шаг 2: Создать артефакты параллельно ─────────────────────────────
         specs_and_meta: list[tuple[Optional[dict], Optional[str], float, int, int, int]] = []
         for i, result in enumerate(gen_results):
             if isinstance(result, Exception):
@@ -338,7 +338,7 @@ async def run_pipeline(
         ]
         artifacts: list[ArtifactResult] = await asyncio.gather(*artifact_tasks, return_exceptions=True)
 
-        # ── Step 3 & 4: Validate and score each variant ───────────────────────
+        # ── Шаги 3 & 4: Проверить и оценить каждый вариант ───────────────────────
         await _update_stage(db, batch_id, "validation")
         variant_rewards: list[VariantReward] = []
         variant_data: list[dict] = []
@@ -350,7 +350,7 @@ async def run_pipeline(
             if isinstance(artifact, Exception):
                 artifact = ArtifactResult(error=str(artifact))
 
-            # Run binary checks
+            # Запустить двоичные проверки
             if spec is not None and not artifact.error:
                 checks = await validate(task_type, spec, artifact, rag_context)
             else:
@@ -366,7 +366,7 @@ async def run_pipeline(
             vr = VariantReward(variant_number=variant_counter, checks=checks)
             vr.compute()
 
-            # Run LLM quality assessment only for passed variants (saves tokens)
+            # Запустить оценку качества LLM только для прошедших вариантов (экономит токены)
             quality_score = None
             quality_details = None
             if vr.passed_all_binary and spec is not None:
@@ -399,16 +399,16 @@ async def run_pipeline(
                 "quality_details": quality_details,
             })
 
-        # ── Step 5: Compute group-relative advantages ─────────────────────────
+        # ── Шаг 5: Вычислить относительные преимущества группы ─────────────────────────
         await _update_stage(db, batch_id, "grpo_computation")
         compute_group_advantages(variant_rewards)
 
-        # Assign ranks among passed variants
+        # Назначить рейтинги среди прошедших вариантов
         passed = [(i, vr) for i, vr in enumerate(variant_rewards) if vr.passed_all_binary]
         passed_sorted = sorted(passed, key=lambda x: x[1].advantage, reverse=True)
         rank_map: dict[int, int] = {idx: rank + 1 for rank, (idx, _) in enumerate(passed_sorted)}
 
-        # ── Step 8: Store ALL variants in DB ──────────────────────────────────
+        # ── Шаг 8: Сохранить ВСЕ варианты в БД ──────────────────────────────────
         stored_variants: list[AIGenerationVariant] = []
         for i, (vr, vdata) in enumerate(zip(variant_rewards, variant_data)):
             artifact = vdata["artifact"]
@@ -462,10 +462,10 @@ async def run_pipeline(
 
         await db.commit()
 
-        # Embed variant specs for future feedback similarity retrieval (non-blocking)
+        # Встроить спецификации вариантов для будущего поиска похожести обратной связи (неблокирующее)
         asyncio.create_task(_embed_variants_background(stored_variants))
 
-        # ── Step 9: Select best variant ───────────────────────────────────────
+        # ── Шаг 9: Выбрать лучший вариант ───────────────────────────────────────
         await _update_stage(db, batch_id, "selection", {"pass_rate": len(passed) / max(len(variant_rewards), 1)})
         if passed_sorted:
             best_idx, best_reward = passed_sorted[0]
@@ -475,7 +475,7 @@ async def run_pipeline(
                 best_variant.is_selected = True
                 best_variant.rank_in_group = 1
 
-                # Update batch with results
+                # Обновить пакет с результатами
                 total_scores = [vr.total_reward for vr in variant_rewards]
                 import statistics
                 batch.group_mean_reward = statistics.mean(total_scores)
@@ -494,7 +494,7 @@ async def run_pipeline(
                 )
                 return
 
-        # ── Step 10: Accumulate failure context for next retry ────────────────
+        # ── Шаг 10: Накопить контекст ошибок для следующей попытки ────────────────
         new_failures = []
         for vr in variant_rewards:
             if not vr.passed_all_binary:
@@ -526,9 +526,9 @@ async def _failed_artifact(error: Optional[str]) -> ArtifactResult:
 
 async def _embed_variants_background(variants: list[AIGenerationVariant]) -> None:
     """
-    Embed variant specs and save to DB for future feedback similarity search.
-    Runs as a background task — errors are logged but never raised.
-    Opens its own DB session to avoid interfering with the main pipeline session.
+    Встроить спецификации вариантов и сохранить в БД для будущего поиска похожести обратной связи.
+    Выполняется как фоновая задача — ошибки регистрируются, но никогда не выбрасываются.
+    Открывает свою собственную сессию БД, чтобы избежать помех основной сессии конвейера.
     """
     from app.database import AsyncSessionLocal
     from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError

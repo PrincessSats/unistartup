@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # JWT токены
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
-    # Short-lived access token; session continuity comes from rotating refresh tokens.
+    # Краткосрочный токен доступа; постоянство сессии обеспечивается ротацией refresh-токенов.
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_HOURS: int = 48
     REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
@@ -33,14 +33,14 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_COOKIE_SECURE: bool = False
     REFRESH_TOKEN_COOKIE_SAMESITE: str = "lax"
     SQL_ECHO: bool = False
-    # In serverless/autoscale this should stay disabled to avoid cold-start penalties.
+    # В serverless/autoscale должно оставаться отключено для избежания штрафов на холодный старт.
     RUN_STARTUP_DB_MAINTENANCE: bool = False
     LOG_SLOW_REQUESTS: bool = True
     SLOW_REQUEST_THRESHOLD_MS: int = 1000
 
     # CORS
     CORS_ALLOW_ORIGINS: str = (
-        # Локальные origin'ы для CRA/Vite/preview, чтобы dev-запуск не ломался на CORS.
+        # Локальные origin'ы для CRA/Vite/preview для dev-режима
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
         "http://localhost:5173,"
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     CORS_ALLOW_ORIGIN_REGEX: Optional[str] = (
         r"^https://[a-zA-Z0-9-]+\.(website|storage)\.yandexcloud\.net$"
     )
-    # Required for refresh-token HttpOnly cookie flow.
+    # Требуется для HttpOnly cookie flow с refresh-токенами.
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list[str] = ["Authorization", "Content-Type", "X-Auth-Token"]
@@ -124,9 +124,9 @@ class Settings(BaseSettings):
         ),
     )
     GITHUB_OAUTH_SCOPES: str = "read:user user:email"
-    # Explicit public base URL of this backend instance (e.g. https://api.hacknet.tech).
-    # When set, all OAuth callback URLs are built from this value instead of
-    # being derived from the incoming request's Host header.
+    # Явный публичный базовый URL этого экземпляра backend (например https://api.hacknet.tech).
+    # При установке все OAuth callback URL строятся из этого значения вместо
+    # извлечения из заголовка Host входящего запроса.
     BACKEND_CALLBACK_BASE_URL: str = ""
     TELEGRAM_BOT_API_TOKEN: str = Field(
         default="",
@@ -170,7 +170,7 @@ class Settings(BaseSettings):
     DAILY_TASK_COUNT: int = 10
     DAILY_PIPELINE_CONCURRENCY: int = 3
 
-    # AI Generator (GRPO pipeline)
+    # AI Generator (GRPO pipeline) (нет английского текста)
     AI_GEN_NUM_VARIANTS: int = 5
     AI_GEN_MAX_RETRIES: int = 2
     AI_GEN_MIN_REWARD_THRESHOLD: float = 0.6
@@ -182,7 +182,7 @@ class Settings(BaseSettings):
     AI_GEN_EMBEDDING_MAX_CHARS: int = 3500
 
     class Config:
-        # Support both backend/.env and repo-root .env for local/prod parity.
+        # Поддержка как backend/.env так и repo-root .env для паритета local/prod.
         env_file = (ENV_FILE_PATH, ROOT_ENV_FILE_PATH)
         extra = "ignore"
 

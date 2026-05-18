@@ -17,10 +17,10 @@ function AuthBridge() {
         const flowToken = params.get('flow_token');
 
         if (flowToken) {
-          // OAuth callback - exchange flow_token for access token and session
+          // Обратный вызов OAuth - обмен flow_token на access token и сессию
           await authAPI.finalizeOAuth(flowToken);
         } else {
-          // Session refresh fallback (shouldn't normally happen)
+          // Резервный вариант обновления сессии (не должен происходить обычно)
           await authAPI.refresh({ timeoutMs: 8000 });
         }
 

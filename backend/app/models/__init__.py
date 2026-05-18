@@ -1,5 +1,5 @@
-# Import all models to register them with the Base declarative registry
-# Order matters: import models that are referenced by relationships BEFORE the models that reference them
+# Импортируем все модели для регистрации в реестре декларативного Base
+# Порядок важен: импортируйте модели, на которые ссылаются отношения, ДО моделей, которые их ссылаются
 
 from app.models.user import User, UserProfile, UserRating, AuthRefreshToken, UserAuthIdentity, AuthRegistrationFlow, UserRegistrationData
 from app.models.user_task_variant import UserTaskVariantRequest, UserTaskVariantVote
@@ -25,7 +25,7 @@ from app.models.audit_log import AuditLog
 from app.models.activity import ActivityLog, EventType, EventSource
 
 __all__ = [
-    # user models
+    # модели пользователя
     'User',
     'UserProfile',
     'UserRating',
@@ -33,16 +33,16 @@ __all__ = [
     'UserAuthIdentity',
     'AuthRegistrationFlow',
     'UserRegistrationData',
-    # user task variant models
+    # модели варианта задачи пользователя
     'UserTaskVariantRequest',
     'UserTaskVariantVote',
-    # ai generation models
+    # модели генерации ИИ
     'AIGenerationBatch',
     'AIGenerationVariant',
     'AIGenerationAnalytics',
     'AIBaseImage',
     'AIXSSTemplate',
-    # contest models
+    # модели конкурса
     'Contest',
     'ContestTask',
     'ContestParticipant',
@@ -58,9 +58,9 @@ __all__ = [
     'LlmGeneration',
     'ContestTaskRating',
     'PromptTemplate',
-    # audit log
+    # журнал аудита
     'AuditLog',
-    # activity log
+    # журнал активности
     'ActivityLog',
     'EventType',
     'EventSource',

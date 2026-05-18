@@ -5,7 +5,7 @@ import Snake from './Snake';
 import useVariantGeneration from './hooks/useVariantGeneration';
 
 /**
- * Suggested wishes for quick selection
+ * Предложенные пожелания для быстрого выбора
  */
 const SUGGESTED_WISHES = [
   { label: 'Полегче', text: 'Немного полегче' },
@@ -22,12 +22,12 @@ function formatElapsed(secs) {
 }
 
 /**
- * Task Variant Generator Dialog
+ * Диалог генератора вариантов заданий
  *
- * Flow:
- * 1. User enters wishes
- * 2. Show random game (Tic-Tac-Toe or Snake) while generating
- * 3. Show result or error
+ * Процесс:
+ * 1. Пользователь вводит пожелания
+ * 2. Показать случайную игру (крестики-нолики или Змейка) во время генерации
+ * 3. Показать результат или ошибку
  */
 export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGenerationComplete }) {
   const [userRequest, setUserRequest] = useState('');
@@ -44,7 +44,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
     reset,
   } = useVariantGeneration(parentTask?.id);
 
-  // Elapsed timer — runs only while generation is in progress
+  // Таймер прошедшего времени — работает только во время генерации
   useEffect(() => {
     if (!isGenerating) return;
     const id = setInterval(() => setElapsed((s) => s + 1), 1000);
@@ -52,12 +52,12 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   }, [isGenerating]);
 
   /**
-   * Handle submit
+   * Обработка отправки
    */
   const handleSubmit = useCallback(async () => {
     if (!userRequest.trim() || !parentTask?.id) return;
 
-    // Randomly select game (50/50)
+    // Случайно выбрать игру (50/50)
     const game = Math.random() < 0.5 ? 'tictactoe' : 'snake';
     setSelectedGame(game);
     setElapsed(0);
@@ -66,7 +66,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   }, [userRequest, parentTask?.id, startGeneration]);
 
   /**
-   * Handle close
+   * Обработка закрытия
    */
   const handleClose = useCallback(() => {
     reset();
@@ -78,10 +78,10 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   }, [reset, onClose]);
 
   /**
-   * Handle game end (generation complete)
+   * Обработка окончания игры (генерация завершена)
    */
   const handleGameEnd = useCallback((_result) => {
-    // Game ended, but we wait for generation status
+    // Игра закончилась, но мы ждём статуса генерации
   }, []);
 
   if (!isOpen) return null;
@@ -90,14 +90,14 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
   const isStep2 = showGame && isGenerating;
   const isStep3 = generatedVariant || (status === 'failed' && error);
 
-  // Exponential fill: reaches ~49% at 1 min, ~74% at 2 min, ~87% at 3 min, ~93% at 4 min
+  // Экспоненциальное заполнение: достигает ~49% за 1 мин, ~74% за 2 мин, ~87% за 3 мин, ~93% за 4 мин
   const progressPercent = generatedVariant
     ? 100
     : Math.min(95, Math.round((1 - Math.exp(-elapsed / 90)) * 100));
 
-  // Step states: driven by API status, with time-based fallback
+  // Состояния шагов: управляются статусом API с резервным вариантом на основе времени
   const stepStates = [
-    'done', // "Запрос принят" — always done after submit
+    'done', // "Запрос принят" — всегда готово после отправки
     (status === 'generating' || status === 'completed') ? 'done' : 'active',
     status === 'completed'
       ? 'done'
@@ -114,15 +114,15 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Overlay */}
+      {/* Оверлей */}
       <div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={handleClose}
       />
 
-      {/* Dialog */}
+      {/* Диалог */}
       <div className="relative z-10 w-full max-w-[640px] mx-4 rounded-[20px] border border-white/[0.06] bg-[#111118] shadow-2xl">
-        {/* Header */}
+        {/* Заголовок */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
           <div>
             <h2 className="text-xl font-bold text-white">
@@ -146,9 +146,9 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
           </button>
         </div>
 
-        {/* Content */}
+        {/* Содержание */}
         <div className="p-6 min-h-[400px]">
-          {/* Step 1: Enter wishes */}
+          {/* Шаг 1: введение пожеланий */}
           {isStep1 && (
             <div className="space-y-6">
               <div>
@@ -167,7 +167,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 </p>
               </div>
 
-              {/* Suggested wishes */}
+              {/* Предложенные пожелания */}
               <div>
                 <p className="text-sm text-white/40 mb-3">Или выберите готовый вариант:</p>
                 <div className="flex flex-wrap gap-2">
@@ -189,7 +189,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 </div>
               </div>
 
-              {/* Info box */}
+              {/* Информационное окно */}
               <div className="mt-6 p-4 rounded-[12px] bg-[#9B6BFF]/10 border border-[#9B6BFF]/20">
                 <div className="flex items-start gap-3">
                   <AppIcon name="info" className="h-5 w-5 text-[#9B6BFF] mt-0.5" />
@@ -206,7 +206,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
             </div>
           )}
 
-          {/* Step 2: Game while generating */}
+          {/* Шаг 2: игра во время генерации */}
           {isStep2 && (
             <div className="flex flex-col items-center justify-center h-full">
               {selectedGame === 'tictactoe' && (
@@ -216,9 +216,9 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                 <Snake mode="endless" onGameEnd={handleGameEnd} />
               )}
 
-              {/* Generation progress */}
+              {/* Прогресс генерации */}
               <div className="mt-5 w-full max-w-[340px]">
-                {/* Timer header */}
+                {/* Заголовок таймера */}
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[11px] font-medium text-white/40 uppercase tracking-wider">
                     Прогресс генерации
@@ -228,7 +228,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                   </span>
                 </div>
 
-                {/* Steps */}
+                {/* Шаги */}
                 <div className="space-y-2 mb-4">
                   {STEPS.map((step, i) => {
                     const state = stepStates[i];
@@ -269,7 +269,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
                   })}
                 </div>
 
-                {/* Estimated progress bar */}
+                {/* Приблизительная полоса прогресса */}
                 <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-gradient-to-r from-[#9B6BFF] to-[#C084FC] rounded-full transition-all duration-[2000ms] ease-out"
@@ -284,7 +284,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
             </div>
           )}
 
-          {/* Step 3: Result or Error */}
+          {/* Шаг 3: результат или ошибка */}
           {isStep3 && (
             <div className="flex flex-col items-center justify-center h-full text-center">
               {error ? (
@@ -311,7 +311,7 @@ export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGe
           )}
         </div>
 
-        {/* Footer */}
+        {/* Подвал */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
           {isStep1 && (
             <>

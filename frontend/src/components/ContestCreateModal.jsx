@@ -12,7 +12,7 @@ export default function ContestCreateModal({ isOpen, contestId, onClose, onSucce
 
   return (
     <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
-      {/* Modal backdrop closes on click */}
+      {/* Фон модалки закрывается по клику */}
       <div
         className="absolute inset-0"
         onClick={() => {
@@ -21,9 +21,9 @@ export default function ContestCreateModal({ isOpen, contestId, onClose, onSucce
         }}
       />
 
-      {/* Modal content */}
+      {/* Содержимое модалки */}
       <div className="relative z-50 bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Close button */}
+        {/* Кнопка закрытия */}
         <button
           onClick={() => {
             setShowDrawer(false);
@@ -34,7 +34,7 @@ export default function ContestCreateModal({ isOpen, contestId, onClose, onSucce
           ✕
         </button>
 
-        {/* Use existing ContestPlannerDrawer component */}
+        {/* Используем существующий компонент ContestPlannerDrawer */}
         <div className="p-6">
           <ContestPlannerDrawer
             open={true}

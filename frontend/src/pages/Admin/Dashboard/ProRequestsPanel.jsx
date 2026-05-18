@@ -27,7 +27,7 @@ function ProRequestsPanel() {
       const data = await adminAPI.getProRequests();
       setRequests(Array.isArray(data) ? data : []);
     } catch {
-      // silent
+      // молча
     } finally {
       setLoading(false);
     }

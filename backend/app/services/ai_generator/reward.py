@@ -1,11 +1,11 @@
 """
-GRPO reward system for AI-generated CTF challenges.
+Система вознаграждения GRPO для автоматически генерируемых CTF-вызовов.
 
-RewardType     — enum of the 5 check categories
-RewardCheck    — result of a single check on one variant
-VariantReward  — aggregated reward for one variant
-REWARD_WEIGHTS — per-task-type weight config
-compute_group_advantages — GRPO group-relative advantage scores
+RewardType     — перечисление 5 категорий проверок
+RewardCheck    — результат одной проверки одного варианта
+VariantReward  — совокупное вознаграждение для одного варианта
+REWARD_WEIGHTS — конфигурация веса для каждого типа задачи
+compute_group_advantages — баллы группоабсолютного преимущества GRPO
 """
 from __future__ import annotations
 
@@ -66,9 +66,9 @@ class VariantReward:
             self.passed_all_binary = all(c.score >= 1.0 for c in binary_checks)
 
 
-# Per-task-type weights for each reward type.
-# Binary checks (FORMAT, FUNCTIONAL, SOLVABILITY, NON_TRIVIALITY) act as gates.
-# QUALITY is the LLM-as-judge score applied on top for ranking.
+# Веса для каждого типа вознаграждения на каждый тип задачи.
+# Двоичные проверки (FORMAT, FUNCTIONAL, SOLVABILITY, NON_TRIVIALITY) выступают как ворота.
+# QUALITY — это баллы LLM-as-judge, применяемые наверху для ранжирования.
 REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
     "crypto_text_web": {
         RewardType.FORMAT: 1.0,
@@ -111,11 +111,11 @@ REWARD_WEIGHTS: dict[str, dict[RewardType, float]] = {
 
 def compute_group_advantages(rewards: list[VariantReward]) -> list[VariantReward]:
     """
-    Compute GRPO group-relative advantage scores in-place.
+    Вычислить баллы группоабсолютного преимущества GRPO на месте.
 
     advantage_i = (reward_i - mean) / std
 
-    Falls back to 0.0 advantage for all if std is 0 (all same reward).
+    Откатывается на преимущество 0.0 для всех, если std равен 0 (все одинаковые вознаграждения).
     """
     if not rewards:
         return rewards

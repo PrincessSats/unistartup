@@ -165,10 +165,10 @@ def extract_metadata_field(image_bytes: bytes, hide_in: str) -> Optional[str]:
         return None
 
 
-# ── EXIF field tag IDs ────────────────────────────────────────────────────────
+# ── ID тегов поля EXIF ────────────────────────────────────────────────────────
 
 _EXIF_TAG_MAP: dict[str, tuple[int, str]] = {
-    # (piexif IFD key, tag_id) — IFD is "0th", "Exif", etc.
+    # (piexif IFD ключ, tag_id) — IFD это "0th", "Exif", и т.д.
     "exif_image_description": ("0th", 270),   # ImageDescription
     "exif_user_comment":      ("Exif", 37510), # UserComment
     "exif_artist":            ("0th", 315),    # Artist
@@ -226,7 +226,7 @@ def _build_exif_bytes(
 
 
 def _inject_decoys(exif_dict: dict, decoy_metadata: dict, skip_tag: Optional[tuple] = None) -> None:
-    """Write decoy fields into exif_dict, skipping the tag already used for the flag."""
+    """Записать поля-приманки в exif_dict, пропуская тег, уже использованный для флага."""
     for field_name, value in decoy_metadata.items():
         if field_name not in _DECOY_TAG_MAP:
             continue
@@ -255,7 +255,7 @@ def _build_xmp_with_flag(flag: str) -> bytes:
 
 
 def _inject_xmp(jpeg_bytes: bytes, xmp_bytes: bytes) -> bytes:
-    """Insert XMP APP1 marker into JPEG bytes after the SOI marker."""
+    """Вставить маркер XMP APP1 в байты JPEG после маркера SOI."""
     if len(jpeg_bytes) < 2 or jpeg_bytes[:2] != b"\xff\xd8":
         raise ForensicsError("Forensics: metadata injection into xmp_description failed — not a valid JPEG")
 
@@ -269,14 +269,14 @@ def _inject_xmp(jpeg_bytes: bytes, xmp_bytes: bytes) -> bytes:
 
 
 def _save_jpeg_with_comment(img, output: io.BytesIO, comment: str, exif_bytes: bytes) -> None:
-    """Save JPEG with a JPEG COM marker containing the comment."""
+    """Сохранить JPEG с маркером JPEG COM, содержащим комментарий."""
     from PIL import Image
-    # Save to a temp buffer first
+    # Сохранить во временный буфер сначала
     tmp = io.BytesIO()
     img.save(tmp, format="JPEG", quality=90, exif=exif_bytes)
     raw = tmp.getvalue()
 
-    # Insert COM marker after SOI
+    # Вставить маркер COM после SOI
     comment_data = comment.encode("latin-1", errors="replace")
     com_len = 2 + len(comment_data)
     com_segment = b"\xff\xfe" + struct.pack(">H", com_len) + comment_data
@@ -285,7 +285,7 @@ def _save_jpeg_with_comment(img, output: io.BytesIO, comment: str, exif_bytes: b
 
 
 def _extract_jpeg_comment(image_bytes: bytes) -> Optional[str]:
-    """Extract the first JPEG COM (0xFFFE) marker value."""
+    """Извлечь значение первого маркера JPEG COM (0xFFFE)."""
     i = 0
     data = image_bytes
     if len(data) < 2 or data[0:2] != b"\xff\xd8":
@@ -300,7 +300,7 @@ def _extract_jpeg_comment(image_bytes: bytes) -> Optional[str]:
             content = data[i + 4: i + 2 + length]
             return content.decode("latin-1", errors="replace")
         elif marker == 0xda:
-            break  # Start of scan — stop
+            break  # Начало сканирования — остановка
         else:
             if i + 4 > len(data):
                 break
@@ -310,14 +310,14 @@ def _extract_jpeg_comment(image_bytes: bytes) -> Optional[str]:
 
 
 def _extract_xmp_description(image_bytes: bytes) -> Optional[str]:
-    """Extract dc:description value from XMP APP1 block in a JPEG."""
+    """Извлечь значение dc:description из блока XMP APP1 в JPEG."""
     import re as _re
     ns = b"http://ns.adobe.com/xap/1.0/\x00"
     idx = image_bytes.find(ns)
     if idx == -1:
         return None
     xmp_start = idx + len(ns)
-    # Find the end packet marker
+    # Найти маркер конца пакета
     xmp_end_marker = b"<?xpacket end"
     xmp_end_idx = image_bytes.find(xmp_end_marker, xmp_start)
     if xmp_end_idx == -1:
@@ -326,11 +326,11 @@ def _extract_xmp_description(image_bytes: bytes) -> Optional[str]:
         xmp_bytes = image_bytes[xmp_start: xmp_end_idx + 30]
 
     xmp_text = xmp_bytes.decode("utf-8", errors="replace")
-    # Extract <rdf:li xml:lang="x-default">...</rdf:li> inside dc:description
+    # Извлечь <rdf:li xml:lang="x-default">...</rdf:li> внутри dc:description
     match = _re.search(r'<dc:description>.*?<rdf:li[^>]*>([^<]+)</rdf:li>', xmp_text, _re.DOTALL)
     if match:
         return match.group(1).strip()
-    # Fallback: plain text after dc:description tag
+    # Резервный вариант: простой текст после тега dc:description
     match = _re.search(r'<dc:description>\s*([^<]+)', xmp_text)
     if match:
         return match.group(1).strip()
@@ -338,7 +338,7 @@ def _extract_xmp_description(image_bytes: bytes) -> Optional[str]:
 
 
 def _extract_exif_field(image_bytes: bytes, hide_in: str) -> Optional[str]:
-    """Extract the flag from an EXIF field using piexif."""
+    """Извлечь флаг из поля EXIF с помощью piexif."""
     import piexif
 
     try:
@@ -356,7 +356,7 @@ def _extract_exif_field(image_bytes: bytes, hide_in: str) -> Optional[str]:
 
     if isinstance(value, bytes):
         if hide_in == "exif_user_comment" and len(value) >= 8:
-            # Strip the 8-byte charset prefix
+            # Удалить префикс кодировки из 8 байт
             return value[8:].decode("ascii", errors="replace").rstrip("\x00")
         return value.decode("utf-8", errors="replace").rstrip("\x00")
     return str(value)

@@ -3,8 +3,8 @@ import AppIcon from '../../components/AppIcon';
 import { useNavigate } from 'react-router-dom';
 
 /**
- * Variant Card component
- * Displays a single user-generated variant with vote controls
+ * Компонент карты варианта
+ * Отображает один пользовательский вариант с элементами управления голосованием
  */
 export default function VariantCard({ variant, onVote, userVote }) {
   const navigate = useNavigate();
@@ -28,7 +28,7 @@ export default function VariantCard({ variant, onVote, userVote }) {
     : '';
 
   const handleClick = () => {
-    // Navigate to the published task if it exists
+    // Перейти к опубликованному заданию если оно существует
     if (variant.published_task_id) {
       navigate(`/education/${variant.published_task_id}`);
     }
@@ -40,7 +40,7 @@ export default function VariantCard({ variant, onVote, userVote }) {
       onClick={handleClick}
     >
       <div className="flex items-start justify-between gap-4">
-        {/* Content */}
+        {/* Содержание */}
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-bold text-white truncate hover:text-[#9B6BFF] transition-colors">
             {spec_title || 'Без названия'}
@@ -50,7 +50,7 @@ export default function VariantCard({ variant, onVote, userVote }) {
               {spec_description}
             </p>
           )}
-          
+
           <div className="mt-3 flex items-center gap-4 text-xs text-white/40">
             {formattedDate && (
               <span>{formattedDate}</span>
@@ -74,7 +74,7 @@ export default function VariantCard({ variant, onVote, userVote }) {
           </div>
         </div>
 
-        {/* Vote controls */}
+        {/* Элементы управления голосованием */}
         <div className="flex flex-col items-center gap-2">
           <button
             type="button"

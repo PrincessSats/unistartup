@@ -44,7 +44,7 @@ function useNvdSyncData() {
     fetchStatus();
   }, [fetchStatus]);
 
-  // Auto-poll while any sync is active
+  // Автоматический опрос, пока активна любая синхронизация
   useEffect(() => {
     if (!nvdSync) return;
     if (!ACTIVE_STATUSES.has(nvdSync.status)) return;

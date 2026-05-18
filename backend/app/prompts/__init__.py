@@ -1,1 +1,1 @@
-# Prompt templates bundled with backend application package.
+# Шаблоны запросов, поставляемые с пакетом приложения бэкенда.
