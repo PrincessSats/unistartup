@@ -2,7 +2,7 @@
 
 Платформа для обучения кибербезопасности в формате CTF (Capture The Flag). Пользователи решают задачи, участвуют в чемпионатах, изучают базу знаний CVE и проходят обучающие курсы. AI-генерация задач на основе YandexGPT.
 
-**Продакшн:** [hacknet.tech](https://hacknet.tech) · API: [api.hacknet.tech](https://api.hacknet.tech)
+**Продакшн:** [hacknet.tech](https://www.hacknet.tech/)
 
 ---
 
