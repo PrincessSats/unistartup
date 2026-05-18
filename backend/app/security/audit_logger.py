@@ -103,13 +103,13 @@ async def log_audit_event(
         )
         
         db.add(audit_entry)
-        # Don't commit here - let the caller commit
-        # This allows audit logging to be part of a larger transaction
-        
+        # Не коммитим здесь - пусть коммитит вызывающий код
+        # Это позволяет логированию аудита быть частью большей транзакции
+
     except Exception as e:
-        # Never let audit logging failures break the main flow
+        # Никогда не позволяйте сбоям логирования аудита нарушить основной поток
         logger.error("Failed to log audit event: action=%s, error=%s", action.value, e)
-        # Don't rollback here - let the caller decide
+        # Не откатываем здесь - пусть решает вызывающий код
 
 
 async def log_auth_event(

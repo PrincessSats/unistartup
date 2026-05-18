@@ -1,6 +1,6 @@
 import React from 'react';
 
-// Figma-designed icons (fill-based, custom viewBox)
+// Иконки из Figma (fill-based, custom viewBox)
 const FIGMA_ICONS = {
   home: {
     viewBox: '0 0 15.9971 15.998',

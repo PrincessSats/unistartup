@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { pipelineAPI } from '../services/api';
 
-// ── Constants ──────────────────────────────────────────────────────────────────
+// ── Константы ──────────────────────────────────────────────────────────────────
 
 const TASK_TYPES = [
   { value: 'crypto_text_web', label: 'Crypto Text/Web' },
@@ -16,16 +16,16 @@ const DIFFICULTIES = [
   { value: 'advanced', label: 'Advanced' },
 ];
 
-// Ordered list — no "failed" here, it's just a status
+// Упорядоченный список — нет "failed" здесь, это просто статус
 const PIPELINE_STAGE_ORDER = [
-  { key: 'rag_context',        label: 'RAG Context',  desc: 'Building context from knowledge base' },
-  { key: 'spec_generation',    label: 'Spec Gen',     desc: 'Generating task specifications' },
-  { key: 'artifact_creation',  label: 'Artifacts',    desc: 'Creating challenge artifacts' },
-  { key: 'validation',         label: 'Validation',   desc: 'Running binary reward checks' },
-  { key: 'llm_quality_review', label: 'Quality',      desc: 'LLM judge quality assessment' },
-  { key: 'grpo_computation',   label: 'GRPO',         desc: 'Computing group-relative advantages' },
-  { key: 'selection',          label: 'Selection',    desc: 'Selecting best variant' },
-  { key: 'completed',          label: 'Done',         desc: 'Pipeline complete' },
+  { key: 'rag_context',        label: 'RAG Context',  desc: 'Построение контекста из базы знаний' },
+  { key: 'spec_generation',    label: 'Spec Gen',     desc: 'Генерация спецификаций задач' },
+  { key: 'artifact_creation',  label: 'Artifacts',    desc: 'Создание артефактов челленджа' },
+  { key: 'validation',         label: 'Validation',   desc: 'Запуск проверок бинарного вознаграждения' },
+  { key: 'llm_quality_review', label: 'Quality',      desc: 'Оценка качества судьей LLM' },
+  { key: 'grpo_computation',   label: 'GRPO',         desc: 'Вычисление групповых относительных преимуществ' },
+  { key: 'selection',          label: 'Selection',    desc: 'Выбор лучшего варианта' },
+  { key: 'completed',          label: 'Done',         desc: 'Конвейер завершен' },
 ];
 
 const DIFFICULTY_COLORS = {
@@ -41,7 +41,7 @@ const STATUS_COLORS = {
   failed:     'text-red-400 bg-red-500/10 border-red-500/30',
 };
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Вспомогательные функции ────────────────────────────────────────────────────────────────────
 
 function getStageIndex(stage) {
   return PIPELINE_STAGE_ORDER.findIndex(s => s.key === stage);
@@ -57,7 +57,7 @@ function fmtFloat(v, digits = 3) {
   return v != null ? v.toFixed(digits) : '—';
 }
 
-// ── Stage Visualizer ───────────────────────────────────────────────────────────
+// ── Визуализатор этапов ───────────────────────────────────────────────────────────
 
 function StageNode({ stageKey, label, currentStage, isFailed }) {
   const currentIdx = getStageIndex(currentStage);
@@ -122,12 +122,12 @@ function StageDetailPanel({ batchStatus }) {
   const stageInfo = PIPELINE_STAGE_ORDER.find(s => s.key === current_stage);
   const isFailed = status === 'failed';
 
-  // Derived variant counts
+  // Вычисленные количества вариантов
   const passedVariants = (variants || []).filter(v => v.passed_all_binary);
   const failedVariants = (variants || []).filter(v => !v.passed_all_binary && v.reward_checks?.length);
   const selectedVariant = (variants || []).find(v => v.id === selected_variant_id);
 
-  // RAG context count
+  // Количество контекстов RAG
   const ragCount = rag_context_ids?.length ?? 0;
 
   const rows = [];
@@ -153,7 +153,7 @@ function StageDetailPanel({ batchStatus }) {
     rows.push({ label: 'Variants evaluated', value: variants.length });
     if (passedVariants.length > 0) {
       rows.push({ label: 'Passed binary checks', value: `${passedVariants.length} / ${variants.length}` });
-      // Show passed variant scores
+      // Показываем оценки пройденных вариантов
       passedVariants.forEach(v => {
         rows.push({
           label: `  Variant #${v.variant_number} reward`,
@@ -294,7 +294,7 @@ function ScoreBar({ value }) {
 }
 
 function ChainStep({ label, value, isFlag, isCiphertext, isFirst, isLast }) {
-  const [revealed, setRevealed] = useState(isFirst); // flag revealed by default only if it's the first step? Actually reveal ciphertext always, flag behind reveal
+  const [revealed, setRevealed] = useState(isFirst); // флаг раскрывается по умолчанию только если это первый шаг? На самом деле раскрываем шифротекст всегда, флаг за reveal
   const shouldHide = isFlag && !revealed;
 
   return (
@@ -374,15 +374,15 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 <ReviewField label="FLAG (admin only)" value={r.spec_flag} secret pre />
               </ReviewSection>
 
-              {/* Crypto chain visualization (or generic artifact) */}
+              {/* Визуализация цепи шифрования (или общий артефакт) */}
               {r.artifact_verification?.chain ? (
                 <ReviewSection title="Encryption Chain (flag → ciphertext)">
                   <p className="text-[11px] text-white/40 mb-3">
                     How the flag was transformed. Player receives the ciphertext and must reverse each step.
                   </p>
-                  {/* Chain diagram */}
+                  {/* Диаграмма цепи */}
                   <div className="space-y-1">
-                    {/* Step 0: original flag */}
+                    {/* Шаг 0: исходный флаг */}
                     <ChainStep
                       label="Original flag"
                       value={r.artifact_verification.flag || r.spec_flag}
@@ -518,7 +518,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 </div>
               </ReviewSection>
 
-              {/* Full spec JSON */}
+              {/* Полная спецификация JSON */}
               {r.spec_raw && (
                 <ReviewSection title="Full LLM Spec (raw JSON)">
                   <p className="text-[10px] text-white/30 mb-2">Complete output from the generator, including flag and crypto_chain.</p>
@@ -529,7 +529,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
           )}
         </div>
 
-        {/* Footer */}
+        {/* Подвал */}
         <div className="flex items-center justify-end gap-3 p-5 border-t border-white/[0.07]">
           <button
             type="button"
@@ -554,7 +554,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
   );
 }
 
-// ── Variant Cards ──────────────────────────────────────────────────────────────
+// ── Карточки вариантов ──────────────────────────────────────────────────────────────
 
 function CheckIcon({ passed }) {
   return passed
@@ -601,7 +601,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
 
   return (
     <div className={`bg-white/[0.03] border ${borderCls} rounded-[16px] p-4 flex flex-col gap-3 transition-all duration-300 ${failed && !expanded ? 'opacity-55' : ''}`}>
-      {/* Header */}
+      {/* Заголовок */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center flex-wrap gap-1.5">
           <span className="text-[13px] font-semibold text-white">#{variant.variant_number}</span>
@@ -674,7 +674,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
   );
 }
 
-// ── Batch History ──────────────────────────────────────────────────────────────
+// ── История партий ──────────────────────────────────────────────────────────────
 
 function BatchHistoryItem({ batch, isActive, onClick }) {
   const taskTypeShort = batch.task_type.split('_')[0].toUpperCase();
@@ -700,7 +700,7 @@ function BatchHistoryItem({ batch, isActive, onClick }) {
   );
 }
 
-// ── Confirm Publish Modal ──────────────────────────────────────────────────────
+// ── Модальное окно подтверждения публикации ──────────────────────────────────────────────────
 
 function ConfirmPublishModal({ variant, onConfirm, onCancel }) {
   return (

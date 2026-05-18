@@ -82,7 +82,7 @@ function writeKnowledgeFeedCache(items) {
       JSON.stringify({ items, savedAt: Date.now() })
     );
   } catch {
-    // ignore cache write errors
+    // Игнорируем ошибки записи в кэш
   }
 }
 
@@ -120,7 +120,7 @@ function writeLeaderboardStatsCache(stats) {
       })
     );
   } catch {
-    // ignore cache write errors
+    // Игнорируем ошибки записи в кэш
   }
 }
 
@@ -137,7 +137,7 @@ const practiceStatusOrder = {
 function getPracticePriority(task) {
   const status = String(task?.my_status || '').trim().toLowerCase();
   const accessType = String(task?.access_type || '').trim().toLowerCase();
-  // Chat-задачи можно перепроходить, поэтому не прячем их в конце как обычные solved.
+  // Чат-задачи можно перепроходить, поэтому не прячем их в конце как обычные решённые.
   if (status === 'solved' && accessType === 'chat') {
     return practiceStatusOrder.not_started;
   }
@@ -445,7 +445,7 @@ function NewsItem({ title, meta, to }) {
 function TaskNewsItem({ task }) {
   const title = String(task?.title || '').trim() || 'Без названия';
   const category = String(task?.category || '').trim() || 'Без категории';
-  // const passedUsersCount = toSafeNumber(task?.passed_users_count, 0);
+  // const пользователиПрошлиЗадачу = toSafeNumber(task?.passed_users_count, 0);
 
   return (
     <Link to={`/education/${task.id}`} className="bg-white/[0.05] rounded-[12px] px-4 py-5 transition hover:border hover:border-[#9B6BFF]/50">

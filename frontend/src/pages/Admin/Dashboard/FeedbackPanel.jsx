@@ -40,7 +40,7 @@ function FeedbackPanel({ onResolve }) {
       setFeedbacks((prev) => replace ? data : [...prev, ...data]);
       setHasMore(data.length === LIMIT);
     } catch {
-      // silent
+      // молча
     } finally {
       setLoading(false);
     }

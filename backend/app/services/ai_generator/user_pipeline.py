@@ -1,20 +1,20 @@
 """
-User task variant generation pipeline.
+Конвейер генерации варианта задачи пользователя.
 
-Simplified version of the admin pipeline for user-generated task variants.
-Includes full LLM quality review (not skipped).
+Упрощённая версия административного конвейера для сгенерированных пользователем вариантов задач.
+Включает полный обзор качества LLM (не пропускается).
 
-Flow:
-  1. Load parent task (crypto/forensics/web only, NOT chat)
-  2. Build RAG context from parent task's category/CVE
-  3. Generate 3 specs in parallel with different temperatures
-  4. Create artifacts in parallel
-  5. Run binary reward checks per artifact
-  6. Run LLM-as-judge quality assessment for passed variants
-  7. Compute group-relative advantages (GRPO)
-  8. Select variant with highest advantage among passed
-  9. Store ALL variants in DB
-  10. Update user request status
+Поток:
+  1. Загрузить родительскую задачу (только crypto/forensics/web, НЕ chat)
+  2. Построить контекст RAG из категории/CVE родительской задачи
+  3. Генерировать 3 спека параллельно с разными температурами
+  4. Создавать артефакты параллельно
+  5. Запустить двоичные проверки вознаграждения для каждого артефакта
+  6. Запустить оценку качества LLM-as-judge для прошедших вариантов
+  7. Вычислить группоабсолютные преимущества (GRPO)
+  8. Выбрать вариант с наибольшим преимуществом среди прошедших
+  9. Сохранить ВСЕ варианты в БД
+  10. Обновить статус запроса пользователя
 """
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ class UserPipelineError(RuntimeError):
 
 
 def _build_generator_client() -> OpenAI:
-    """Create or reuse OpenAI client for Yandex Cloud LLM."""
+    """Создать или повторно использовать клиент OpenAI для Yandex Cloud LLM."""
     global _generator_client
     api_key = (settings.YANDEX_CLOUD_API_KEY or "").strip()
     folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
@@ -85,7 +85,7 @@ def _build_generator_client() -> OpenAI:
 
 
 def _strip_code_fence(text: str) -> str:
-    """Remove markdown code fences from LLM response."""
+    """Удалить markdown ограды кода из ответа LLM."""
     if not text.startswith("```"):
         return text
     lines = text.splitlines()
@@ -97,7 +97,7 @@ def _strip_code_fence(text: str) -> str:
 
 
 def _load_system_prompt(task_type: str) -> str:
-    """Load system prompt from file."""
+    """Загрузить системный промпт из файла."""
     filename = _PROMPT_FILE_MAP.get(task_type)
     if not filename:
         raise UserPipelineError(f"No prompt file configured for task_type={task_type!r}")
@@ -113,7 +113,7 @@ def _build_user_message(
     user_wishes: str,
     rag_context_text: str = "",
 ) -> str:
-    """Build user message for LLM with parent task context and user wishes."""
+    """Построить сообщение пользователя для LLM с контекстом родительской задачи и пожеланиями пользователя."""
     parts = [
         f"\u0421\u043e\u0437\u0434\u0430\u0439 \u0432\u0430\u0440\u0438\u0430\u043d\u0442 \u0437\u0430\u0434\u0430\u043d\u0438\u044f \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0441\u0443\u0449\u0435\u0441\u0442\u0432\u0443\u044e\u0449\u0435\u0433\u043e \u0437\u0430\u0434\u0430\u043d\u0438\u044f.",
         "",
@@ -144,7 +144,7 @@ def _run_one_spec(
     user_wishes: str,
     rag_context_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
-    """Sync LLM call — runs in a thread via asyncio.to_thread."""
+    """Синхронный вызов LLM — работает в потоке через asyncio.to_thread."""
     client = _build_generator_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
@@ -198,7 +198,7 @@ async def _generate_one_spec(
     user_wishes: str,
     rag_context_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
-    """Async wrapper — runs sync LLM call in a thread."""
+    """Асинхронный обёртка — запускает синхронный вызов LLM в потоке."""
     return await asyncio.to_thread(
         _run_one_spec,
         task_type=task_type,
@@ -217,7 +217,7 @@ async def _update_request_status(
     variant_id: Optional[uuid.UUID] = None,
     failure_reason: Optional[str] = None,
 ) -> None:
-    """Update user request status."""
+    """Обновить статус запроса пользователя."""
     result = await db.execute(
         select(UserTaskVariantRequest).where(UserTaskVariantRequest.id == request_id)
     )
@@ -241,66 +241,66 @@ async def run_user_variant_pipeline(
     sanitized_request: str,
     user_id: int,
     request_id: uuid.UUID,
-    db: AsyncSession = None,  # Kept for compatibility, but we use a local session
+    db: AsyncSession = None,  # Сохранено для совместимости, но используется локальная сессия
 ) -> None:
     """
-    Main pipeline entry point for user variants.
-    Runs inside a BackgroundTask.
+    Главная точка входа конвейера для вариантов пользователя.
+    Работает внутри BackgroundTask.
     """
     from app.database import AsyncSessionLocal
     from app.models.contest import Task
     from app.models.ai_generation import AIGenerationBatch
-    
-    # Allowed task types for user variants (NOT chat)
+
+    # Допустимые типы задач для вариантов пользователя (НЕ chat)
     ALLOWED_PARENT_CATEGORIES = {"Crypto", "Forensics", "Web"}
     CATEGORY_TO_TASK_TYPE = {
         "Crypto": "crypto_text_web",
         "Forensics": "forensics_image_metadata",
         "Web": "web_static_xss",
     }
-    
-    NUM_VARIANTS = 3  # Faster than admin's 5
+
+    NUM_VARIANTS = 3  # Быстрее, чем 5 в админе
     BASE_TEMP = 0.8
     TEMP_STEP = 0.1
     THRESHOLD = settings.AI_GEN_MIN_REWARD_THRESHOLD or 0.6
-    
+
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model_name = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
-    
-    # We use a NEW session because background tasks run after the request session is closed
+
+    # Используется НОВАЯ сессия, потому что фоновые задачи выполняются после закрытия сессии запроса
     async with AsyncSessionLocal() as db:
         try:
-            # Load parent task
+            # Загрузить родительскую задачу
             parent_result = await db.execute(
                 select(Task).where(Task.id == parent_task_id)
             )
             parent_task = parent_result.scalar_one_or_none()
-            
+
             if not parent_task:
                 await _update_request_status(
                     db, request_id, "failed",
-                    failure_reason=f"Parent task {parent_task_id} not found",
+                    failure_reason=f"Родительская задача {parent_task_id} не найдена",
                 )
                 return
-            
-            # Check category
+
+            # Проверить категорию
             if parent_task.category not in ALLOWED_PARENT_CATEGORIES:
                 await _update_request_status(
                     db, request_id, "failed",
-                    failure_reason=f"Task category '{parent_task.category}' not supported for user variants (allowed: {', '.join(ALLOWED_PARENT_CATEGORIES)})",
+                    failure_reason=f"Категория задачи '{parent_task.category}' не поддерживается для вариантов пользователя (допустимые: {', '.join(ALLOWED_PARENT_CATEGORIES)})",
                 )
                 return
-            
-            # Determine task type from parent category
+
+            # Определить тип задачи из категории родителя
             task_type = CATEGORY_TO_TASK_TYPE.get(parent_task.category)
             if not task_type:
                 await _update_request_status(
                     db, request_id, "failed",
-                    failure_reason=f"Cannot map category '{parent_task.category}' to task type",
+                    failure_reason=f"Невозможно сопоставить категорию '{parent_task.category}' с типом задачи",
                 )
                 return
-            
-            # Create a batch record for tracking variants (required by FK constraint)
+
+            # Создать запись пакета для отслеживания вариантов (требуется FK-ограничением)
             batch_id = uuid.uuid4()
             batch = AIGenerationBatch(
                 id=batch_id,
@@ -313,16 +313,16 @@ async def run_user_variant_pipeline(
             )
             db.add(batch)
             await db.commit()
-            
-            # Update request status to generating
+
+            # Обновить статус запроса на "генерирование"
             await _update_request_status(db, request_id, "generating")
-            
-            # Build RAG context
+
+            # Построить контекст RAG
             rag_context: RAGContext = RAGContext()
             try:
-                # Use the local 'db' session
+                # Использовать локальную сессию 'db'
                 rag_builder = RAGContextBuilder(db)
-                # Use parent task's KB entry if exists
+                # Использовать KB-запись родительской задачи, если существует
                 specific_cve = None
                 if parent_task.kb_entry_id:
                     from app.models.contest import KBEntry
@@ -332,23 +332,23 @@ async def run_user_variant_pipeline(
                     kb_entry = kb_result.scalar_one_or_none()
                     if kb_entry and hasattr(kb_entry, "cve_id"):
                         specific_cve = kb_entry.cve_id
-                
+
                 rag_context = await rag_builder.build_context(
                     task_type=task_type,
-                    difficulty="intermediate",  # Default for user variants
+                    difficulty="intermediate",  # По умолчанию для вариантов пользователя
                     specific_cve=specific_cve,
                     specific_topic=parent_task.title,
                 )
             except Exception as exc:
-                logger.warning("RAG context builder failed, continuing without RAG: %s", exc)
-            
+                logger.warning("Построитель контекста RAG не пройден, продолжение без RAG: %s", exc)
+
             rag_context_text = rag_context.to_prompt_section()
             logger.info(
-                "User variant RAG context: %d entries, parent_task=%d",
+                "Контекст RAG варианта пользователя: %d записей, родительская_задача=%d",
                 len(rag_context.cve_entries), parent_task_id,
             )
-            
-            # Generate N specs in parallel
+
+            # Генерировать N спеков параллельно
             temperatures = [BASE_TEMP + i * TEMP_STEP for i in range(NUM_VARIANTS)]
             generation_tasks = [
                 _generate_one_spec(
@@ -362,8 +362,8 @@ async def run_user_variant_pipeline(
                 for temp in temperatures
             ]
             gen_results = await asyncio.gather(*generation_tasks, return_exceptions=True)
-            
-            # Process generation results
+
+            # Обработать результаты генерации
             specs_and_meta: list[tuple[Optional[dict], Optional[str], float, int, int, int]] = []
             for i, result in enumerate(gen_results):
                 if isinstance(result, Exception):
@@ -371,8 +371,8 @@ async def run_user_variant_pipeline(
                 else:
                     spec, err, tok_in, tok_out, ms = result
                     specs_and_meta.append((spec, err, temperatures[i], tok_in, tok_out, ms))
-            
-            # Create artifacts in parallel
+
+            # Создавать артефакты параллельно
             variant_uuids = [uuid.uuid4() for _ in specs_and_meta]
             artifact_tasks = [
                 create_artifact(task_type, spec, batch_id=str(request_id), variant_id=str(variant_uuids[i]))
@@ -380,8 +380,8 @@ async def run_user_variant_pipeline(
                 for i, (spec, err, *_) in enumerate(specs_and_meta)
             ]
             artifacts: list[ArtifactResult] = await asyncio.gather(*artifact_tasks, return_exceptions=True)
-            
-            # Validate and score each variant
+
+            # Валидировать и оценивать каждый вариант
             variant_rewards: list[VariantReward] = []
             variant_data: list[dict] = []
             
@@ -406,26 +406,26 @@ async def run_user_variant_pipeline(
                 
                 vr = VariantReward(variant_number=i + 1, checks=checks)
                 vr.compute()
-                
-                # Run LLM quality assessment for passed variants
+
+                # Запустить оценку качества LLM для прошедших вариантов
                 quality_score = None
                 quality_details = None
                 if vr.passed_all_binary and spec is not None:
                     try:
                         quality_score, quality_details = await review_variant(spec, task_type, "intermediate")
-                        # Inject quality into checks for total_reward recalculation
+                        # Внедрить качество в проверки для пересчёта total_reward
                         from app.services.ai_generator.reward import RewardType, REWARD_WEIGHTS
                         q_weight = REWARD_WEIGHTS.get(task_type, {}).get(RewardType.QUALITY, 2.0)
                         checks.append(RewardCheck(
                             type=RewardType.QUALITY,
                             score=quality_score,
                             weight=q_weight,
-                            detail=f"LLM quality assessment: {quality_score:.3f}",
+                            detail=f"Оценка качества LLM: {quality_score:.3f}",
                         ))
-                        vr.compute()  # recalculate with quality included
+                        vr.compute()  # Пересчитать с учётом качества
                     except Exception as exc:
-                        logger.warning("Quality review failed for variant %d: %s", i, exc)
-                
+                        logger.warning("Обзор качества не прошёлся для варианта %d: %s", i, exc)
+
                 variant_rewards.append(vr)
                 variant_data.append({
                     "spec": spec,
@@ -438,16 +438,16 @@ async def run_user_variant_pipeline(
                     "quality_score": quality_score,
                     "quality_details": quality_details,
                 })
-            
-            # Compute group-relative advantages (GRPO)
+
+            # Вычислить группоабсолютные преимущества (GRPO)
             compute_group_advantages(variant_rewards)
-            
-            # Assign ranks among passed variants
+
+            # Назначить ранги среди прошедших вариантов
             passed = [(i, vr) for i, vr in enumerate(variant_rewards) if vr.passed_all_binary]
             passed_sorted = sorted(passed, key=lambda x: x[1].advantage, reverse=True)
             rank_map: dict[int, int] = {idx: rank + 1 for rank, (idx, _) in enumerate(passed_sorted)}
-            
-            # Store ALL variants in DB
+
+            # Сохранить ВСЕ варианты в БД
             stored_variants: list[AIGenerationVariant] = []
             for i, (vr, vdata) in enumerate(zip(variant_rewards, variant_data)):
                 artifact = vdata["artifact"]
@@ -501,16 +501,16 @@ async def run_user_variant_pipeline(
             
             await db.commit()
             
-            # Select best variant
+            # Выбрать лучший вариант
             if passed_sorted:
                 best_idx, best_reward = passed_sorted[0]
                 best_variant = stored_variants[best_idx]
-                
+
                 if best_reward.total_reward >= THRESHOLD:
                     best_variant.is_selected = True
                     best_variant.rank_in_group = 1
-                    
-                    # Update batch with results
+
+                    # Обновить пакет с результатами
                     total_scores = [vr.total_reward for vr in variant_rewards]
                     import statistics
                     batch.group_mean_reward = statistics.mean(total_scores)
@@ -521,21 +521,21 @@ async def run_user_variant_pipeline(
                     batch.current_stage = "completed"
                     from datetime import datetime, timezone
                     batch.completed_at = datetime.now(timezone.utc)
-                    
-                    # AUTO-PUBLISH: Create a real task from the variant
+
+                    # АВТОПУБЛИКАЦИЯ: Создать реальную задачу из варианта
                     from app.models.contest import Task, TaskFlag, TaskMaterial
                     spec = best_variant.generated_spec
-                    
+
                     if spec:
-                        # Determine task kind based on parent
-                        task_kind = "ugc"  # UGC tasks are now specifically marked
-                        task_state = "published"  # Auto-publish immediately
+                        # Определить тип задачи на основе родителя
+                        task_kind = "ugc"  # UGC-задачи теперь специально отмечены
+                        task_state = "published"  # Автопубликация немедленно
                         
-                        # Create the task
+                        # \u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0437\u0430\u0434\u0430\u0447\u0443
                         new_task = Task(
-                            title=spec.get("title", "UGC Variant"),
+                            title=spec.get("title", "UGC \u0412\u0430\u0440\u0438\u0430\u043d\u0442"),
                             category=parent_task.category,
-                            difficulty=2,  # intermediate
+                            difficulty=2,  # \u043f\u0440\u043e\u043c\u0435\u0436\u0443\u0442\u043e\u0447\u043d\u044b\u0439
                             points=100,
                             tags=["ugc", "community"] + (parent_task.tags or [])[:3],
                             task_kind=task_kind,
@@ -544,28 +544,28 @@ async def run_user_variant_pipeline(
                             story=spec.get("description", ""),
                             participant_description=spec.get("description", ""),
                             state=task_state,
-                            parent_id=parent_task_id,  # Link to parent task
+                            parent_id=parent_task_id,  # \u0421\u0441\u044b\u043b\u043a\u0430 \u043d\u0430 \u0440\u043e\u0434\u0438\u0442\u0435\u043b\u044c\u0441\u043a\u0443\u044e \u0437\u0430\u0434\u0430\u0447\u0443
                             created_by=user_id,
                         )
                         db.add(new_task)
-                        await db.flush()  # Get the task ID
-                        
-                        # Create flag
+                        await db.flush()  # \u041f\u043e\u043b\u0443\u0447\u0438\u0442\u044c ID \u0437\u0430\u0434\u0430\u0447\u0438
+
+                        # \u0421\u043e\u0437\u0434\u0430\u0442\u044c \u0444\u043b\u0430\u0433
                         flag_value = spec.get("flag", "CTF{ugc_variant}")
                         task_flag = TaskFlag(
                             task_id=new_task.id,
                             flag_id="ugc_flag",
                             format="CTF{...}",
                             expected_value=flag_value,
-                            description="UGC variant flag",
+                            description="\u0424\u043b\u0430\u0433 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0430 UGC",
                         )
                         db.add(task_flag)
-                        
-                        # Create materials based on task type
+
+                        # \u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b\u044b \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0442\u0438\u043f\u0430 \u0437\u0430\u0434\u0430\u0447\u0438
                         artifact = best_variant.artifact_result or {}
-                        
+
                         if task_type == "crypto_text_web" and artifact.get("content"):
-                            # Add ciphertext as material
+                            # \u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0437\u0430\u0448\u0438\u0444\u0440\u043e\u0432\u0430\u043d\u043d\u044b\u0439 \u0442\u0435\u043a\u0441\u0442 \u043a\u0430\u043a \u043c\u0430\u0442\u0435\u0440\u0438\u0430\u043b
                             material = TaskMaterial(
                                 task_id=new_task.id,
                                 type="text",
@@ -574,9 +574,9 @@ async def run_user_variant_pipeline(
                                 meta={"content": artifact["content"]},
                             )
                             db.add(material)
-                        
+
                         elif task_type == "forensics_image_metadata" and artifact.get("file_url"):
-                            # Link to the generated image
+                            # \u0421\u0441\u044b\u043b\u043a\u0430 \u043d\u0430 \u0441\u043e\u0437\u0434\u0430\u043d\u043d\u043e\u0435 \u0438\u0437\u043e\u0431\u0440\u0430\u0436\u0435\u043d\u0438\u0435
                             material = TaskMaterial(
                                 task_id=new_task.id,
                                 type="file",
@@ -585,9 +585,9 @@ async def run_user_variant_pipeline(
                                 meta={"download_url": artifact["file_url"]},
                             )
                             db.add(material)
-                        
+
                         elif task_type == "web_static_xss" and artifact.get("file_url"):
-                            # Link to the XSS page
+                            # \u0421\u0441\u044b\u043b\u043a\u0430 \u043d\u0430 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0443 XSS
                             material = TaskMaterial(
                                 task_id=new_task.id,
                                 type="link",
@@ -596,57 +596,57 @@ async def run_user_variant_pipeline(
                                 meta={"target_url": artifact["file_url"]},
                             )
                             db.add(material)
-                        
-                        # Store task ID in variant for reference
+
+                        # \u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c ID \u0437\u0430\u0434\u0430\u0447\u0438 \u0432 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0435 \u0434\u043b\u044f \u0441\u0441\u044b\u043b\u043a\u0438
                         best_variant.published_task_id = new_task.id
-                        
+
                         logger.info(
-                            "Auto-published UGC task=%d from variant=%s",
+                            "\u0410\u0432\u0442\u043e\u043f\u0443\u0431\u043b\u0438\u043a\u043e\u0432\u0430\u043d\u043d\u0430\u044f UGC \u0437\u0430\u0434\u0430\u0447\u0430=%d \u0438\u0437 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0430=%s",
                             new_task.id, best_variant.id,
                         )
-                    
+
                     await db.commit()
-                    
-                    # Update user request
+
+                    # \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0437\u0430\u043f\u0440\u043e\u0441 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f
                     await _update_request_status(
                         db, request_id, "completed",
                         variant_id=best_variant.id,
                     )
-                    
+
                     logger.info(
-                        "User variant pipeline DONE request=%s selected=%s reward=%.3f",
+                        "\u041a\u043e\u043d\u0432\u0435\u0439\u0435\u0440 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f \u0412\u042b\u041f\u041e\u041b\u041d\u0415\u041d \u0437\u0430\u043f\u0440\u043e\u0441=%s \u0432\u044b\u0431\u0440\u0430\u043d=%s \u0432\u043e\u0437\u043d\u0430\u0433\u0440\u0430\u0436\u0434\u0435\u043d\u0438\u0435=%.3f",
                         request_id, best_variant.id, best_reward.total_reward,
                     )
                     return
-            
-            # All variants failed or below threshold
+
+            # \u0412\u0441\u0435 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b \u043d\u0435 \u043f\u0440\u043e\u0448\u043b\u0438 \u0438\u043b\u0438 \u043d\u0438\u0436\u0435 \u043f\u043e\u0440\u043e\u0433\u0430
             failure_reasons = []
             for vr in variant_rewards:
                 if not vr.passed_all_binary:
                     failed = [c for c in vr.checks if c.score < 1.0 and c.is_binary()]
                     failure_reasons.extend(f"{c.type.value}: {c.detail}" for c in failed)
-            
-            # Update batch status
+
+            # \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441 \u043f\u0430\u043a\u0435\u0442\u0430
             batch.status = "failed"
             batch.current_stage = "failed"
             batch.failure_reasons_summary = {"failure_context": failure_reasons[:10]}
             from datetime import datetime, timezone
             batch.completed_at = datetime.now(timezone.utc)
             await db.commit()
-            
+
             await _update_request_status(
                 db, request_id, "failed",
-                failure_reason="All variants failed binary checks or below threshold; " + "; ".join(failure_reasons[:3]),
+                failure_reason="\u0412\u0441\u0435 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u044b \u043d\u0435 \u043f\u0440\u043e\u0448\u043b\u0438 \u0434\u0432\u043e\u0438\u0447\u043d\u044b\u0435 \u043f\u0440\u043e\u0432\u0435\u0440\u043a\u0438 \u0438\u043b\u0438 \u043d\u0438\u0436\u0435 \u043f\u043e\u0440\u043e\u0433\u0430; " + "; ".join(failure_reasons[:3]),
             )
             logger.warning(
-                "User variant pipeline FAILED request=%s pass_rate=%.0f%%",
+                "\u041a\u043e\u043d\u0432\u0435\u0439\u0435\u0440 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f \u041d\u0415 \u041f\u0420\u041e\u0419\u0414\u0415\u041d \u0437\u0430\u043f\u0440\u043e\u0441=%s \u0441\u043a\u043e\u0440\u043e\u0441\u0442\u044c_\u043f\u0440\u043e\u0445\u043e\u0436\u0434\u0435\u043d\u0438\u044f=%.0f%%",
                 request_id, (len(passed) / max(len(variant_rewards), 1)) * 100,
             )
-            
+
         except Exception as exc:
-            logger.exception("User variant pipeline error")
-            
-            # Update batch status on error
+            logger.exception("\u041e\u0448\u0438\u0431\u043a\u0430 \u043a\u043e\u043d\u0432\u0435\u0439\u0435\u0440\u0430 \u0432\u0430\u0440\u0438\u0430\u043d\u0442\u0430 \u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044f")
+
+            # \u041e\u0431\u043d\u043e\u0432\u0438\u0442\u044c \u0441\u0442\u0430\u0442\u0443\u0441 \u043f\u0430\u043a\u0435\u0442\u0430 \u043f\u0440\u0438 \u043e\u0448\u0438\u0431\u043a\u0435
             try:
                 batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
                 batch = batch_result.scalar_one_or_none()
@@ -658,7 +658,7 @@ async def run_user_variant_pipeline(
                     batch.completed_at = datetime.now(timezone.utc)
                     await db.commit()
             except Exception:
-                pass  # Ignore batch update errors
+                pass  # \u0418\u0433\u043d\u043e\u0440\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043e\u0448\u0438\u0431\u043a\u0438 \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f \u043f\u0430\u043a\u0435\u0442\u0430
             
             await _update_request_status(
                 db, request_id, "failed",
@@ -667,5 +667,5 @@ async def run_user_variant_pipeline(
 
 
 async def _failed_artifact(error: Optional[str]) -> ArtifactResult:
-    """Create failed artifact result."""
+    """Создать неудачный результат артефакта."""
     return ArtifactResult(error=error or "generation failed")

@@ -10,9 +10,9 @@ export default function ContestManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [pageSize, setPageSize] = useState(6);  // Configurable
+  const [pageSize, setPageSize] = useState(6);  // Настраиваемый
 
-  // Load contests
+  // Загрузить чемпионаты
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -33,10 +33,10 @@ export default function ContestManager() {
     loadData();
   }, [refreshKey]);
 
-  // Callbacks
+  // Колбэки
   const handleCreateSuccess = useCallback(() => {
     setIsCreateModalOpen(false);
-    setRefreshKey(prev => prev + 1);  // Trigger reload
+    setRefreshKey(prev => prev + 1);  // Запустить перезагрузку
   }, []);
 
   const handleEditSuccess = useCallback(() => {
@@ -58,7 +58,7 @@ export default function ContestManager() {
   return (
     <div className="min-h-screen bg-slate-900 p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
+        {/* Заголовок */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold text-white">Управление чемпионатами</h1>
           <button
@@ -69,16 +69,16 @@ export default function ContestManager() {
           </button>
         </div>
 
-        {/* Error message */}
+        {/* Сообщение об ошибке */}
         {error && (
           <div className="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-200">
             {error}
           </div>
         )}
 
-        {/* Main layout: grid + feed side by side (responsive) */}
+        {/* Основной макет: сетка + лента рядом (адаптивный) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Contest grid (left, 2/3) */}
+          {/* Сетка чемпионатов (слева, 2/3) */}
           <div className="lg:col-span-2">
             <ContestGrid
               contests={contests}
@@ -89,7 +89,7 @@ export default function ContestManager() {
             />
           </div>
 
-          {/* Activity feed (right, 1/3) */}
+          {/* Лента активности (справа, 1/3) */}
           <div>
             <ActivityFeed
               refreshKey={refreshKey}
@@ -98,7 +98,7 @@ export default function ContestManager() {
         </div>
       </div>
 
-      {/* Create Contest Modal */}
+      {/* Создать модальное окно чемпионата */}
       {isCreateModalOpen && (
         <ContestCreateModal
           isOpen={isCreateModalOpen}

@@ -57,28 +57,28 @@ class VariantStatusResponse(BaseModel):
 
 
 class VariantVoteSchema(BaseModel):
-    """Vote on a variant."""
-    vote_type: str = Field(..., description="upvote or downvote")
+    """Голосование за вариант."""
+    vote_type: str = Field(..., description="upvote или downvote")
     
     @classmethod
     def validate_vote_type(cls, v):
         if v not in ("upvote", "downvote"):
-            raise ValueError("vote_type must be 'upvote' or 'downvote'")
+            raise ValueError("vote_type должен быть 'upvote' или 'downvote'")
         return v
 
 
 class VariantInfoSchema(BaseModel):
-    """Public information about a generated variant."""
+    """Публичная информация о сгенерированном варианте."""
     variant_id: str
     spec_title: Optional[str]
     spec_description: Optional[str]
     upvotes: int = 0
     downvotes: int = 0
     net_rating: int = 0
-    user_vote: Optional[str] = None  # current user's vote (if any)
+    user_vote: Optional[str] = None  # голос текущего пользователя (если есть)
     created_at: Optional[str] = None
-    published_task_id: Optional[int] = None  # ID of the auto-published task
-    # Parent task info (for display in UGC task page)
+    published_task_id: Optional[int] = None  # ID автоопубликованной задачи
+    # Информация о родительской задаче (для отображения в UGC task page)
     parent_task_id: Optional[int] = None
     parent_task_title: Optional[str] = None
     parent_task_category: Optional[str] = None
@@ -86,7 +86,7 @@ class VariantInfoSchema(BaseModel):
 
 
 class ListVariantsResponse(BaseModel):
-    """List of variants for a task."""
+    """Список вариантов для задачи."""
     task_id: int
     variants: List[VariantInfoSchema] = []
 
@@ -94,7 +94,7 @@ class ListVariantsResponse(BaseModel):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 async def _get_vote_counts(db: AsyncSession, variant_id: uuid.UUID) -> tuple[int, int]:
-    """Get upvote and downvote counts for a variant."""
+    """Получить количество upvotes и downvotes для варианта."""
     result = await db.execute(
         select(
             func.sum(case((UserTaskVariantVote.vote_type == "upvote", 1), else_=0)),
@@ -145,15 +145,15 @@ async def create_variant_request(
     
     user, _profile = current_user_data
     
-    # Rate limiting
+    # Ограничение частоты запросов
     enforce_rate_limit(
         request,
         scope="user_variant_generation",
         subject=str(user.id),
-        rule=RateLimit(max_requests=5, window_seconds=60 * 60),  # 5 per hour
+        rule=RateLimit(max_requests=5, window_seconds=60 * 60),  # 5 в час
     )
-    
-    # Load task
+
+    # Загружаем задачу
     task_result = await db.execute(select(Task).where(Task.id == task_id))
     task = task_result.scalar_one_or_none()
     
@@ -163,10 +163,10 @@ async def create_variant_request(
             detail=f"Task {task_id} not found",
         )
     
-    # Resolve effective parent ID for generation
+    # Определяем эффективный parent ID для generation
     effective_parent_id = task.parent_id if task.parent_id else task.id
-    
-    # Reload parent task if we're on a daughter
+
+    # Перезагружаем parent task если мы на daughter
     if task.parent_id:
         parent_result = await db.execute(select(Task).where(Task.id == effective_parent_id))
         parent_task = parent_result.scalar_one_or_none()
@@ -179,7 +179,7 @@ async def create_variant_request(
             detail="Parent task not found",
         )
     
-    # Check category (crypto/forensics/web only, NOT chat)
+    # Проверяем категорию (только crypto/forensics/web, НЕ chat)
     ALLOWED_CATEGORIES = {"Crypto", "Forensics", "Web"}
     if parent_task.category not in ALLOWED_CATEGORIES:
         raise HTTPException(
@@ -187,15 +187,15 @@ async def create_variant_request(
             detail=f"Task category '{parent_task.category}' not supported for user variants. Allowed: {', '.join(ALLOWED_CATEGORIES)}",
         )
     
-    # Check prompt safety
+    # Проверяем безопасность prompt (нет английского текста)
     safety_result = await check_prompt_safety(request_data.user_request)
     if not safety_result.is_safe:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Request rejected: {safety_result.rejection_reason}",
         )
-    
-    # Create request record
+
+    # Создаем запись request
     request_id = uuid.uuid4()
     variant_request = UserTaskVariantRequest(
         id=request_id,
@@ -207,8 +207,8 @@ async def create_variant_request(
     )
     db.add(variant_request)
     await db.commit()
-    
-    # Launch background pipeline
+
+    # Запускаем фоновый pipeline
     background_tasks.add_task(
         run_user_variant_pipeline,
         parent_task_id=effective_parent_id,
@@ -252,14 +252,14 @@ async def get_variant_status(
             detail="Request not found",
         )
     
-    # Check ownership
+    # Проверяем владение (нет английского текста)
     if variant_request.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to view this request",
         )
-    
-    # Build progress message
+
+    # Строим прогресс сообщение
     progress_message = None
     if variant_request.status == "pending":
         progress_message = "Ожидание начала генерации..."
@@ -295,7 +295,7 @@ async def list_task_variants(
     user, _profile = current_user_data
     from app.models.contest import Task
 
-    # Verify task exists and find effective parent
+    # Проверяем существование задачи и находим эффективный parent
     task_result = await db.execute(select(Task).where(Task.id == task_id))
     task = task_result.scalar_one_or_none()
     if not task:
@@ -304,10 +304,10 @@ async def list_task_variants(
             detail=f"Task {task_id} not found",
         )
 
-    # Resolve parent ID if this is a daughter task
+    # Определяем parent ID если это daughter задача
     effective_parent_id = task.parent_id if task.parent_id else task.id
 
-    # Find completed requests for the effective parent
+    # Ищем завершенные requests для эффективного parent
     requests_result = await db.execute(
         select(UserTaskVariantRequest)
         .where(
@@ -323,7 +323,7 @@ async def list_task_variants(
 
     variants = []
     for request in requests:
-        # Load variant
+        # Загружаем вариант
         variant_result = await db.execute(
             select(AIGenerationVariant).where(AIGenerationVariant.id == request.generated_variant_id)
         )
@@ -335,13 +335,13 @@ async def list_task_variants(
         spec_title = spec.get("title") if spec else None
         spec_description = spec.get("description") if spec else None
 
-        # Get vote counts
+        # Получаем количество голосов
         upvotes, downvotes = await _get_vote_counts(db, variant.id)
 
-        # Get user's vote
+        # Получаем голос пользователя
         user_vote = await _get_user_vote(db, variant.id, user.id)
 
-        # Get parent task info (explicit async query to avoid lazy-loading)
+        # Получаем информацию parent task (явный async query для избежания lazy-loading)
         parent_task_title = None
         parent_task_category = None
         parent_task_difficulty = None
@@ -367,14 +367,14 @@ async def list_task_variants(
             user_vote=user_vote,
             created_at=variant.created_at.isoformat() if variant.created_at else None,
             published_task_id=variant.published_task_id,
-            # Parent task info
+            # Информация parent task (нет английского текста)
             parent_task_id=request.parent_task_id,
             parent_task_title=parent_task_title,
             parent_task_category=parent_task_category,
             parent_task_difficulty=parent_task_difficulty,
         ))
 
-    # Sort by net rating descending
+    # Сортируем по net rating по убыванию
     variants.sort(key=lambda v: v.net_rating, reverse=True)
 
     return ListVariantsResponse(
@@ -396,7 +396,7 @@ async def vote_variant(
     One vote per user per variant. Changing vote type updates existing vote.
     """
     user, _profile = current_user_data
-    # Verify variant exists
+    # Проверяем существование варианта
     variant_result = await db.execute(
         select(AIGenerationVariant).where(AIGenerationVariant.id == variant_id)
     )
@@ -405,8 +405,8 @@ async def vote_variant(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Variant not found",
         )
-    
-    # Check if user already voted
+
+    # Проверяем уже ли пользователь голосовал
     existing_vote = await db.execute(
         select(UserTaskVariantVote)
         .where(
@@ -417,29 +417,29 @@ async def vote_variant(
         )
     )
     existing = existing_vote.scalar_one_or_none()
-    
+
     try:
         if existing:
             if existing.vote_type == vote.vote_type:
-                # Same vote - remove it (toggle off)
+                # Тот же голос - удаляем его (toggle off)
                 await db.delete(existing)
             else:
-                # Different vote - update
+                # Другой голос - обновляем
                 existing.vote_type = vote.vote_type
         else:
-            # New vote
+            # Новый голос
             new_vote = UserTaskVariantVote(
                 variant_id=variant_id,
                 user_id=user.id,
                 vote_type=vote.vote_type,
             )
             db.add(new_vote)
-        
+
         await db.commit()
     except Exception as exc:
-        # Handle race condition - vote was already modified/deleted
+        # Обрабатываем race condition - голос был уже изменен/удален
         logger.warning("Vote race condition for user=%d variant=%s: %s", user.id, variant_id, exc)
         await db.rollback()
-        # Return success anyway - frontend will refresh
+        # Возвращаем успех все равно - frontend обновит
     
     return {"status": "ok", "message": "Vote recorded"}

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 async def _maybe_await(value):
-    """Позволяет вызывать как sync, так и async функции сервиса storage."""
+    """Позволяет вызывать sync и async функции сервиса storage."""
     if inspect.isawaitable(value):
         return await value
     return value
@@ -45,7 +45,7 @@ async def _maybe_await(value):
 # ========== Схемы (Pydantic модели) ==========
 
 class CurrentTariffInfo(BaseModel):
-    """Информация о текущем тарифе пользователя"""
+    """Информация о текущем тарифе (нет английского текста)"""
     code: str
     name: str
     is_promo: bool = False
@@ -56,7 +56,7 @@ class CurrentTariffInfo(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    """Ответ с данными профиля"""
+    """Ответ с данными профиля (нет английского текста)"""
     id: int
     email: str
     username: str
@@ -75,28 +75,28 @@ class ProfileResponse(BaseModel):
 
 
 class UpdateUsernameRequest(BaseModel):
-    """Запрос на смену username"""
+    """Запрос на смену username (нет английского текста)"""
     username: str
 
 
 class UpdateEmailRequest(BaseModel):
-    """Запрос на смену email"""
+    """Запрос на смену email (нет английского текста)"""
     new_email: EmailStr
 
 
 class UpdatePasswordRequest(BaseModel):
-    """Запрос на смену пароля"""
+    """Запрос на смену пароля (нет английского текста)"""
     current_password: str
     new_password: str
 
 
 class DeleteAccountRequest(BaseModel):
-    """Запрос на удаление аккаунта с подтверждением username."""
+    """Запрос на удаление аккаунта с подтверждением (нет английского текста)"""
     username: str
 
 
 class UpdateOnboardingStatusRequest(BaseModel):
-    """Запрос на обновление статуса онбординга."""
+    """Запрос на обновление статуса онбординга (нет английского текста)"""
     status: Literal["dismissed", "completed"]
 
 
@@ -352,7 +352,7 @@ async def update_password(
             detail="Неверный текущий пароль"
         )
 
-    # Validate new password strength using the same validation as registration
+    # Проверяем надежность пароля используя ту же проверку что и при регистрации
     from app.services.registration import validate_registration_password
     password_issues = validate_registration_password(
         data.new_password,

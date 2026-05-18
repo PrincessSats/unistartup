@@ -22,7 +22,7 @@ _FLAG_PATTERN = re.compile(r"^CTF\{[^}]+\}$")
 
 
 def cosine_distance(a: list[float], b: list[float]) -> float:
-    """Cosine distance (0=identical, 1=orthogonal, 2=opposite)."""
+    """Косинусное расстояние (0=идентично, 1=ортогонально, 2=противоположно)."""
     if not a or not b or len(a) != len(b):
         return 1.0
     dot = sum(x * y for x, y in zip(a, b))
@@ -79,8 +79,8 @@ async def check_rag_grounding(
             error=str(exc),
         )
 
-    # Use pre-computed embeddings from RAG context entries
-    # CVEEntry now includes the embedding vector from the database
+    # Использовать предварительно вычисленные встраивания из записей контекста RAG
+    # CVEEntry теперь включает вектор встраивания из базы данных
     similarities: list[float] = []
     for entry in rag_context.cve_entries:
         # Prefer pre-computed embedding if available
@@ -115,9 +115,9 @@ async def check_rag_grounding(
         )
 
     best_similarity = max(similarities)
-    # Adjusted thresholds for spec-to-CVE similarity
-    # Note: spec is a creative scenario, CVE is technical description
-    # So we expect lower similarity than document-to-document comparison
+    # Скорректированные пороги сходства spec-to-CVE
+    # Примечание: spec — это творческий сценарий, CVE — это техническое описание
+    # Поэтому мы ожидаем более низкое сходство, чем сравнение документ-документ
     if best_similarity >= 0.7:
         score = 1.0
     elif best_similarity >= 0.5:
@@ -184,7 +184,7 @@ def check_cve_relevance(
     title = (spec.get("title") or "").lower()
     spec_text = description + " " + title
 
-    # Collect CWE IDs from RAG context entries
+    # Собрать ID CWE из записей контекста RAG
     all_cwe_ids: list[str] = []
     cve_ids: list[str] = []
     for entry in rag_context.cve_entries:
@@ -199,7 +199,7 @@ def check_cve_relevance(
     tech_keywords = _TECHNICAL_KEYWORDS.get(task_type, [])
     matched_keywords = [kw for kw in tech_keywords if kw in spec_text]
 
-    # Check if CWE descriptions appear in text
+    # Проверить, появляются ли описания CWE в тексте
     from app.services.ai_generator.cwe_mapping import CWE_DESCRIPTIONS
     cwe_mentioned = any(
         cwe.lower() in spec_text or
@@ -267,7 +267,7 @@ async def validate(
 
 
 def _w(weights: dict, reward_type: RewardType) -> float:
-    return weights.get(reward_type, 1.0)
+    return weights.get(reward_type, 1.0)  # Получить вес для типа награды
 
 
 def _validate_crypto(
@@ -277,7 +277,7 @@ def _validate_crypto(
 ) -> list[RewardCheck]:
     checks: list[RewardCheck] = []
 
-    # ── FORMAT check ─────────────────────────────────────────────────────────
+    # ── Проверка ФОРМАТА ─────────────────────────────────────────────────────────
     required_keys = {"title", "description", "flag", "crypto_chain", "writeup", "hints"}
     missing = required_keys - set(spec.keys())
     flag = (spec.get("flag") or "").strip()
@@ -297,7 +297,7 @@ def _validate_crypto(
         ),
     ))
 
-    # ── FUNCTIONAL check ─────────────────────────────────────────────────────
+    # ── Проверка ФУНКЦИОНАЛЬНОСТИ ─────────────────────────────────────────────────────
     if artifact.error:
         checks.append(RewardCheck(
             type=RewardType.FUNCTIONAL,
@@ -314,7 +314,7 @@ def _validate_crypto(
             detail="apply_chain ran without error",
         ))
 
-    # ── SOLVABILITY check ────────────────────────────────────────────────────
+    # ── Проверка РАЗРЕШИМОСТИ ────────────────────────────────────────────────────
     ciphertext = artifact.content or ""
     solvable = False
     solve_detail = "No ciphertext to check"
@@ -340,17 +340,17 @@ def _validate_crypto(
         error=solve_error,
     ))
 
-    # ── NON_TRIVIALITY check ─────────────────────────────────────────────────
+    # ── Проверка НЕ_ТРИВИАЛЬНОСТИ ─────────────────────────────────────────────────
     trivial = False
     trivial_reason = ""
 
     if ciphertext and flag:
-        # Check 1: flag not plaintext in ciphertext
+        # Проверка 1: флаг не открытый текст в шифротексте
         if flag in ciphertext:
             trivial = True
             trivial_reason = "flag appears as plaintext in ciphertext"
 
-        # Check 2: single base64 decode doesn't reveal flag
+        # Проверка 2: единое декодирование base64 не раскрывает флаг
         if not trivial:
             try:
                 decoded = base64.b64decode(ciphertext.encode("ascii", errors="ignore")).decode("utf-8", errors="ignore")
@@ -382,7 +382,7 @@ async def _validate_forensics(
 
     checks: list[RewardCheck] = []
 
-    # ── FORMAT check ─────────────────────────────────────────────────────────
+    # ── Проверка ФОРМАТА ─────────────────────────────────────────────────────────
     required_keys = {"title", "description", "flag", "hide_in", "decoy_metadata", "writeup", "hints"}
     missing = required_keys - set(spec.keys())
     flag = (spec.get("flag") or "").strip()
@@ -407,7 +407,7 @@ async def _validate_forensics(
         ),
     ))
 
-    # ── FUNCTIONAL check ─────────────────────────────────────────────────────
+    # ── Проверка ФУНКЦИОНАЛЬНОСТИ ─────────────────────────────────────────────────────
     s3_key = artifact.file_url if artifact else None
     image_bytes: Optional[bytes] = None
 
@@ -439,7 +439,7 @@ async def _validate_forensics(
                 weight=_w(weights, RewardType.FUNCTIONAL),
                 detail=f"Valid JPEG image, {size_kb:.1f}KB",
             ))
-            # Re-open for further use (verify() closes the file)
+            # Переоткрыть для дальнейшего использования (verify() закрывает файл)
             image_bytes = await asyncio.to_thread(download_image, s3_key)
         except Exception as exc:
             checks.append(RewardCheck(
@@ -451,7 +451,7 @@ async def _validate_forensics(
             ))
             image_bytes = None
 
-    # ── SOLVABILITY check ────────────────────────────────────────────────────
+    # ── Проверка РАЗРЕШИМОСТИ ────────────────────────────────────────────────────
     if image_bytes is None or not flag or not hide_in_valid:
         checks.append(RewardCheck(
             type=RewardType.SOLVABILITY,
@@ -485,7 +485,7 @@ async def _validate_forensics(
                 error=str(exc),
             ))
 
-    # ── NON_TRIVIALITY check ─────────────────────────────────────────────────
+    # ── Проверка НЕ_ТРИВИАЛЬНОСТИ ─────────────────────────────────────────────────
     description = (spec.get("description") or "").lower()
     title = (spec.get("title") or "").lower()
     trivial = False
@@ -511,7 +511,7 @@ async def _validate_forensics(
     return checks
 
 
-# ── web_static_xss validator ──────────────────────────────────────────────────
+# ── web_static_xss валидатор ──────────────────────────────────────────────────
 
 def _validate_xss(
     spec: dict,
@@ -520,7 +520,7 @@ def _validate_xss(
 ) -> list[RewardCheck]:
     checks: list[RewardCheck] = []
 
-    # ── FORMAT ────────────────────────────────────────────────────────────────
+    # ── ФОРМАТ ────────────────────────────────────────────────────────────────
     required = {"title", "description", "flag", "xss_type", "vulnerable_param",
                 "payload_solution", "writeup", "hints"}
     missing = required - spec.keys()
@@ -542,7 +542,7 @@ def _validate_xss(
         detail="OK" if format_ok else f"missing={missing}, xss_type={xss_type!r}",
     ))
 
-    # ── FUNCTIONAL ────────────────────────────────────────────────────────────
+    # ── ФУНКЦИОНАЛЬНОСТЬ ────────────────────────────────────────────────────────────
     functional_ok = artifact is not None and bool(getattr(artifact, "file_url", None))
     checks.append(RewardCheck(
         type=RewardType.FUNCTIONAL,
@@ -551,7 +551,7 @@ def _validate_xss(
         detail="HTML page uploaded" if functional_ok else "No artifact / upload failed",
     ))
 
-    # ── SOLVABILITY ───────────────────────────────────────────────────────────
+    # ── РАЗРЕШИМОСТЬ ───────────────────────────────────────────────────────────
     payload = spec.get("payload_solution", "")
     xss_keywords = {"<script", "onerror", "onload", "alert(", "eval(", "document.", "window."}
     solvable = any(kw in payload.lower() for kw in xss_keywords) and bool(flag)
@@ -562,7 +562,7 @@ def _validate_xss(
         detail="Payload contains XSS trigger" if solvable else f"Weak payload: {payload[:80]!r}",
     ))
 
-    # ── NON_TRIVIALITY ────────────────────────────────────────────────────────
+    # ── НЕ_ТРИВИАЛЬНОСТЬ ────────────────────────────────────────────────────────
     description = (spec.get("description") or "").lower()
     title = (spec.get("title") or "").lower()
     trivial = (flag and flag.lower() in description) or (flag and flag.lower() in title)
@@ -585,7 +585,7 @@ def _validate_chat_llm(
 ) -> list[RewardCheck]:
     checks: list[RewardCheck] = []
 
-    # ── FORMAT ────────────────────────────────────────────────────────────────
+    # ── ФОРМАТ ────────────────────────────────────────────────────────────────
     required = {"title", "description", "flag", "system_prompt_template",
                 "defense_type", "writeup", "hints"}
     missing = required - spec.keys()
@@ -613,7 +613,7 @@ def _validate_chat_llm(
         ),
     ))
 
-    # ── FUNCTIONAL ────────────────────────────────────────────────────────────
+    # ── ФУНКЦИОНАЛЬНОСТЬ ────────────────────────────────────────────────────────────
     prompt_len = len(system_prompt)
     functional_ok = 50 <= prompt_len <= 3000 and "{{FLAG}}" in system_prompt
     checks.append(RewardCheck(
@@ -624,7 +624,7 @@ def _validate_chat_llm(
                f"Invalid system prompt (len={prompt_len}, has_placeholder={'{{FLAG}}' in system_prompt})",
     ))
 
-    # ── SOLVABILITY ───────────────────────────────────────────────────────────
+    # ── РАЗРЕШИМОСТЬ ───────────────────────────────────────────────────────────
     prompt_lower = system_prompt.lower()
     has_guard = any(kw in prompt_lower for kw in
                     ["не раскрывай", "не говори", "секрет", "secret", "не сообщай",
@@ -638,7 +638,7 @@ def _validate_chat_llm(
         detail="Guard found" if solvable else "No guard instructions or over-restrictive prompt",
     ))
 
-    # ── NON_TRIVIALITY ────────────────────────────────────────────────────────
+    # ── НЕ_ТРИВИАЛЬНОСТЬ ────────────────────────────────────────────────────────
     description = (spec.get("description") or "").lower()
     title = (spec.get("title") or "").lower()
     flag_inner = flag[4:-1].lower() if len(flag) > 5 else flag.lower()

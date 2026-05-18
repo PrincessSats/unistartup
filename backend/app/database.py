@@ -6,22 +6,22 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Флаги для кэширования проверок схемы (выполняются один раз при старте)
+# Флаги кэширования проверок схемы (выполняются один раз при старте)
 _auth_schema_checked = False
 _nvd_sync_schema_checked = False
 _performance_indexes_checked = False
 
 # Движок для подключения к БД
-# SQL echo включается только через env (SQL_ECHO=true) для безопасного prod-default.
+# SQL echo включается через env (SQL_ECHO=true) для безопасного prod-default.
 engine = create_async_engine(
     settings.database_url,
     echo=settings.SQL_ECHO,
     future=True,
-    # Serverless containers may reuse stale TCP connections between requests.
-    # pre_ping checks liveness and transparently reconnects.
+    # Serverless контейнеры могут переиспользовать устаревшие TCP соединения между запросами.
+    # pre_ping проверяет живость и прозрачно переподключается.
     pool_pre_ping=True,
-    # Recycle pooled connections periodically to reduce "connection is closed" errors
-    # from upstream idle timeouts (PG/pgbouncer/network).
+    # Переиспользование подключений из пула периодически для снижения ошибок "connection is closed"
+    # от timeout'ов неактивности upstream (PG/pgbouncer/network).
     pool_recycle=300,
 )
 
@@ -29,7 +29,7 @@ engine = create_async_engine(
 AsyncSessionLocal = async_sessionmaker(
     engine,
     class_=AsyncSession,
-    expire_on_commit=False  # Объекты остаются доступными после commit
+    expire_on_commit=False  # Объекты доступны после commit
 )
 
 # Базовый класс для всех моделей (таблиц)
@@ -45,7 +45,7 @@ async def get_db():
         try:
             yield session  # Отдаем сессию в endpoint
         finally:
-            await session.close()  # Закрываем после использования
+            await session.close()  # Закрываем после использования (нет английского текста)
 
 
 async def ensure_auth_schema_compatibility() -> None:
@@ -54,7 +54,7 @@ async def ensure_auth_schema_compatibility() -> None:
     Нужен для старых БД, где таблица users могла быть создана без новых колонок.
     """
     statements = [
-        # Базовая таблица пользователей.
+        # Базовая таблица пользователей (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS users (
             id BIGSERIAL PRIMARY KEY,
@@ -62,7 +62,7 @@ async def ensure_auth_schema_compatibility() -> None:
             password_hash TEXT NOT NULL
         )
         """,
-        # Колонки, которые были добавлены позже.
+        # Колонки добавленные позже (нет английского текста)
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
         "UPDATE users SET is_active = TRUE WHERE is_active IS NULL",
         "ALTER TABLE users ALTER COLUMN is_active SET DEFAULT TRUE",
@@ -70,7 +70,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
-        # Профили нужны для get_current_user (join с users).
+        # Профили нужны для get_current_user (join с users) (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS user_profiles (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -86,7 +86,7 @@ async def ensure_auth_schema_compatibility() -> None:
         """,
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS onboarding_status TEXT",
         "CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)",
-        # Стартовые рейтинги используются на главной странице/профиле.
+        # Стартовые рейтинги для главной и профиля (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS user_ratings (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -96,7 +96,7 @@ async def ensure_auth_schema_compatibility() -> None:
             last_updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """,
-        # Обратная связь используется на главной и в хедере.
+        # Обратная связь на главной и в хедере (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS feedback (
             id BIGSERIAL PRIMARY KEY,
@@ -110,7 +110,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS id BIGSERIAL",
         "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE",
         "CREATE INDEX IF NOT EXISTS idx_feedback_id ON feedback(id)",
-        # Ротационные refresh-токены для 48h скользящей сессии.
+        # Ротационные refresh-токены для 48h скользящей сессии (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
             id BIGSERIAL PRIMARY KEY,
@@ -128,7 +128,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_refresh_tokens_hash ON auth_refresh_tokens(token_hash)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user ON auth_refresh_tokens(user_id, revoked_at, expires_at)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at ON auth_refresh_tokens(expires_at)",
-        # OAuth identities для линковки внешних провайдеров.
+        # OAuth identities для линковки внешних провайдеров (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS user_auth_identities (
             id BIGSERIAL PRIMARY KEY,
@@ -158,7 +158,7 @@ async def ensure_auth_schema_compatibility() -> None:
             ON user_auth_identities(user_id, provider)
         """,
         "CREATE INDEX IF NOT EXISTS idx_user_auth_identities_email ON user_auth_identities(provider_email)",
-        # Draft flows регистрации для magic-link и OAuth continuation.
+        # Draft flows регистрации для magic-link и OAuth continuation (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS auth_registration_flows (
             id BIGSERIAL PRIMARY KEY,
@@ -207,7 +207,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_magic_link_hash ON auth_registration_flows(magic_link_token_hash)",
         "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_email ON auth_registration_flows(email)",
         "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_expires_at ON auth_registration_flows(expires_at)",
-        # Ответы анкеты после завершения регистрации.
+        # Ответы анкеты после регистрации (нет английского текста)
         """
         CREATE TABLE IF NOT EXISTS user_registration_data (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -234,7 +234,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "CREATE INDEX IF NOT EXISTS idx_user_registration_data_source ON user_registration_data(registration_source)",
-        # Для legacy-пользователей, у которых ещё нет профиля/рейтинга.
+        # Для пользователей без профиля/рейтинга (нет английского текста)
         """
         INSERT INTO user_profiles (user_id, username, role)
         SELECT

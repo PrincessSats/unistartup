@@ -16,7 +16,7 @@ class UserTaskVariantRequest(Base):
     parent_task_id = Column(BigInteger, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     user_request = Column(Text, nullable=False)
-    sanitized_request = Column(Text)  # After injection filtering
+    sanitized_request = Column(Text)  # После фильтрации инъекций
     status = Column(Text, nullable=False, default="pending")  # pending, generating, completed, failed
     generated_variant_id = Column(UUID(as_uuid=True), ForeignKey("ai_generation_variants.id"))
     failure_reason = Column(Text)
@@ -35,7 +35,7 @@ class UserTaskVariantVote(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     variant_id = Column(UUID(as_uuid=True), ForeignKey("ai_generation_variants.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    vote_type = Column(Text, nullable=False)  # upvote, downvote
+    vote_type = Column(Text, nullable=False)  # голос за, голос против
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
@@ -45,7 +45,7 @@ class UserTaskVariantVote(Base):
     variant = relationship("AIGenerationVariant", back_populates="user_votes")
 
 
-# Add back-populates to existing models (imported where needed)
+# Добавить обратные отношения к существующим моделям (импортировано там, где это необходимо)
 # Task.user_variant_requests
 # AIGenerationVariant.user_variant_request
 # AIGenerationVariant.user_votes

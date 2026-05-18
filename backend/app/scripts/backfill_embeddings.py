@@ -32,7 +32,7 @@ async def backfill() -> None:
 
     try:
         async with AsyncSessionLocal() as db:
-            # Count entries needing embeddings
+            # Считаем записи, которым нужны вложения
             result = await db.execute(
                 select(KBEntry).where(KBEntry.embedding.is_(None)).order_by(KBEntry.id)
             )
@@ -67,7 +67,7 @@ async def backfill() -> None:
 
                     try:
                         vector = await svc.embed_document(text)
-                        # Re-fetch entry in this session
+                        # Повторно получаем запись в этой сессии
                         fresh = await db.get(KBEntry, entry.id)
                         if fresh is not None:
                             fresh.embedding = vector

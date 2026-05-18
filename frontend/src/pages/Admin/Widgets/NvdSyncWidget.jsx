@@ -30,7 +30,7 @@ function getNvdProgress(sync) {
   const processed = total > 0 ? Math.min(total, completed + failed) : 0;
   const percent = total > 0 ? Math.max(0, Math.min(100, Math.round((processed / total) * 100))) : 0;
 
-  // For partial_success, also calculate translation progress if embedding progress is not available
+  // Для partial_success, также рассчитать прогресс перевода, если прогресс встраивания недоступен
   const transTotal = Number(sync?.translation_total || 0);
   const transCompleted = Number(sync?.translation_completed || 0);
   const transFailed = Number(sync?.translation_failed || 0);

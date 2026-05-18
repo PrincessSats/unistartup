@@ -4,8 +4,8 @@ import AppIcon from '../../components/AppIcon';
 import VariantCard from './VariantCard';
 
 /**
- * Variant List component
- * Displays all user-generated variants for a task with voting
+ * Компонент списка вариантов
+ * Отображает все пользовательские варианты для задания с голосованием
  */
 export default function VariantList({ taskId, onVote, parentTaskId, parentTaskTitle }) {
   const [variants, setVariants] = useState([]);
@@ -13,7 +13,7 @@ export default function VariantList({ taskId, onVote, parentTaskId, parentTaskTi
   const [error, setError] = useState(null);
 
   /**
-   * Load variants
+   * Загрузка вариантов
    */
   const loadVariants = useCallback(async () => {
     try {
@@ -36,13 +36,13 @@ export default function VariantList({ taskId, onVote, parentTaskId, parentTaskTi
   }, [taskId, loadVariants]);
 
   /**
-   * Handle vote
+   * Обработка голосования
    */
   const handleVote = async (variantId, voteType) => {
     try {
       await userVariantsAPI.voteVariant(variantId, { vote_type: voteType });
 
-      // Update local state
+      // Обновление локального состояния
       setVariants(prevVariants => {
         return prevVariants.map(variant => {
           if (variant.variant_id === variantId) {

@@ -55,13 +55,13 @@ _CONTEST_FILTER_UNSET = object()
 _FLAG_CONTENT_PATTERN = re.compile(r"\{([^{}]+)\}")
 _async_client: Optional[AsyncOpenAI] = None
 
-# Role-boundary tokens used by common LLM tokenizers; strip to prevent role spoofing.
+# Токены границ ролей, используемые распространёнными токенизаторами LLM; удалять для предотвращения подмены роли.
 _ROLE_BOUNDARY_TOKENS = re.compile(
     r"(<\|im_start\|>|<\|im_end\|>|<\|endoftext\|>|<\|system\|>|<\|user\|>|<\|assistant\|>"
     r"|<\|begin_of_text\|>|<\|end_of_text\|>|\[INST\]|\[/INST\]|<<SYS>>|<</SYS>>)",
     re.IGNORECASE,
 )
-# ASCII control characters except tab (0x09) and newline (0x0A, 0x0D)
+# ASCII-символы управления, кроме табуляции (0x09) и символа новой строки (0x0A, 0x0D)
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
@@ -79,11 +79,11 @@ def sanitize_user_message(text: str) -> str:
     because bypassing the system prompt is the CTF challenge mechanic.
     """
     import unicodedata
-    # Normalize unicode to prevent homoglyph / hidden-character tricks
+    # Нормализовать Unicode для предотвращения трюков с омографами / скрытыми символами
     text = unicodedata.normalize("NFKC", text)
-    # Strip LLM role-boundary special tokens
+    # Удалить специальные токены границ ролей LLM
     text = _ROLE_BOUNDARY_TOKENS.sub("", text)
-    # Strip ASCII control characters (keep \t, \n, \r)
+    # Удалить ASCII-символы управления (сохранить \t, \n, \r)
     text = _CONTROL_CHARS.sub("", text)
     return text
 

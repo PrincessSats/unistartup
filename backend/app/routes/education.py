@@ -70,7 +70,7 @@ def difficulty_label(difficulty: int) -> str:
         return "Средне"
     if 8 <= difficulty <= 10:
         return "Сложно"
-    return "Средне"
+    return "Средне"  # (нет английского текста)
 
 
 def difficulty_bounds(bucket: str) -> tuple[int, int]:
@@ -85,7 +85,7 @@ def coerce_access_type(value: Optional[str]) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {"vpn", "vm", "link", "file", "chat", "just_flag"}:
         return normalized
-    return "just_flag"
+    return "just_flag"  # (нет английского текста)
 
 
 def infer_access_type_from_materials(material_rows: list[dict]) -> str:
@@ -121,7 +121,7 @@ def extract_hints(llm_raw_response: Optional[dict]) -> list[str]:
             if isinstance(value, list):
                 candidates.extend([str(item).strip() for item in value if str(item).strip()])
 
-    # Preserve order while removing duplicates.
+    # Сохраняем порядок и удаляем дубликаты.
     seen: set[str] = set()
     unique_hints: list[str] = []
     for hint in candidates:
@@ -492,7 +492,7 @@ async def _load_user_submission_state(
         if normalized_flags:
             solved_flags[task_id] = normalized_flags
 
-    # Include tasks explicitly started by the user (even without any submission)
+    # Включаем задачи явно начатые пользователем (даже без отправки)
     starts_result = await db.execute(
         select(PracticeTaskStart.task_id).where(
             PracticeTaskStart.user_id == user_id,
@@ -828,7 +828,7 @@ async def get_practice_task(
             session_ttl_minutes=limits.session_ttl_minutes,
         )
 
-    # For UGC tasks (tagged with "ugc"), find the parent task
+    # Для UGC задач (отмеченных "ugc") находим родительскую задачу
     parent_task_id = task.parent_id
 
     return PracticeTaskDetailResponse(
@@ -852,7 +852,7 @@ async def get_practice_task(
         chat_limits=chat_limits_payload,
         materials=materials_payload,
         vpn=vpn_info if has_vpn_payload else None,
-        # UGC task fields
+        # Поля UGC задачи
         task_kind=task.task_kind,
         parent_task_id=parent_task_id,
     )

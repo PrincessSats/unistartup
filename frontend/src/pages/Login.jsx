@@ -97,7 +97,7 @@ function Login() {
             redirectTo = '/admin';
           }
         } catch {
-          // Ignore profile lookup failure and keep /home fallback.
+          // Игнорируем ошибку поиска профиля и сохраняем fallback /home.
         }
         navigate(redirectTo, { replace: true });
         return;

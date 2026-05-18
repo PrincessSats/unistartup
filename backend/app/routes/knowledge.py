@@ -30,7 +30,7 @@ async def list_kb_entries(
     tag: фильтр по тегу (если указан)
     source: фильтр по источнику (nvd, digest; если не указан — все)
     """
-    # Validate sort order to prevent SQL injection
+    # Проверяем порядок сортировки, чтобы предотвратить SQL-инъекцию
     order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
     source_value = source.strip() if isinstance(source, str) and source.strip() else None
@@ -94,7 +94,7 @@ async def list_kb_entries_paged(
     Пагинация для базы знаний (с total).
     source: фильтр по источнику (nvd, digest; если не указан — все)
     """
-    # Validate sort order to prevent SQL injection
+    # Проверяем порядок сортировки, чтобы предотвратить SQL-инъекцию
     order_sql = validate_sql_sort_order(order)
     tag_value = tag.strip() if isinstance(tag, str) and tag.strip() else None
     source_value = source.strip() if isinstance(source, str) and source.strip() else None

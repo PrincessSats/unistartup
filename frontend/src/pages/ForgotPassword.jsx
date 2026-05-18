@@ -23,7 +23,7 @@ export default function ForgotPassword() {
       await authAPI.requestPasswordReset(email);
       setSuccess(true);
 
-      // Auto-redirect after 5 seconds
+      // Автоматическое перенаправление через 5 секунд
       setTimeout(() => {
         navigate('/login');
       }, 5000);

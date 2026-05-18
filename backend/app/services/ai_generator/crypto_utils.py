@@ -20,7 +20,7 @@ class CryptoError(ValueError):
     pass
 
 
-# ── Classical ciphers ────────────────────────────────────────────────────────
+# ── Классические шифры ────────────────────────────────────────────────────────
 
 def caesar_encrypt(text: str, shift: int) -> str:
     shift = shift % 26
@@ -73,7 +73,7 @@ def vigenere_decrypt(text: str, key: str) -> str:
 
 
 def atbash(text: str) -> str:
-    """Atbash substitution: A↔Z, B↔Y, etc. Self-inverse."""
+    """Подстановка Атбаша: A↔Z, B↔Y, и т.д. Самообратная."""
     result = []
     for ch in text:
         if ch.isalpha():
@@ -85,7 +85,7 @@ def atbash(text: str) -> str:
 
 
 def beaufort(text: str, key: str) -> str:
-    """Beaufort cipher: C = (K - P) mod 26. Self-inverse (encrypt == decrypt)."""
+    """Шифр Бофора: C = (K - P) mod 26. Самообратный (шифрование == расшифровка)."""
     if not key or not key.isalpha():
         raise CryptoError("Beaufort key must be non-empty alphabetic string")
     key = key.upper()
@@ -104,7 +104,7 @@ def beaufort(text: str, key: str) -> str:
 
 
 def substitution_encrypt(text: str, key: str) -> str:
-    """Monoalphabetic substitution. key must be 26 unique alpha chars (A-Z mapping)."""
+    """Моноалфавитная подстановка. ключ должен быть 26 уникальными буквами (A-Z отображение)."""
     key = key.upper()
     if len(key) != 26 or not key.isalpha() or len(set(key)) != 26:
         raise CryptoError("Substitution key must be 26 unique alphabetic characters")
@@ -156,7 +156,7 @@ def rail_fence_decrypt(text: str, rails: int) -> str:
     if rails < 2 or rails >= len(text):
         return text
     n = len(text)
-    # Build position pattern
+    # Построить паттерн позиции
     pattern: list[int] = []
     rail, direction = 0, 1
     for _ in range(n):
@@ -166,7 +166,7 @@ def rail_fence_decrypt(text: str, rails: int) -> str:
         elif rail == rails - 1:
             direction = -1
         rail += direction
-    # Map original positions sorted by rail
+    # Отобразить исходные позиции, отсортированные по рельсу
     indices = sorted(range(n), key=lambda i: pattern[i])
     result = [""] * n
     for pos, orig_idx in enumerate(indices):
@@ -174,7 +174,7 @@ def rail_fence_decrypt(text: str, rails: int) -> str:
     return "".join(result)
 
 
-# ── Encoding ─────────────────────────────────────────────────────────────────
+# ── Кодирование ─────────────────────────────────────────────────────────────────
 
 def base64_encode(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
@@ -263,7 +263,7 @@ def reverse_string(text: str) -> str:
 
 def xor_encrypt(text: str, key: str) -> str:
     if not key:
-        raise CryptoError("XOR key must be non-empty")
+        raise CryptoError("Ключ XOR не должен быть пустым")
     key_bytes = key.encode("utf-8")
     text_bytes = text.encode("utf-8")
     result = bytes(b ^ key_bytes[i % len(key_bytes)] for i, b in enumerate(text_bytes))
@@ -283,7 +283,7 @@ def xor_decrypt(text: str, key: str) -> str:
 
 
 def aes_ecb_encrypt(text: str, key_hex: str) -> str:
-    """AES-ECB encrypt. key_hex: 32/48/64 hex chars (16/24/32 byte key)."""
+    """Шифрование AES-ECB. key_hex: 32/48/64 шестнадцатеричных символов (ключ 16/24/32 байта)."""
     try:
         from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
         from cryptography.hazmat.primitives import padding as _padding
@@ -324,7 +324,7 @@ def aes_ecb_decrypt(text: str, key_hex: str) -> str:
 
 # ── Chain apply / reverse ────────────────────────────────────────────────────
 
-def _apply_single(text: str, op: dict[str, Any]) -> str:
+def _apply_single(text: str, op: dict[str, Any]) -> str:  # Применить одну операцию
     name = (op.get("cipher") or op.get("type") or "").lower()
     params = op.get("params", {}) or {}
 
@@ -369,13 +369,13 @@ def _reverse_single(text: str, op: dict[str, Any]) -> str:
     if name == "caesar":
         return caesar_decrypt(text, int(params.get("shift", 3)))
     elif name == "rot13":
-        return caesar_encrypt(text, 13)   # rot13 is self-inverse
+        return caesar_encrypt(text, 13)   # rot13 самообратный
     elif name == "vigenere":
         return vigenere_decrypt(text, str(params.get("key", "KEY")))
     elif name == "atbash":
-        return atbash(text)               # self-inverse
+        return atbash(text)               # самообратный
     elif name == "beaufort":
-        return beaufort(text, str(params.get("key", "KEY")))  # self-inverse
+        return beaufort(text, str(params.get("key", "KEY")))  # самообратный
     elif name == "substitution":
         return substitution_decrypt(text, str(params.get("key", "ZYXWVUTSRQPONMLKJIHGFEDCBA")))
     elif name == "rail_fence":
@@ -401,7 +401,7 @@ def _reverse_single(text: str, op: dict[str, Any]) -> str:
 
 
 def apply_chain(plaintext: str, chain: list[dict[str, Any]]) -> str:
-    """Apply a list of cipher operations sequentially."""
+    """Применить список операций шифра последовательно."""
     result = plaintext
     for op in chain:
         result = _apply_single(result, op)
@@ -409,7 +409,7 @@ def apply_chain(plaintext: str, chain: list[dict[str, Any]]) -> str:
 
 
 def reverse_chain(ciphertext: str, chain: list[dict[str, Any]]) -> str:
-    """Apply inverse operations in reverse order to recover plaintext."""
+    """Применить обратные операции в обратном порядке для восстановления открытого текста."""
     result = ciphertext
     for op in reversed(chain):
         result = _reverse_single(result, op)

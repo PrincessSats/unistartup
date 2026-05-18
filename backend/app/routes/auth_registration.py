@@ -236,8 +236,8 @@ async def _finalize_social_oauth_flow(
                 profile.avatar_url = avatar_url
 
         flow.completed_user_id = user.id
-        # DO NOT set consumed_at yet - the finalize endpoint will do it
-        # Set very short expiry for security (90 seconds)
+        # НЕ устанавливаем consumed_at - это сделает finalize endpoint
+        # Очень короткая expiry для безопасности (90 секунд)
         flow.expires_at = now + timedelta(seconds=90)
         await db.commit()
 

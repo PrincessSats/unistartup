@@ -35,7 +35,7 @@ async def submit_feedback(
         rule=RateLimit(max_requests=10, window_seconds=60),
     )
 
-    # Sanitize topic and message to prevent XSS
+    # Очищаем тему и сообщение, чтобы предотвратить XSS
     topic = sanitize_topic(data.topic or "", max_length=100)
     message = sanitize_feedback_message(data.message or "", max_length=500)
 

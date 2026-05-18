@@ -73,14 +73,14 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
           ? 'bg-slate-800 border-blue-500 shadow-lg shadow-blue-500/20'
           : 'bg-slate-800/50 border-slate-700 hover:border-slate-600'
       }`}>
-        {/* Header */}
+        {/* Заголовок */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-white">{contest.title}</h3>
             <p className={`text-sm font-medium ${status.color}`}>{status.label}</p>
           </div>
 
-          {/* Action menu */}
+          {/* Меню действий */}
           <div className="relative">
             <button
               onClick={() => setShowActionMenu(!showActionMenu)}
@@ -112,7 +112,7 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
 
                 <button
                   onClick={() => {
-                    // TODO: View submissions modal
+                    // TODO: Модальное окно просмотра отправок
                     setShowActionMenu(false);
                   }}
                   className="w-full text-left px-4 py-2 hover:bg-slate-800 text-slate-200 transition border-t border-slate-700"
@@ -132,7 +132,7 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
           </div>
         </div>
 
-        {/* Details grid */}
+        {/* Сетка деталей */}
         <div className="grid grid-cols-2 gap-3 mb-3 text-sm text-slate-300">
           <div>
             <span className="text-slate-400">Начало:</span> {formatDate(contest.start_at)}
@@ -148,7 +148,7 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
           </div>
         </div>
 
-        {/* Flags */}
+        {/* Флаги */}
         <div className="flex gap-2 text-xs text-slate-400">
           {contest.is_public ? (
             <span className="px-2 py-1 bg-slate-700 rounded">🔓 Публичный</span>
@@ -163,7 +163,7 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* Модальное окно редактирования */}
       {isEditModalOpen && (
         <ContestCreateModal
           isOpen={isEditModalOpen}

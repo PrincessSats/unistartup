@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 _MAX_POSITIVE = 3
 _MAX_NEGATIVE = 5
 _MIN_QUALITY_FOR_POSITIVE = 0.65
-_RECENT_VARIANTS_SAMPLE = 50  # how many recent failures to scan for patterns
-_MAX_USED_FLAGS = 80           # all previously generated flags for this task_type
-_MAX_USED_SCENARIOS = 30       # recent scenario titles to enforce diversity
+_RECENT_VARIANTS_SAMPLE = 50  # сколько недавних ошибок сканировать для поиска закономерностей
+_MAX_USED_FLAGS = 80           # все ранее сгенерированные флаги для этого task_type
+_MAX_USED_SCENARIOS = 30       # недавние названия сценариев для обеспечения разнообразия
 
 
 @dataclass
@@ -54,7 +54,7 @@ class FeedbackContext:
 
         parts: list[str] = []
 
-        # Hard constraints first — model must see these before anything else
+        # Жесткие ограничения сначала — модель должна видеть их раньше всего
         if self.used_flags:
             parts.append("## ЗАПРЕЩЁННЫЕ ФЛАГИ — нельзя использовать ни один")
             parts.append(", ".join(self.used_flags))
@@ -165,7 +165,7 @@ async def _load_negative_patterns(
     result = await db.execute(query)
     failure_reasons = [row[0] for row in result.fetchall() if row[0]]
 
-    # Group by truncated reason text and count frequency
+    # Сгруппировать по сокращенному тексту причины и подсчитать частоту
     reason_counts: dict[str, int] = {}
     for reason in failure_reasons:
         key = reason[:150]
@@ -204,9 +204,9 @@ async def _load_used_flags(
     db: AsyncSession,
 ) -> None:
     """
-    Collect all flags ever generated for this task_type.
-    Injected as a hard constraint so the model never repeats a flag.
-    Covers failed variants too — repetition is bad regardless of whether the task was published.
+    Собрать все флаги, когда-либо сгенерированные для этого task_type.
+    Внедрено как жесткое ограничение, чтобы модель никогда не повторила флаг.
+    Охватывает неудачные варианты тоже — повторение плохо независимо от публикации задания.
     """
     query = (
         select(AIGenerationVariant.generated_spec["flag"].astext)
@@ -226,8 +226,8 @@ async def _load_used_scenario_titles(
     db: AsyncSession,
 ) -> None:
     """
-    Collect recent scenario titles for this task_type to enforce diversity.
-    Only includes variants that passed binary checks (low-quality garbage titles excluded).
+    Собрать недавние названия сценариев для этого task_type для обеспечения разнообразия.
+    Включает только варианты, прошедшие двоичные проверки (названия низкого качества исключены).
     """
     query = (
         select(AIGenerationVariant.generated_spec["title"].astext)

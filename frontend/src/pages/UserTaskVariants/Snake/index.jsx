@@ -9,30 +9,30 @@ import {
 } from './GameEngine';
 
 /**
- * Main Snake game component
+ * Основной компонент игры Змейка
  *
- * Features:
- * - Endless mode (auto-restart after game ends)
- * - Arrow key or WASD controls
- * - Score tracking with high score
- * - Pause functionality (spacebar)
+ * Возможности:
+ * - Бесконечный режим (автоперезагрузка после окончания)
+ * - Управление стрелками или WASD
+ * - Отслеживание счёта с рекордом
+ * - Функция паузы (пробел)
  */
 export default function Snake({ mode = 'endless', onGameEnd }) {
   const [gameState, setGameState] = useState(createInitialState);
   const [highScore, setHighScore] = useState(0);
   const [gamesPlayed, setGamesPlayed] = useState(0);
   const gameLoopRef = useRef(null);
-  
-  // Load high score from localStorage
+
+  // Загрузка рекорда из localStorage
   useEffect(() => {
     const saved = localStorage.getItem('snakeHighScore');
     if (saved) {
       setHighScore(parseInt(saved, 10));
     }
   }, []);
-  
+
   /**
-   * Handle game end
+   * Обработка окончания игры
    */
   const handleGameEnd = useCallback((finalScore) => {
     setGamesPlayed(prev => prev + 1);
@@ -46,9 +46,9 @@ export default function Snake({ mode = 'endless', onGameEnd }) {
       onGameEnd({ score: finalScore });
     }
   }, [highScore, onGameEnd]);
-  
+
   /**
-   * Game loop
+   * Игровой цикл
    */
   useEffect(() => {
     if (!gameState.gameOver && !gameState.isPaused) {
@@ -56,40 +56,40 @@ export default function Snake({ mode = 'endless', onGameEnd }) {
         setGameState(prev => {
           const newState = gameTick(prev);
           if (!prev.gameOver && newState.gameOver) {
-            // Game just ended
+            // Игра только что окончена
             setTimeout(() => handleGameEnd(newState.score), 100);
           }
           return newState;
         });
       }, GAME_SPEED);
     }
-    
+
     return () => {
       if (gameLoopRef.current) {
         clearInterval(gameLoopRef.current);
       }
     };
   }, [gameState.gameOver, gameState.isPaused, handleGameEnd]);
-  
+
   /**
-   * Keyboard controls
+   * Управление с клавиатуры
    */
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Prevent default for arrow keys (scrolling)
+      // Предотвращение стандартного поведения для стрелок (скролл)
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
         e.preventDefault();
       }
-      
+
       setGameState(prev => handleKeyPress(prev, e.key));
     };
-    
+
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  
+
   /**
-   * Manual restart
+   * Ручной перезапуск
    */
   const handleRestart = useCallback(() => {
     setGameState(createInitialState());
@@ -97,7 +97,7 @@ export default function Snake({ mode = 'endless', onGameEnd }) {
   
   return (
     <div className="flex flex-col items-center gap-6 p-6">
-      {/* Status */}
+      {/* Статус */}
       <StatusBar
         score={gameState.score}
         highScore={highScore}
@@ -105,16 +105,16 @@ export default function Snake({ mode = 'endless', onGameEnd }) {
         gameOver={gameState.gameOver}
         isPaused={gameState.isPaused}
       />
-      
-      {/* Board */}
+
+      {/* Доска */}
       <Board
         snake={gameState.snake}
         food={gameState.food}
         gameOver={gameState.gameOver}
         isPaused={gameState.isPaused}
       />
-      
-      {/* Manual restart button */}
+
+      {/* Кнопка ручного перезапуска */}
       {gameState.gameOver && mode === 'endless' && (
         <button
           type="button"
@@ -124,8 +124,8 @@ export default function Snake({ mode = 'endless', onGameEnd }) {
           Начать заново
         </button>
       )}
-      
-      {/* Mobile controls hint */}
+
+      {/* Подсказка по мобильному управлению */}
       <p className="text-xs text-white/30 text-center max-w-[400px]">
         Совет: используйте стрелки или WASD для управления. Пробел — пауза.
       </p>

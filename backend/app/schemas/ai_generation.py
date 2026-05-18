@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class GenerateRequest(BaseModel):
-    # task_type is optional: if omitted and cve_id is provided, the pipeline
-    # infers the best task type from CVE CWE data via cwe_mapping.infer_task_type().
+    # task_type опционален: если опущен и cve_id предоставлен, конвейер
+    # выводит лучший тип задания из данных CWE CVE через cwe_mapping.infer_task_type().
     task_type: Optional[Literal["forensics_image_metadata", "crypto_text_web", "web_static_xss", "chat_llm"]] = None
     difficulty: Literal["beginner", "intermediate", "advanced"]
     num_variants: int = Field(default=5, ge=3, le=7)
@@ -16,7 +16,7 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     batch_id: str
     status: str  # "generating"
-    task_type: Optional[str] = None  # resolved task type (useful when inferred from CVE)
+    task_type: Optional[str] = None  # разрешенный тип задания (полезно при выводе из CVE)
     rag_context_used: int = 0
 
 
@@ -39,7 +39,7 @@ class VariantSchema(BaseModel):
     quality_score: Optional[float] = None
     failure_reason: Optional[str] = None
     reward_checks: Optional[list[RewardCheckSchema]] = None
-    # generated_spec intentionally excluded — contains flag
+    # generated_spec намеренно исключен — содержит флаг
     temperature: Optional[float] = None
     model_used: Optional[str] = None
     tokens_input: Optional[int] = None
@@ -72,10 +72,10 @@ class BatchStatusResponse(BaseModel):
 
 
 class VariantReviewSchema(BaseModel):
-    """Full variant detail for admin review — includes flag and verification_data."""
+    """Полная деталь варианта для проверки администратором — включает флаг и verification_data."""
     id: str
     variant_number: int
-    # Spec — full, including flag (admin only)
+    # Спек — полный, включая флаг (только администратор)
     spec_title: Optional[str] = None
     spec_description: Optional[str] = None
     spec_story: Optional[str] = None
@@ -83,18 +83,18 @@ class VariantReviewSchema(BaseModel):
     spec_hint: Optional[str] = None
     spec_category: Optional[str] = None
     spec_raw: Optional[dict] = None
-    # Artifact
+    # Артефакт
     artifact_content: Optional[str] = None
     artifact_file_url: Optional[str] = None
     artifact_verification: Optional[dict] = None
     artifact_error: Optional[str] = None
-    # Generation stats
+    # Статистика генерации
     temperature: Optional[float] = None
     model_used: Optional[str] = None
     tokens_input: Optional[int] = None
     tokens_output: Optional[int] = None
     generation_time_ms: Optional[int] = None
-    # Rewards
+    # Награды
     reward_total: Optional[float] = None
     reward_binary: Optional[float] = None
     quality_score: Optional[float] = None

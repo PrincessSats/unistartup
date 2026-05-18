@@ -1,11 +1,11 @@
 import React from 'react';
 
 /**
- * Snake game board component
- * Renders the grid with snake and food
+ * Компонент доски для игры Змейка
+ * Отрисовывает сетку со змейкой и едой
  */
 export default function Board({ snake, food, gameOver, isPaused }) {
-  // Create grid cells
+  // Создание ячеек сетки
   const cells = [];
   const snakeSet = new Set(snake.map(segment => `${segment.x},${segment.y}`));
   const head = snake[0];

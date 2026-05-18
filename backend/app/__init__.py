@@ -1,1 +1,1 @@
-# Local app package marker to avoid shadowing by site-packages "app".
+# Маркер локального пакета приложения, чтобы избежать перекрытия сайтом "app".

@@ -360,7 +360,7 @@ function Championship() {
         const refreshedContest = await contestAPI.getActiveContest();
         setContest(refreshedContest);
       } catch {
-        // Keep join flow resilient even if summary refresh fails.
+        // Сохраняем устойчивость потока присоединения, даже если обновление сводки не удается.
       }
       const current = await contestAPI.getCurrentTask(contest.id);
       setTaskState(current);
@@ -400,7 +400,7 @@ function Championship() {
             const chatPayload = await contestAPI.getTaskChatSession(contest.id, previousTaskId);
             setChatSession(chatPayload?.session || null);
           } catch {
-            // Keep flag submit successful even if chat refresh failed.
+            // Оставляем отправку флага успешной, даже если обновление чата не удается.
           }
         }
         if (result.finished || current?.finished) {
@@ -442,7 +442,7 @@ function Championship() {
     try {
       await contestAPI.rateTask(contest.id, currentTask.id, value);
     } catch {
-      // Rating is non-critical, silently ignore errors
+      // Оценка не критична, молча игнорируем ошибки
     }
   };
 

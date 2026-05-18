@@ -2,18 +2,18 @@ import React, { useMemo } from 'react';
 import ContestCard from './ContestCard';
 
 export default function ContestGrid({ contests, pageSize, onPageSizeChange, onEditSuccess, onDeleteSuccess }) {
-  // Find current/active contest
+  // Найти текущий/активный чемпионат
   const currentContest = useMemo(() => {
     const now = new Date();
     return contests.find(c => new Date(c.start_at) <= now && new Date(c.end_at) >= now);
   }, [contests]);
 
-  // Other contests
+  // Другие чемпионаты
   const otherContests = useMemo(() => {
     return contests.filter(c => c.id !== currentContest?.id);
   }, [contests, currentContest]);
 
-  // Paginate other contests
+  // Переместить другие чемпионаты
   const paginatedOther = useMemo(() => {
     return otherContests.slice(0, pageSize);
   }, [otherContests, pageSize]);
@@ -22,7 +22,7 @@ export default function ContestGrid({ contests, pageSize, onPageSizeChange, onEd
 
   return (
     <div className="space-y-6">
-      {/* Current Contest - Highlighted */}
+      {/* Текущий чемпионат - выделено */}
       {currentContest && (
         <div>
           <h2 className="text-sm uppercase tracking-wide text-slate-400 font-semibold mb-3">
@@ -37,7 +37,7 @@ export default function ContestGrid({ contests, pageSize, onPageSizeChange, onEd
         </div>
       )}
 
-      {/* Other Contests */}
+      {/* Другие чемпионаты */}
       {otherContests.length > 0 && (
         <div>
           <h2 className="text-sm uppercase tracking-wide text-slate-400 font-semibold mb-3">
@@ -55,7 +55,7 @@ export default function ContestGrid({ contests, pageSize, onPageSizeChange, onEd
             ))}
           </div>
 
-          {/* Load More / Pagination */}
+          {/* Загрузить ещё / Пагинация */}
           {hasMore && (
             <button
               onClick={() => onPageSizeChange(prev => prev + 6)}
@@ -67,7 +67,7 @@ export default function ContestGrid({ contests, pageSize, onPageSizeChange, onEd
         </div>
       )}
 
-      {/* Empty state */}
+      {/* Пустое состояние */}
       {contests.length === 0 && (
         <div className="p-8 text-center bg-slate-800 rounded-lg border border-slate-700">
           <p className="text-slate-400">Чемпионатов не найдено. Создайте новый чемпионат.</p>

@@ -1,10 +1,10 @@
 import React from 'react';
 
 /**
- * Individual cell component for Tic-Tac-Toe board
+ * Компонент отдельной ячейки для доски крестиков-ноликов
  */
 export default function Cell({ value, onClick, disabled, isWinning, playerSymbol, botSymbol }) {
-  // Determine colors based on which symbol is player/bot
+  // Определение цветов на основе того, какой символ для игрока/бота
   const playerColor = '#9B6BFF';
   const botColor = '#FF5A6E';
   

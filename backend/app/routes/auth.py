@@ -59,7 +59,7 @@ async def register(
 ):
     """
     Регистрация нового пользователя.
-    
+
     Что делаем:
     1. Проверяем, не занят ли email
     2. Проверяем, не занят ли username
@@ -67,8 +67,8 @@ async def register(
     4. Создаем User и UserProfile
     5. Сохраняем в БД
     """
-    
-    # Проверяем email
+
+    # Проверяем email (нет английского текста)
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -76,7 +76,7 @@ async def register(
             detail="Email уже зарегистрирован"
         )
     
-    # Проверяем username
+    # Проверяем username (нет английского текста)
     result = await db.execute(select(UserProfile).where(UserProfile.username == user_data.username))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -84,7 +84,7 @@ async def register(
             detail="Username уже занят"
         )
     
-    # Создаем пользователя
+    # Создаем пользователя (нет английского текста)
     new_user = User(
         email=user_data.email,
         password_hash=hash_password(user_data.password),
@@ -92,12 +92,12 @@ async def register(
     )
     db.add(new_user)
     await db.flush()  # Получаем ID пользователя
-    
-    # Создаем профиль
+
+    # Создаем профиль (нет английского текста)
     new_profile = UserProfile(
         user_id=new_user.id,
         username=user_data.username,
-        role="participant",  # По умолчанию обычный участник
+        role="participant",  # По умолчанию обычный участник (нет английского текста)
         onboarding_status="pending",
     )
     db.add(new_profile)
@@ -141,8 +141,8 @@ async def login(
         request,
         scope="auth_login_ip",
         subject="any",
-        # Serverless/edge can collapse clients to shared source IP.
-        # Keep IP guard but with a safer high threshold to reduce false positives.
+        # Serverless/edge может свернуть clients на общий source IP.
+        # Сохраняем IP guard но с безопаснее высоким threshold для снижения false positives.
         rule=RateLimit(max_requests=200, window_seconds=60),
     )
     enforce_rate_limit(
@@ -369,11 +369,11 @@ async def forgot_password(
     Request a password reset link. Returns 200 even if email not found (prevents email enumeration).
     Rate limited to 3 requests per email per hour.
     """
-    # Get client IP for logging
+    # Получаем client IP для логирования
     client_ip = request_obj.client.host if request_obj.client else "unknown"
 
     try:
-        # Apply rate limit
+        # Применяем rate limit
         allowed, _ = rate_limiter.check(
             auth_forgot_password_email.key_func(request.email.lower()),
             RateLimit(
@@ -382,27 +382,27 @@ async def forgot_password(
             ),
         )
         if not allowed:
-            # Still return 200 to prevent email enumeration
+            # Все равно возвращаем 200 для предотвращения перечисления email'ов
             logger.warning(f"Password reset rate limit exceeded for {request.email} from {client_ip}")
             return MessageResponse(message="Email sent")
     except Exception as e:
         logger.warning(f"Rate limit check error: {e}")
         return MessageResponse(message="Email sent")
 
-    # Look up user by email (case-insensitive)
+    # Ищем пользователя по email (без учета регистра)
     stmt = select(User).where(User.email == request.email.lower())
     user = await db.scalar(stmt)
 
     if not user:
-        # Return success even if user not found (email enumeration prevention)
+        # Возвращаем успех даже если пользователь не найден (защита от перечисления)
         logger.info(f"Password reset request for non-existent email: {request.email}")
         return MessageResponse(message="Email sent")
 
-    # Generate reset token
+    # Генерируем reset token
     plaintext_token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(plaintext_token.encode()).hexdigest()
 
-    # Create token record
+    # Создаем запись токена
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_TTL_MINUTES)
     reset_token = PasswordResetToken(
         user_id=user.id,
@@ -412,9 +412,9 @@ async def forgot_password(
     db.add(reset_token)
     await db.commit()
 
-    # Send email (async, don't wait)
+    # Отправляем email (async не дожидаемся)
     frontend_url = settings.BACKEND_CALLBACK_BASE_URL or "https://hacknet.tech"
-    # Remove /api suffix if present for frontend URL
+    # Удаляем /api суффикс если присутствует для frontend URL
     if frontend_url.endswith("/api"):
         frontend_url = frontend_url[:-4]
 
@@ -422,7 +422,7 @@ async def forgot_password(
         await send_password_reset_email(user.email, plaintext_token, frontend_base_url=frontend_url)
     except Exception as e:
         logger.error(f"Failed to send password reset email to {user.email}: {e}")
-        # Still return success to client
+        # Все равно возвращаем успех клиенту
 
     logger.info(f"Password reset requested for {user.email}")
     return MessageResponse(message="Email sent")
@@ -439,10 +439,10 @@ async def reset_password(
     Revokes all refresh tokens for the user (logs them out everywhere).
     Rate limited to 5 requests per IP per minute.
     """
-    # Get client IP for rate limiting
+    # Получаем client IP для rate limiting
     client_ip = request_obj.client.host if request_obj.client else "unknown"
 
-    # Check rate limit
+    # Проверяем rate limit
     allowed, retry_after = rate_limiter.check(
         auth_reset_password_ip.key_func(client_ip),
         RateLimit(
@@ -456,7 +456,7 @@ async def reset_password(
             detail=f"Too many requests. Try again in {retry_after} seconds."
         )
 
-    # Validate new password
+    # Проверяем надежность нового пароля
     try:
         issues = validate_registration_password(request.new_password)
         if issues:
@@ -464,15 +464,15 @@ async def reset_password(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    # Hash the plaintext token to look up in DB
+    # Хешируем plaintext token для поиска в БД
     token_hash = hashlib.sha256(request.token.encode()).hexdigest()
 
-    # Find token
+    # Ищем токен
     stmt = select(PasswordResetToken).where(
         and_(
             PasswordResetToken.token_hash == token_hash,
-            PasswordResetToken.used_at.is_(None),  # Not yet used
-            PasswordResetToken.expires_at > datetime.now(timezone.utc),  # Not expired
+            PasswordResetToken.used_at.is_(None),  # Еще не использован
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),  # Не истек
         )
     )
     reset_token = await db.scalar(stmt)
@@ -483,17 +483,17 @@ async def reset_password(
             detail="Invalid or expired reset token."
         )
 
-    # Mark token as used
+    # Отмечаем токен как использованный
     reset_token.used_at = datetime.now(timezone.utc)
 
-    # Get user and update password
+    # Получаем пользователя и обновляем пароль
     user = await db.get(User, reset_token.user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found.")
 
     user.password_hash = hash_password(request.new_password)
 
-    # Revoke all refresh tokens for this user (log out all sessions)
+    # Отзываем все refresh токены пользователя (выходим из всех сессий)
     stmt_revoke = select(AuthRefreshToken).where(
         and_(
             AuthRefreshToken.user_id == user.id,

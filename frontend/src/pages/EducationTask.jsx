@@ -8,6 +8,7 @@ import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 import TaskVariantGenerator from './UserTaskVariants/TaskVariantGenerator';
 import VariantList from './UserTaskVariants/VariantList';
 
+// Классы значков сложности
 const difficultyBadgeClasses = {
   Легко: 'border-[#3FD18A]/30 bg-[#3FD18A]/10 text-[#3FD18A]',
   Средне: 'border-[#F2C94C]/30 bg-[#F2C94C]/10 text-[#F2C94C]',
@@ -400,10 +401,11 @@ export default function EducationTask() {
           const chatPayload = await educationAPI.getPracticeTaskChatSession(task.id);
           setChatSession(chatPayload?.session || null);
         } catch {
-          // Keep flag submit successful even if chat refresh failed.
+          // Сохраняем успешную сдачу флага даже если обновление чата не прошло.
         }
       }
     } catch (err) {
+      // Логирование ошибки отправки флага
       console.error('Не удалось отправить флаг', err);
       const detail = err?.response?.data?.detail;
       setSubmitMessage(typeof detail === 'string' ? detail : 'Не удалось отправить флаг');
@@ -531,6 +533,7 @@ export default function EducationTask() {
       const resolvedFilename = parseFilenameFromContentDisposition(disposition) || material.name || 'download';
       triggerBlobDownload(response.data, resolvedFilename);
     } catch (err) {
+      // Логирование ошибки скачивания материала
       console.error('Не удалось скачать материал', err);
       const message = await parseDownloadErrorMessage(err, 'Не удалось начать скачивание');
       setSubmitMessage(message);
@@ -570,6 +573,7 @@ export default function EducationTask() {
   return (
     <div className="font-sans-figma text-white">
       <div className={`grid grid-cols-1 gap-4 transition-all duration-300 2xl:grid-cols-[minmax(0,1fr)_560px] ${activeHint !== null ? 'blur-sm' : ''}`}>
+        {/* Основная секция задачи */}
         <section>
           <div className="overflow-hidden rounded-[20px] border border-white/[0.06] bg-white/[0.03]">
             <div
@@ -618,9 +622,11 @@ export default function EducationTask() {
 
             <div className="bg-[#111118] px-6 py-8 md:px-8">
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                {/* Описание задачи */}
                 <p className="max-w-[650px] whitespace-pre-line text-[18px] leading-[24px] tracking-[0.04em] text-white/70">
                   {task.participant_description || task.story || 'Описание задачи пока не добавлено.'}
                 </p>
+                {/* Раздел подсказок */}
                 <div className="shrink-0 text-right">
                   <p className="text-[18px] leading-[24px] tracking-[0.04em] text-white/65">Подсказки</p>
                   {hintButtons.length > 0 ? (
@@ -867,8 +873,9 @@ export default function EducationTask() {
           </div>
         </section>
 
+        {/* Боковая панель */}
         <aside className="flex flex-col gap-4">
-          {/* UGC Variants Section (for Crypto/Forensics/Web) */}
+          {/* Раздел вариантов UGC (для Crypto/Forensics/Web) */}
           {task?.category && ['Crypto', 'Forensics', 'Web'].includes(task.category) && (
             <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-6 py-5">
               <div className="flex items-start justify-between gap-3 mb-4">
@@ -879,7 +886,7 @@ export default function EducationTask() {
                       Варианты от пользователей
                     </h2>
                   </div>
-                  {/* Parent task link (if this is a UGC task) */}
+                  {/* Ссылка на исходную задачу (если это задача UGC) */}
                   {task?.parent_task_id && (
                     <a
                       href={`/education/${task.parent_task_id}`}
@@ -907,6 +914,7 @@ export default function EducationTask() {
             </div>
           )}
           <div className="rounded-[20px] border border-white/[0.06] bg-white/[0.03] px-6 py-5">
+            {/* Статистика задачи */}
             <div className="flex items-center justify-between text-[16px] leading-[20px] tracking-[0.04em] text-white/65">
               {/* <span>{task.passed_users_count} прошли</span> */}
               <span className="inline-flex items-center gap-2 font-mono-figma text-white">
@@ -970,6 +978,7 @@ export default function EducationTask() {
         </aside>
       </div>
 
+      {/* Модальное окно подсказки */}
       {activeHint !== null && activeHintText && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
           <div className="relative w-full max-w-[470px] overflow-hidden rounded-[20px] bg-gradient-to-b from-[#563BA6] to-[#2a1f5c]">
@@ -1011,7 +1020,7 @@ export default function EducationTask() {
         </div>
       )}
       
-      {/* Task Variant Generator */}
+      {/* Генератор вариантов задач */}
       <TaskVariantGenerator
         isOpen={generatorOpen}
         onClose={() => setGeneratorOpen(false)}

@@ -46,8 +46,8 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         httponly=True,
         samesite=settings.REFRESH_TOKEN_COOKIE_SAMESITE,
     )
-    # Add Partitioned attribute for cross-site (SameSite=None) cookies to satisfy
-    # Chrome CHIPS requirement and suppress "foreign cookie" warnings.
+    # Добавить атрибут Partitioned для cross-site (SameSite=None) cookies для соответствия
+    # требованию Chrome CHIPS и подавления предупреждений о "foreign cookie".
     if cross_site:
         for i, (name, value) in enumerate(response.raw_headers):
             if name == b"set-cookie" and b"refresh_token=" in value:

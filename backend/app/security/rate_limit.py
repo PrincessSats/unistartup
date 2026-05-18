@@ -24,8 +24,8 @@ class RateLimiter:
 
 class InMemoryRateLimiter:
     """
-    Simple in-memory limiter.
-    Note: per-process only; use Redis or edge rate limiting for multi-instance production.
+    Простой ограничитель в памяти.
+    Примечание: только для одного процесса; используйте Redis или граничное ограничение частоты для многоэкземплярного продакшена.
     """
 
     def __init__(self) -> None:
@@ -76,7 +76,7 @@ def enforce_rate_limit(
         )
 
 
-# Password reset rate limiters
+# Ограничители частоты для сброса пароля
 auth_forgot_password_email = RateLimiter(
     key_func=lambda email: f"auth:forgot_password:email:{email}",
     max_requests=settings.PASSWORD_RESET_REQUEST_RATE_LIMIT_COUNT,

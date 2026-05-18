@@ -42,7 +42,7 @@ export default function ActivityFeed({ refreshKey }) {
   const [sourceFilter, setSourceFilter] = useState('all');
   const [expandedEventId, setExpandedEventId] = useState(null);
 
-  // Load activity logs
+  // Загрузить логи активности
   const loadLogs = useCallback(async (pageNum = 1) => {
     try {
       setLoading(true);
@@ -63,7 +63,7 @@ export default function ActivityFeed({ refreshKey }) {
     }
   }, [pageSize, eventTypeFilter, sourceFilter, searchText]);
 
-  // Reload when filters change or refreshKey updates
+  // Перезагрузить при изменении фильтров или обновлении refreshKey
   useEffect(() => {
     loadLogs(1);
   }, [eventTypeFilter, sourceFilter, searchText, refreshKey, loadLogs]);
@@ -97,12 +97,12 @@ export default function ActivityFeed({ refreshKey }) {
 
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden flex flex-col h-full">
-      {/* Header */}
+      {/* Заголовок */}
       <div className="p-4 border-b border-slate-700">
         <h2 className="text-lg font-semibold text-white">Лента активности</h2>
       </div>
 
-      {/* Search box */}
+      {/* Поле поиска */}
       <div className="px-4 pt-4 pb-2">
         <input
           type="text"
@@ -113,7 +113,7 @@ export default function ActivityFeed({ refreshKey }) {
         />
       </div>
 
-      {/* Filters */}
+      {/* Фильтры */}
       <div className="px-4 py-2 border-t border-slate-700">
         <div className="text-xs text-slate-400 mb-2">Источник:</div>
         <div className="flex gap-1">
@@ -133,7 +133,7 @@ export default function ActivityFeed({ refreshKey }) {
         </div>
       </div>
 
-      {/* Event list */}
+      {/* Список событий */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-slate-400 text-sm">Загрузка...</div>
@@ -159,7 +159,7 @@ export default function ActivityFeed({ refreshKey }) {
                   </div>
                 </div>
 
-                {/* Expanded details */}
+                {/* Расширенные детали */}
                 {expandedEventId === log.id && log.details && (
                   <div className="mt-3 p-2 bg-slate-900 rounded text-xs text-slate-300 font-mono overflow-x-auto">
                     <pre>{JSON.stringify(log.details, null, 2)}</pre>
@@ -171,7 +171,7 @@ export default function ActivityFeed({ refreshKey }) {
         )}
       </div>
 
-      {/* Pagination */}
+      {/* Пагинация */}
       {logs.length > 0 && (
         <div className="p-3 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
           <span>{logs.length} из {total}</span>
