@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { knowledgeAPI, authAPI } from '../services/api';
-import AppIcon from '../components/AppIcon';
 import { SkeletonBlock } from '../components/LoadingState';
 import { getKnowledgeCardVisual } from '../utils/knowledgeVisuals';
 
