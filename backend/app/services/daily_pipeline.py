@@ -34,6 +34,23 @@ ACCESS_TYPE_MAP = {
 DIFFICULTY_INT_MAP = {"beginner": 1, "intermediate": 2, "advanced": 3}
 DIFFICULTY_POINTS_MAP = {"beginner": 50, "intermediate": 100, "advanced": 200}
 
+# Fixed 12-slot distribution: 4 per category, each with 2 easy + 1 intermediate + 1 hard.
+# CVEs are assigned sequentially from the top-12 most interesting (highest CVSS).
+_TASK_SLOTS: list[tuple[str, str]] = [
+    ("web_static_xss",          "beginner"),
+    ("web_static_xss",          "beginner"),
+    ("web_static_xss",          "intermediate"),
+    ("web_static_xss",          "advanced"),
+    ("crypto_text_web",         "beginner"),
+    ("crypto_text_web",         "beginner"),
+    ("crypto_text_web",         "intermediate"),
+    ("crypto_text_web",         "advanced"),
+    ("forensics_image_metadata","beginner"),
+    ("forensics_image_metadata","beginner"),
+    ("forensics_image_metadata","intermediate"),
+    ("forensics_image_metadata","advanced"),
+]
+
 # How many CVEs to send to digest LLM at most (keep prompt within context window).
 _DIGEST_LLM_INPUT_CAP = 60
 
@@ -167,13 +184,21 @@ async def _generate_digest(today_entries: list) -> int | None:
             return None
 
 
-async def _grpo_generate_task_for_kb_entry(entry: dict) -> int | None:
+async def _grpo_generate_task_for_kb_entry(
+    entry: dict,
+    *,
+    task_type: str | None = None,
+    difficulty: str | None = None,
+) -> int | None:
     """Run GRPO pipeline for one CVE, publish best-passing variant as draft Task.
-    Returns task.id or None."""
-    cwe_ids = list(entry.get("cwe_ids") or [])
-    attack_vector = entry.get("attack_vector")
-    task_type = infer_task_type(cwe_ids, attack_vector)
-    difficulty = _cvss_to_grpo_difficulty(entry.get("cvss_base_score"))
+    Returns task.id or None.
+    task_type and difficulty override inference when provided."""
+    if task_type is None:
+        cwe_ids = list(entry.get("cwe_ids") or [])
+        attack_vector = entry.get("attack_vector")
+        task_type = infer_task_type(cwe_ids, attack_vector)
+    if difficulty is None:
+        difficulty = _cvss_to_grpo_difficulty(entry.get("cvss_base_score"))
     num_variants = settings.AI_GEN_NUM_VARIANTS
     cve_id = entry.get("cve_id")
     batch_id = uuid.uuid4()
@@ -348,14 +373,18 @@ async def _generate_tasks_for_top(today_entries: list, limit: int) -> list[int]:
     if not today_entries:
         return []
 
-    top = today_entries[:limit]
+    slots = _TASK_SLOTS[:limit]
+    top = today_entries[:len(slots)]
     semaphore = asyncio.Semaphore(settings.DAILY_PIPELINE_CONCURRENCY)
 
-    async def _bounded(entry):
+    async def _bounded(entry, task_type, difficulty):
         async with semaphore:
-            return await _grpo_generate_task_for_kb_entry(entry)
+            return await _grpo_generate_task_for_kb_entry(entry, task_type=task_type, difficulty=difficulty)
 
-    results = await asyncio.gather(*[_bounded(e) for e in top], return_exceptions=True)
+    results = await asyncio.gather(
+        *[_bounded(e, t, d) for e, (t, d) in zip(top, slots)],
+        return_exceptions=True,
+    )
     task_ids = [r for r in results if isinstance(r, int)]
     logger.info("daily_pipeline: created %d/%d draft tasks via GRPO", len(task_ids), len(top))
     return task_ids

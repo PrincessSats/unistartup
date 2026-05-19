@@ -62,10 +62,6 @@ function KnowledgeCard({ entry }) {
       <div className="flex flex-col gap-6 px-8 py-6">
         <div className="flex flex-wrap items-center justify-between gap-4 text-[14px] text-white/60">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <AppIcon name="eye" className="h-3.5 w-3.5" />
-              {entry?.views ?? 0}
-            </span>
             {primaryTag && (
               <span className="rounded-[10px] border border-[#8E51FF]/30 bg-[#8E51FF]/10 px-[13px] py-[9px] text-[16px] tracking-[0.64px] text-[#A684FF]">
                 {primaryTag}
