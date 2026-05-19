@@ -167,7 +167,7 @@ class Settings(BaseSettings):
     # Daily automated NVD pipeline (cron)
     CRON_SECRET: str = ""
     DAILY_DIGEST_ENABLED: bool = True
-    DAILY_TASK_COUNT: int = 10
+    DAILY_TASK_COUNT: int = 12
     DAILY_PIPELINE_CONCURRENCY: int = 3
 
     # AI Generator (GRPO pipeline) (нет английского текста)
