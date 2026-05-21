@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { knowledgeAPI } from '../services/api';
 import AppIcon from '../components/AppIcon';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
@@ -218,14 +220,14 @@ export default function KnowledgeArticle() {
     };
   }, [entry]);
 
-  const paragraphs = useMemo(() => {
-    const text = entry?.ru_explainer || '';
-    if (!text) return [];
-    return text
-      .split(/\n{2,}/)
-      .map((chunk) => chunk.trim())
-      .filter(Boolean);
-  }, [entry]);
+  const markdownComponents = useMemo(() => ({
+    a({ href, children, ...props }) {
+      if (href && href.startsWith('/')) {
+        return <Link to={href} className="text-[#A684FF] underline hover:text-[#9B6BFF]">{children}</Link>;
+      }
+      return <a href={href} target="_blank" rel="noreferrer" className="text-[#A684FF] underline hover:text-[#9B6BFF]" {...props}>{children}</a>;
+    },
+  }), []);
 
   if (loading) {
     return <PageLoader label="Загрузка статьи..." variant="knowledge-article" />;
@@ -322,13 +324,13 @@ export default function KnowledgeArticle() {
         </div>
 
         <article className="flex-1 max-w-[900px]">
-          {paragraphs.length === 0 ? (
+          {!entry?.ru_explainer ? (
             <p className="text-white/60">Контент статьи пока не добавлен.</p>
           ) : (
-            <div className="flex flex-col gap-4 text-[16px] leading-[24px] tracking-[0.64px] text-white/70 whitespace-pre-wrap">
-              {paragraphs.map((paragraph, index) => (
-                <p key={`${paragraph.slice(0, 12)}-${index}`}>{paragraph}</p>
-              ))}
+            <div className="prose prose-invert max-w-none text-[16px] leading-[24px] tracking-[0.64px] text-white/70 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mb-2 [&_strong]:text-white [&_h1]:text-white [&_h2]:text-white [&_h3]:text-white [&_p]:mb-4 [&_code]:rounded [&_code]:bg-white/10 [&_code]:px-1 [&_pre]:rounded-[12px] [&_pre]:bg-white/5 [&_pre]:p-4 [&_pre]:overflow-x-auto">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {entry.ru_explainer}
+              </ReactMarkdown>
             </div>
           )}
         </article>

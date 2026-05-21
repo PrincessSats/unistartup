@@ -225,6 +225,90 @@ async def list_kb_feed(
     ]
 
 
+@router.get("/search")
+async def search_kb_entries(
+    db: AsyncSession = Depends(get_db),
+    q: str = Query(..., min_length=1, max_length=100),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+):
+    """
+    Полнотекстовый поиск по базе знаний.
+    Ищет по cve_id, ru_title, ru_summary, tags.
+    Включает скрытые записи (visible_in_kb_list=false) — доступны через поиск.
+    """
+    q_clean = q.strip()[:100]
+    # Escape ILIKE special chars
+    escaped = q_clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+
+    count_stmt = text(
+        """
+        SELECT COUNT(*)
+        FROM kb_entries
+        WHERE ru_title IS NOT NULL
+          AND length(trim(ru_title)) > 0
+          AND (
+            cve_id ILIKE :pattern
+            OR ru_title ILIKE :pattern
+            OR ru_summary ILIKE :pattern
+            OR EXISTS (
+              SELECT 1 FROM unnest(tags) AS t WHERE t ILIKE :pattern
+            )
+          )
+        """
+    )
+    total = (
+        await db.execute(count_stmt, {"pattern": pattern})
+    ).scalar_one() or 0
+
+    rows = (
+        await db.execute(
+            text(
+                """
+                SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, tags, difficulty, created_at, updated_at
+                FROM kb_entries
+                WHERE ru_title IS NOT NULL
+                  AND length(trim(ru_title)) > 0
+                  AND (
+                    cve_id ILIKE :pattern
+                    OR ru_title ILIKE :pattern
+                    OR ru_summary ILIKE :pattern
+                    OR EXISTS (
+                      SELECT 1 FROM unnest(tags) AS t WHERE t ILIKE :pattern
+                    )
+                  )
+                ORDER BY
+                  CASE WHEN source = 'digest' THEN 0 ELSE 1 END,
+                  COALESCE(updated_at, created_at) DESC
+                LIMIT :limit
+                OFFSET :offset
+                """
+            ),
+            {"pattern": pattern, "limit": limit, "offset": offset},
+        )
+    ).mappings().all()
+
+    items = [
+        KnowledgeEntry(
+            id=row["id"],
+            source=row["source"],
+            source_id=row.get("source_id"),
+            cve_id=row.get("cve_id"),
+            ru_title=row.get("ru_title"),
+            ru_summary=row.get("ru_summary"),
+            ru_explainer=row.get("ru_explainer"),
+            tags=row.get("tags") or [],
+            difficulty=row.get("difficulty"),
+            created_at=row["created_at"],
+            updated_at=row.get("updated_at"),
+        )
+        for row in rows
+    ]
+
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
 @router.get("/{entry_id}", response_model=KnowledgeEntry)
 async def get_kb_entry(
     entry_id: int,
