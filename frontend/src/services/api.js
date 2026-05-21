@@ -888,6 +888,10 @@ export const knowledgeAPI = {
       ttlMs: CACHE_TTLS_MS.knowledgeTags,
     });
   },
+  search: async (q, params = {}) => {
+    const response = await api.get('/kb_entries/search', { params: { q, ...params } });
+    return response.data;
+  },
   getEntry: async (entryId) => {
     const response = await api.get(`/kb_entries/${entryId}`);
     return response.data;

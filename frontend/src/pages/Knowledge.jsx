@@ -109,6 +109,8 @@ function KnowledgeCardSkeleton() {
 function Knowledge() {
   const [sortOrder, setSortOrder] = useState('desc');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [entries, setEntries] = useState([]);
   const [categories, setCategories] = useState([]);
   const [page, setPage] = useState(1);
@@ -119,7 +121,14 @@ function Knowledge() {
 
   useEffect(() => {
     setPage(1);
-  }, [sortOrder, categoryFilter]);
+  }, [sortOrder, categoryFilter, searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   useEffect(() => {
     let isMounted = true;
@@ -154,13 +163,21 @@ function Knowledge() {
       }
       try {
         setError('');
-        const data = await knowledgeAPI.getEntriesPaged({
-          limit,
-          offset: (page - 1) * limit,
-          order: sortOrder,
-          tag: categoryFilter || undefined,
-          only_with_title: true,
-        });
+        let data;
+        if (searchQuery) {
+          data = await knowledgeAPI.search(searchQuery, {
+            limit,
+            offset: (page - 1) * limit,
+          });
+        } else {
+          data = await knowledgeAPI.getEntriesPaged({
+            limit,
+            offset: (page - 1) * limit,
+            order: sortOrder,
+            tag: categoryFilter || undefined,
+            only_with_title: true,
+          });
+        }
         if (isMounted) {
           setEntries(Array.isArray(data?.items) ? data.items : []);
           setTotal(Number.isFinite(data?.total) ? data.total : 0);
@@ -168,7 +185,6 @@ function Knowledge() {
       } catch (error) {
         console.error('Не удалось загрузить статьи базы знаний', error);
         if (isMounted) {
-          // Гость (нет токена) — не показываем ошибку, просто пустой список.
           if (error?.response?.status === 401 && !authAPI.isAuthenticated()) {
             setEntries([]);
             setTotal(0);
@@ -191,7 +207,7 @@ function Knowledge() {
     return () => {
       isMounted = false;
     };
-  }, [sortOrder, categoryFilter, page]);
+  }, [sortOrder, categoryFilter, searchQuery, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const pageNumbers = useMemo(() => {
@@ -208,6 +224,26 @@ function Knowledge() {
       <div className="flex flex-col gap-4">
         <div>
           <h1 className="text-[36px] leading-[44px] tracking-[0.02em] font-medium">База знаний</h1>
+        </div>
+
+        <div className="relative w-full max-w-[480px]">
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Поиск по CVE, названию, тегу..."
+            className="h-10 w-full rounded-[10px] border border-white/[0.08] bg-[#111118] pl-4 pr-10 text-[14px] text-white/80 placeholder:text-white/40 focus:outline-none focus:border-[#9B6BFF]/70"
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+              aria-label="Очистить поиск"
+            >
+              ✕
+            </button>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-4">
