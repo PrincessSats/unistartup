@@ -112,6 +112,17 @@ def _merge_task(
             session_ttl_minutes=limits.session_ttl_minutes,
         )
 
+    visible_materials = list(task_materials or [])
+    if (task.llm_raw_response or {}).get("kind") == "championship":
+        max_solved_stage = 0
+        for fid in solved_flag_ids:
+            if fid.startswith("stage_") and fid[6:].isdigit():
+                max_solved_stage = max(max_solved_stage, int(fid[6:]))
+        visible_materials = [
+            m for m in visible_materials
+            if (m.get("meta") or {}).get("stage_index", 1) <= max_solved_stage + 1
+        ]
+
     materials = [
         ContestTaskInfo.MaterialInfo(
             id=m["id"],
@@ -122,7 +133,7 @@ def _merge_task(
             storage_key=m.get("storage_key"),
             meta=m.get("meta"),
         )
-        for m in (task_materials or [])
+        for m in visible_materials
     ]
 
     return ContestTaskInfo(
@@ -1105,52 +1116,107 @@ async def submit_flag(
     matched_flag: Optional[TaskFlag] = None
     resolved_flag_id = target_flag_id or (flags[0].flag_id if flags else "main")
 
-    is_chat_task = (task.access_type or "").strip().lower() == "chat"
-    if is_chat_task:
-        if target_flag_id and flags and not any(flag.flag_id == target_flag_id for flag in flags):
-            raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
-
-        session = await get_session_for_chat_submit(
-            db,
-            task_id=task.id,
-            user_id=user.id,
-            contest_id=contest_id,
-            include_solved=False,
-        )
-        if session is None:
-            await db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Чат-сессия истекла или не создана. Откройте чат задачи.",
-            )
-        try:
-            expected_tokens = derive_dynamic_flag_token_candidates(session.flag_seed)
-        except ChatTaskError as exc:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
-
-        submitted_token = normalize_flag_token_content(extract_flag_token_content(submitted_value))
-        is_correct = bool(submitted_token) and submitted_token in expected_tokens
-        if is_correct and session.status == "active":
-            mark_chat_session_solved(session)
-    else:
-        if not flags:
-            raise HTTPException(status_code=400, detail="У задачи не настроены флаги")
-        if target_flag_id:
-            for flag in flags:
-                if flag.flag_id == target_flag_id:
-                    matched_flag = flag if flag.expected_value and flag.expected_value == submitted_value else None
-                    break
-            else:
-                raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
-        else:
-            for flag in flags:
-                if flag.expected_value and flag.expected_value == submitted_value:
-                    matched_flag = flag
-                    break
-        is_correct = matched_flag is not None
-        if is_correct and matched_flag is not None:
-            resolved_flag_id = matched_flag.flag_id
     solved_flag_ids = set(solved_flags_by_task.get(task.id, set()))
+
+    is_championship = (task.llm_raw_response or {}).get("kind") == "championship"
+    if is_championship:
+        solved_stage_nums = {
+            int(fid[6:])
+            for fid in solved_flag_ids
+            if fid.startswith("stage_") and fid[6:].isdigit()
+        }
+        current_stage_num = max(solved_stage_nums, default=0) + 1
+        current_stage_flag = next(
+            (f for f in flags if f.flag_id == f"stage_{current_stage_num}"), None
+        )
+        if current_stage_flag is None:
+            return ContestSubmissionResponse(is_correct=False, awarded_points=0, next_task=None, finished=True)
+
+        stage_data = next(
+            (
+                s for s in (task.llm_raw_response or {}).get("stages", [])
+                if s.get("index") == current_stage_num
+            ),
+            {},
+        )
+        stage_access = (stage_data.get("access_type") or "just_flag").lower()
+
+        if stage_access == "chat":
+            session = await get_session_for_chat_submit(
+                db,
+                task_id=task.id,
+                user_id=user.id,
+                contest_id=contest_id,
+                include_solved=False,
+            )
+            if session is None:
+                await db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Чат-сессия истекла или не создана. Откройте чат задачи.",
+                )
+            try:
+                expected_tokens = derive_dynamic_flag_token_candidates(session.flag_seed)
+            except ChatTaskError as exc:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+            submitted_token = normalize_flag_token_content(extract_flag_token_content(submitted_value))
+            is_correct = bool(submitted_token) and submitted_token in expected_tokens
+            if is_correct and session.status == "active":
+                mark_chat_session_solved(session)
+        else:
+            is_correct = bool(current_stage_flag.expected_value) and current_stage_flag.expected_value == submitted_value
+
+        resolved_flag_id = current_stage_flag.flag_id if is_correct else (target_flag_id or f"stage_{current_stage_num}")
+        matched_flag = current_stage_flag if is_correct else None
+
+    else:
+        is_chat_task = (task.access_type or "").strip().lower() == "chat"
+        if is_chat_task:
+            if target_flag_id and flags and not any(flag.flag_id == target_flag_id for flag in flags):
+                raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
+
+            session = await get_session_for_chat_submit(
+                db,
+                task_id=task.id,
+                user_id=user.id,
+                contest_id=contest_id,
+                include_solved=False,
+            )
+            if session is None:
+                await db.commit()
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Чат-сессия истекла или не создана. Откройте чат задачи.",
+                )
+            try:
+                expected_tokens = derive_dynamic_flag_token_candidates(session.flag_seed)
+            except ChatTaskError as exc:
+                raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
+
+            submitted_token = normalize_flag_token_content(extract_flag_token_content(submitted_value))
+            is_correct = bool(submitted_token) and submitted_token in expected_tokens
+            if is_correct and session.status == "active":
+                mark_chat_session_solved(session)
+        else:
+            if not flags:
+                raise HTTPException(status_code=400, detail="У задачи не настроены флаги")
+            if target_flag_id:
+                for flag in flags:
+                    if flag.flag_id == target_flag_id:
+                        matched_flag = flag if flag.expected_value and flag.expected_value == submitted_value else None
+                        break
+                else:
+                    raise HTTPException(status_code=400, detail="Неизвестный flag_id для текущей задачи")
+            else:
+                for flag in flags:
+                    if flag.expected_value and flag.expected_value == submitted_value:
+                        matched_flag = flag
+                        break
+            is_correct = matched_flag is not None
+            if is_correct and matched_flag is not None:
+                resolved_flag_id = matched_flag.flag_id
+
     was_task_completed = task_info.is_solved
     if is_correct:
         solved_flag_ids.add(resolved_flag_id)

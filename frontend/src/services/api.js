@@ -781,6 +781,13 @@ export const adminAPI = {
     const response = await api.delete(`/admin/contests/${contestId}`);
     return response.data;
   },
+  generateChampionshipTasks: async (contestId, payload) => {
+    const response = await api.post(
+      `/admin/contests/${contestId}/championship-tasks/generate`,
+      payload,
+    );
+    return response.data;
+  },
   createArticle: async (payload) => {
     const response = await api.post('/admin/kb_entries', payload);
     return response.data;

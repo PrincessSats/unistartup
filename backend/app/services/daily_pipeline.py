@@ -66,7 +66,7 @@ _TODAY_ENTRIES_SQL = """
            cwe_ids, attack_vector
     FROM kb_entries
     WHERE source = 'nvd'
-      AND created_at >= :pipeline_start
+      AND created_at >= now() - interval '24 hours'
       AND ru_title IS NOT NULL
       AND length(trim(ru_title)) > 0
     ORDER BY cvss_base_score DESC NULLS LAST, created_at DESC
@@ -102,9 +102,9 @@ async def _hide_today_entries(pipeline_start: datetime) -> int:
         return result.rowcount or 0
 
 
-async def _select_today_entries(pipeline_start: datetime) -> list:
+async def _select_today_entries() -> list:
     async with AsyncSessionLocal() as session:
-        result = await session.execute(text(_TODAY_ENTRIES_SQL), {"pipeline_start": pipeline_start})
+        result = await session.execute(text(_TODAY_ENTRIES_SQL))
         return result.mappings().all()
 
 
@@ -424,7 +424,7 @@ async def run_daily_pipeline(*, force: bool = False) -> dict:
             "task_count": 0,
         }
 
-    today_entries = await _select_today_entries(pipeline_start)
+    today_entries = await _select_today_entries()
     logger.info("daily_pipeline: %d translated entries created today", len(today_entries))
 
     digest_id = await _generate_digest(today_entries)

@@ -60,6 +60,13 @@ from app.schemas.admin import (
     ActivityLogListResponse,
     CveSearchResult,
     ProRequestItem,
+    ChampionshipGenerateRequest,
+    ChampionshipGenerateResponse,
+)
+from app.services.championship_generation import (
+    generate_championship_task,
+    select_kb_entry_clusters,
+    ChampionshipGenerationError,
 )
 from app.services.nvd_sync import (
     create_sync_log,
@@ -484,6 +491,12 @@ PROMPT_SPECS = [
         "title": "Article Generation Prompt",
         "description": "System prompt for generating RU title, summary, explainer and tags from raw EN text.",
         "filename": "article_prompt.txt",
+    },
+    {
+        "code": "championship_prompt",
+        "title": "Championship Task Generation Prompt",
+        "description": "System prompt for generating multi-stage championship tasks from multiple CVEs.",
+        "filename": "championship_prompt.txt",
     },
 ]
 PROMPT_SPEC_BY_CODE = {item["code"]: item for item in PROMPT_SPECS}
@@ -2025,6 +2038,184 @@ async def create_admin_contest(
     await db.commit()
 
     return await get_admin_contest(contest.id, current_user_data, db)
+
+
+@router.post(
+    "/admin/contests/{contest_id}/championship-tasks/generate",
+    response_model=ChampionshipGenerateResponse,
+)
+async def generate_championship_tasks(
+    contest_id: int,
+    data: ChampionshipGenerateRequest,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    user, _profile = current_user_data
+
+    contest = (await db.execute(select(Contest).where(Contest.id == contest_id))).scalar_one_or_none()
+    if contest is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Контест не найден")
+
+    if data.mode == "explicit" and not data.kb_entry_ids:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="kb_entry_ids required for explicit mode")
+
+    try:
+        prompt_text = await _resolve_prompt_text(db, "championship_prompt")
+    except HTTPException:
+        try:
+            from app.services.prompt_loader import load_prompt_text as _lpt
+            prompt_text = _lpt("championship_prompt.txt")
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"championship_prompt.txt not found: {exc}",
+            ) from exc
+
+    task_model_key = data.model_key if (data.model_key and data.model_key in TASK_MODEL_REGISTRY) else await get_active_task_model_key(db)
+    folder = (settings.YANDEX_CLOUD_FOLDER or "").strip()
+    model_uri = TASK_MODEL_REGISTRY[task_model_key](folder)
+
+    try:
+        clusters = await select_kb_entry_clusters(
+            db,
+            mode=data.mode,
+            kb_entry_ids=data.kb_entry_ids,
+            filters=data.filters.model_dump() if data.filters else None,
+            count=data.count,
+            k_per_task=3,
+        )
+    except ChampionshipGenerationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    existing_contest_tasks = (
+        await db.execute(
+            select(func.max(ContestTask.order_index)).where(ContestTask.contest_id == contest_id)
+        )
+    ).scalar()
+    next_order_index = (existing_contest_tasks or -1) + 1
+
+    created_ids: list[int] = []
+    failed: list[dict] = []
+
+    for cluster_idx, kb_entries in enumerate(clusters):
+        try:
+            result = await generate_championship_task(
+                kb_entries=kb_entries,
+                base_difficulty=data.base_difficulty,
+                system_prompt=prompt_text,
+                model_uri=model_uri,
+            )
+        except ChampionshipGenerationError as exc:
+            failed.append({"cluster_index": cluster_idx, "error": str(exc)})
+            continue
+
+        payload = result["parsed"]
+        stages = payload.get("stages", [])
+        stage_1 = stages[0] if stages else {}
+        stage_1_access = _coerce_access_type(stage_1.get("access_type"))
+        stage_1_chat_prompt = (stage_1.get("chat_system_prompt_template") or "").strip() or None
+
+        difficulty = max(7, min(10, data.base_difficulty))
+        points = 100 + (difficulty - 1) * 50
+
+        task = Task(
+            title=(payload.get("title") or f"Championship Task {cluster_idx + 1}").strip(),
+            category="misc",
+            difficulty=difficulty,
+            points=points,
+            tags=_normalize_tags(payload.get("tags") or []),
+            language="ru",
+            story=payload.get("narrative") or stage_1.get("story"),
+            participant_description=stage_1.get("participant_description"),
+            state="draft",
+            task_kind="contest",
+            access_type=stage_1_access,
+            chat_system_prompt_template=stage_1_chat_prompt if stage_1_access == "chat" else None,
+            chat_user_message_max_chars=300,
+            chat_model_max_output_tokens=512,
+            chat_session_ttl_minutes=180,
+            llm_raw_response=payload,
+            kb_entry_id=kb_entries[0].id if kb_entries else None,
+            created_by=user.id,
+        )
+
+        # Coerce category properly
+        valid_categories = {"web", "pwn", "crypto", "re", "forensics", "misc", "osint", "mobile", "hardware", "cloud"}
+        raw_cat = (payload.get("category") or "misc").strip().lower()
+        task.category = raw_cat if raw_cat in valid_categories else "misc"
+
+        try:
+            db.add(task)
+            await db.flush()
+
+            if payload.get("author_solution"):
+                db.add(TaskAuthorSolution(
+                    task_id=task.id,
+                    creation_solution=payload["author_solution"],
+                ))
+
+            for stage in stages:
+                flag_id = (stage.get("flag_id") or f"stage_{stage.get('index', 1)}").strip()
+                s_access = _coerce_access_type(stage.get("access_type"))
+                if s_access == "chat":
+                    db.add(TaskFlag(
+                        task_id=task.id,
+                        flag_id=flag_id,
+                        format="FLAG{8HEX}",
+                        expected_value=None,
+                        description=stage.get("title"),
+                    ))
+                else:
+                    db.add(TaskFlag(
+                        task_id=task.id,
+                        flag_id=flag_id,
+                        format="FLAG{...}",
+                        expected_value=(stage.get("expected_value") or "").strip(),
+                        description=stage.get("title"),
+                    ))
+
+                for mat in (stage.get("materials") or []):
+                    mat_type = (mat.get("type") or "text").strip().lower()
+                    mat_name = (mat.get("name") or "").strip()
+                    if not mat_name:
+                        continue
+                    db.add(TaskMaterial(
+                        task_id=task.id,
+                        type=mat_type,
+                        name=mat_name,
+                        description=(mat.get("description") or "").strip() or None,
+                        url=None,
+                        storage_key=None,
+                        meta={
+                            "stage_index": stage.get("index", 1),
+                            "role": mat.get("role", "primary"),
+                        },
+                    ))
+
+            db.add(ContestTask(
+                contest_id=contest_id,
+                task_id=task.id,
+                order_index=next_order_index + len(created_ids),
+                points_override=None,
+            ))
+
+            generation = LlmGeneration(
+                model=result["model"],
+                purpose="championship_task_generation",
+                input_payload={"kb_entry_ids": result["kb_entry_ids"], "base_difficulty": data.base_difficulty},
+                output_payload=payload,
+                created_by=user.id,
+            )
+            db.add(generation)
+
+            await db.commit()
+            created_ids.append(task.id)
+
+        except Exception as exc:
+            await db.rollback()
+            failed.append({"cluster_index": cluster_idx, "error": str(exc)})
+
+    return ChampionshipGenerateResponse(created=created_ids, failed=failed)
 
 
 @router.put("/admin/contests/{contest_id}", response_model=AdminContestResponse)

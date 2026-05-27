@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -326,3 +326,24 @@ class AdminTranslationModelResponse(BaseModel):
 
 class AdminTranslationModelUpdate(BaseModel):
     model: str
+
+
+class ChampionshipFilters(BaseModel):
+    cwe_ids: Optional[List[str]] = None
+    cvss_min: Optional[float] = None
+    cvss_max: Optional[float] = None
+    tags: Optional[List[str]] = None
+
+
+class ChampionshipGenerateRequest(BaseModel):
+    count: int = Field(default=1, ge=1, le=5)
+    mode: Literal["explicit", "filter"] = "filter"
+    kb_entry_ids: Optional[List[int]] = None
+    filters: Optional[ChampionshipFilters] = None
+    base_difficulty: int = Field(default=8, ge=7, le=10)
+    model_key: Optional[str] = None
+
+
+class ChampionshipGenerateResponse(BaseModel):
+    created: List[int]
+    failed: List[dict]
