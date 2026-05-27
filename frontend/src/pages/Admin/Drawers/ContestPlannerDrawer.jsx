@@ -20,6 +20,16 @@ const initialContestState = {
   leaderboard_visible: true,
 };
 
+const initialGenState = {
+  count: 1,
+  mode: 'filter',
+  base_difficulty: 8,
+  cvss_min: '',
+  cvss_max: '',
+  cwe_ids: '',
+  tags: '',
+};
+
 function ContestPlannerDrawer({ open, onClose, onCreated, onUpdated, contestId }) {
   const [form, setForm] = useState(initialContestState);
   const [status, setStatus] = useState('idle');
@@ -28,6 +38,10 @@ function ContestPlannerDrawer({ open, onClose, onCreated, onUpdated, contestId }
   const [tasksLoading, setTasksLoading] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [loadingContest, setLoadingContest] = useState(false);
+  const [genModalOpen, setGenModalOpen] = useState(false);
+  const [genForm, setGenForm] = useState(initialGenState);
+  const [genStatus, setGenStatus] = useState('idle');
+  const [genResult, setGenResult] = useState(null);
 
   const isEditMode = Boolean(contestId);
 
@@ -127,6 +141,34 @@ function ContestPlannerDrawer({ open, onClose, onCreated, onUpdated, contestId }
   };
 
   const canSubmit = form.title.trim() && form.start_at && form.end_at && status !== 'sending';
+
+  const handleGenerateChampionship = async () => {
+    setGenStatus('sending');
+    setGenResult(null);
+    try {
+      const payload = {
+        count: Number(genForm.count) || 1,
+        mode: genForm.mode,
+        base_difficulty: Number(genForm.base_difficulty) || 8,
+      };
+      if (genForm.mode === 'filter') {
+        payload.filters = {
+          cvss_min: genForm.cvss_min ? parseFloat(genForm.cvss_min) : undefined,
+          cvss_max: genForm.cvss_max ? parseFloat(genForm.cvss_max) : undefined,
+          cwe_ids: genForm.cwe_ids ? genForm.cwe_ids.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+          tags: genForm.tags ? genForm.tags.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+        };
+      }
+      const result = await adminAPI.generateChampionshipTasks(contestId, payload);
+      setGenResult(result);
+      await loadContest();
+      await loadTasks();
+    } catch (err) {
+      setGenResult({ error: getApiErrorMessage(err, 'Ошибка генерации') });
+    } finally {
+      setGenStatus('idle');
+    }
+  };
 
   return (
     <Drawer
@@ -238,7 +280,134 @@ function ContestPlannerDrawer({ open, onClose, onCreated, onUpdated, contestId }
         </div>
 
         <div className="border-t border-white/[0.08] pt-5">
-          <div className="text-white text-[16px] mb-3">Задачи чемпионата</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-white text-[16px]">Задачи чемпионата</div>
+            {isEditMode && (
+              <button
+                type="button"
+                onClick={() => { setGenModalOpen(true); setGenResult(null); setGenForm(initialGenState); }}
+                className="text-[13px] px-3 py-1.5 rounded-[8px] bg-[#9B6BFF]/20 hover:bg-[#9B6BFF]/40 text-[#9B6BFF] transition-colors"
+              >
+                + Генерировать чемпионатные
+              </button>
+            )}
+          </div>
+
+          {genModalOpen && (
+            <div className="mb-4 p-4 rounded-[12px] border border-[#9B6BFF]/40 bg-[#9B6BFF]/5 space-y-3">
+              <div className="text-white text-[14px] font-medium">Генерация чемпионатных задач из CVE</div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-white/60 text-[12px] mb-1 block">Количество (1-5)</label>
+                  <input
+                    type="number" min="1" max="5"
+                    value={genForm.count}
+                    onChange={(e) => setGenForm((p) => ({ ...p, count: e.target.value }))}
+                    className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                  />
+                </div>
+                <div>
+                  <label className="text-white/60 text-[12px] mb-1 block">Сложность (7-10)</label>
+                  <input
+                    type="number" min="7" max="10"
+                    value={genForm.base_difficulty}
+                    onChange={(e) => setGenForm((p) => ({ ...p, base_difficulty: e.target.value }))}
+                    className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-white/60 text-[12px] mb-1 block">Источник CVE</label>
+                <div className="flex gap-2">
+                  {['filter', 'explicit'].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setGenForm((p) => ({ ...p, mode: m }))}
+                      className={`px-3 py-1 rounded-[6px] text-[12px] transition-colors ${genForm.mode === m ? 'bg-[#9B6BFF] text-white' : 'bg-white/[0.05] text-white/50 hover:text-white/80'}`}
+                    >
+                      {m === 'filter' ? 'По фильтрам' : 'По ID записей'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {genForm.mode === 'filter' && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-white/60 text-[12px] mb-1 block">CVSS мин</label>
+                      <input
+                        type="number" min="0" max="10" step="0.1"
+                        placeholder="напр. 7.0"
+                        value={genForm.cvss_min}
+                        onChange={(e) => setGenForm((p) => ({ ...p, cvss_min: e.target.value }))}
+                        className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-white/60 text-[12px] mb-1 block">CVSS макс</label>
+                      <input
+                        type="number" min="0" max="10" step="0.1"
+                        placeholder="напр. 10.0"
+                        value={genForm.cvss_max}
+                        onChange={(e) => setGenForm((p) => ({ ...p, cvss_max: e.target.value }))}
+                        className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-[12px] mb-1 block">CWE (через запятую)</label>
+                    <input
+                      type="text"
+                      placeholder="напр. CWE-89, CWE-79"
+                      value={genForm.cwe_ids}
+                      onChange={(e) => setGenForm((p) => ({ ...p, cwe_ids: e.target.value }))}
+                      className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-white/60 text-[12px] mb-1 block">Теги (через запятую)</label>
+                    <input
+                      type="text"
+                      placeholder="напр. sqli, xss, rce"
+                      value={genForm.tags}
+                      onChange={(e) => setGenForm((p) => ({ ...p, tags: e.target.value }))}
+                      className="w-full h-9 bg-white/[0.04] border border-white/[0.09] rounded-[8px] px-3 text-white/80 focus:outline-none focus:border-white/30 text-[13px]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {genResult && (
+                <div className={`text-[13px] px-3 py-2 rounded-[8px] ${genResult.error ? 'bg-red-500/10 text-red-300' : 'bg-green-500/10 text-green-300'}`}>
+                  {genResult.error
+                    ? genResult.error
+                    : `Создано задач: ${genResult.created?.length || 0}${genResult.failed?.length ? `, ошибок: ${genResult.failed.length}` : ''}`}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setGenModalOpen(false); setGenResult(null); }}
+                  className="flex-1 h-9 bg-white/[0.04] hover:bg-white/[0.08] text-white/70 rounded-[8px] text-[13px] transition-colors"
+                >
+                  Закрыть
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerateChampionship}
+                  disabled={genStatus === 'sending'}
+                  className="flex-1 h-9 bg-[#9B6BFF] hover:bg-[#8452FF] text-white rounded-[8px] text-[13px] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {genStatus === 'sending' ? 'Генерация...' : 'Генерировать'}
+                </button>
+              </div>
+            </div>
+          )}
           {tasksLoading ? (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (
