@@ -72,11 +72,10 @@ _TODAY_ENTRIES_SQL = """
     ORDER BY cvss_base_score DESC NULLS LAST, created_at DESC
 """
 
-_HIDE_TODAY_SQL = """
+_HIDE_NVD_SQL = """
     UPDATE kb_entries
     SET visible_in_kb_list = false
     WHERE source = 'nvd'
-      AND created_at >= :pipeline_start
       AND visible_in_kb_list = true
 """
 
@@ -95,9 +94,9 @@ async def _is_recently_completed() -> bool:
         return result.scalar() is not None
 
 
-async def _hide_today_entries(pipeline_start: datetime) -> int:
+async def _hide_all_nvd_entries() -> int:
     async with AsyncSessionLocal() as session:
-        result = await session.execute(text(_HIDE_TODAY_SQL), {"pipeline_start": pipeline_start})
+        result = await session.execute(text(_HIDE_NVD_SQL))
         await session.commit()
         return result.rowcount or 0
 
@@ -412,8 +411,8 @@ async def run_daily_pipeline(*, force: bool = False) -> dict:
         logger.error("daily_pipeline: NVD sync failed: %s", exc)
         return {"status": "error", "stage": "nvd_sync", "error": str(exc)}
 
-    hidden_count = await _hide_today_entries(pipeline_start)
-    logger.info("daily_pipeline: hid %d new NVD entries from public KB list", hidden_count)
+    hidden_count = await _hide_all_nvd_entries()
+    logger.info("daily_pipeline: hid %d NVD entries from public KB list", hidden_count)
 
     if not settings.DAILY_DIGEST_ENABLED:
         return {

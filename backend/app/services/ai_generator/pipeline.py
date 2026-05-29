@@ -215,6 +215,8 @@ async def run_pipeline(
     db: AsyncSession,
     cve_id: Optional[str] = None,
     topic: Optional[str] = None,
+    inject_rag: bool = True,
+    enable_self_test: bool = True,
 ) -> None:
     """
     Main pipeline entry point. Runs inside a BackgroundTask.
@@ -230,48 +232,56 @@ async def run_pipeline(
 
     # Построить контекст RAG в отдельной сессии, чтобы любая ошибка БД (например, отсутствующая таблица)
     # не могла прервать транзакцию сессии конвейера.
-    await _update_stage(db, batch_id, "rag_context")
+    # inject_rag=False skips RAG entirely (used by ablation experiments); production always True.
+    # NOTE: AsyncSessionLocal is imported here (not inside the `if inject_rag` block) because
+    # the feedback-context block below also uses it — keeping the import unconditional ensures
+    # the no_rag ablation does NOT accidentally disable the feedback loop too.
     from app.database import AsyncSessionLocal
     rag_context: RAGContext = RAGContext()
-    try:
-        async with AsyncSessionLocal() as rag_session:
-            rag_builder = RAGContextBuilder(rag_session)
-            rag_context = await rag_builder.build_context(
-                task_type=task_type,
-                difficulty=difficulty,
-                specific_cve=cve_id,
-                specific_topic=topic,
-            )
-    except Exception as exc:
-        logger.warning("RAG context builder failed, continuing without RAG: %s", exc)
-    rag_context_text = rag_context.to_prompt_section()
-    logger.info(
-        "RAG context: %d entries, query=%r",
-        len(rag_context.cve_entries), rag_context.query_text,
-    )
-    batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
-    batch = batch_result.scalar_one_or_none()
-    if batch:
-        batch.rag_context_ids = rag_context.entry_ids or None
-        batch.rag_query_text = rag_context.query_text or None
-        batch.rag_context_summary = rag_context_text[:500] if rag_context_text else None
-        batch.stage_meta = {
-            "rag_entries": len(rag_context.cve_entries),
-            "rag_required": settings.AI_GEN_REQUIRE_RAG,
-        }
-        await db.commit()
-        if settings.AI_GEN_REQUIRE_RAG and rag_context.is_empty:
-            from datetime import datetime, timezone
-            batch.status = "failed"
-            batch.current_stage = "failed"
-            batch.failure_reasons_summary = {
-                "failure_context": ["RAG context is required but no KB entries were loaded"],
-                "rag_query_text": rag_context.query_text,
+    rag_context_text: str = ""
+    if inject_rag:
+        await _update_stage(db, batch_id, "rag_context")
+        try:
+            async with AsyncSessionLocal() as rag_session:
+                rag_builder = RAGContextBuilder(rag_session)
+                rag_context = await rag_builder.build_context(
+                    task_type=task_type,
+                    difficulty=difficulty,
+                    specific_cve=cve_id,
+                    specific_topic=topic,
+                )
+        except Exception as exc:
+            logger.warning("RAG context builder failed, continuing without RAG: %s", exc)
+        rag_context_text = rag_context.to_prompt_section()
+        logger.info(
+            "RAG context: %d entries, query=%r",
+            len(rag_context.cve_entries), rag_context.query_text,
+        )
+        batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
+        batch = batch_result.scalar_one_or_none()
+        if batch:
+            batch.rag_context_ids = rag_context.entry_ids or None
+            batch.rag_query_text = rag_context.query_text or None
+            batch.rag_context_summary = rag_context_text[:500] if rag_context_text else None
+            batch.stage_meta = {
+                "rag_entries": len(rag_context.cve_entries),
+                "rag_required": settings.AI_GEN_REQUIRE_RAG,
             }
-            batch.completed_at = datetime.now(timezone.utc)
             await db.commit()
-            logger.error("Pipeline FAILED batch=%s: required RAG context is empty", batch_id)
-            return
+            if settings.AI_GEN_REQUIRE_RAG and rag_context.is_empty:
+                from datetime import datetime, timezone
+                batch.status = "failed"
+                batch.current_stage = "failed"
+                batch.failure_reasons_summary = {
+                    "failure_context": ["RAG context is required but no KB entries were loaded"],
+                    "rag_query_text": rag_context.query_text,
+                }
+                batch.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+                logger.error("Pipeline FAILED batch=%s: required RAG context is empty", batch_id)
+                return
+    else:
+        logger.info("RAG injection disabled (inject_rag=False; ablation experiment no_rag condition)")
 
     # Build feedback context from historical generations (few-shot examples)
     feedback_ctx = FeedbackContext()
@@ -352,7 +362,7 @@ async def run_pipeline(
 
             # Запустить двоичные проверки
             if spec is not None and not artifact.error:
-                checks = await validate(task_type, spec, artifact, rag_context)
+                checks = await validate(task_type, spec, artifact, rag_context, enable_self_test=enable_self_test)
             else:
                 from app.services.ai_generator.reward import RewardType
                 checks = [RewardCheck(

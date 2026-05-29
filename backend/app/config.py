@@ -181,6 +181,11 @@ class Settings(BaseSettings):
     AI_GEN_EMBEDDING_DIMENSION: int = 256
     AI_GEN_EMBEDDING_MAX_CHARS: int = 3500
 
+    # XSS self-test via Yandex Serverless Container (Playwright/Chromium)
+    AI_GEN_ENABLE_SELFTEST: bool = False
+    AI_GEN_SELFTEST_URL: str = ""
+    AI_GEN_SELFTEST_TIMEOUT_S: int = 20
+
     class Config:
         # Поддержка как backend/.env так и repo-root .env для паритета local/prod.
         env_file = (ENV_FILE_PATH, ROOT_ENV_FILE_PATH)

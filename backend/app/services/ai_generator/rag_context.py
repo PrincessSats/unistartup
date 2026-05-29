@@ -253,7 +253,15 @@ def _cvss_severity_label(score: float) -> str:
 def _vector_to_floats(vector: Any) -> Optional[list[float]]:
     if vector is None:
         return None
-    return [float(value) for value in vector]  # Преобразовать в список чисел
+    # Raw SQL (text()) queries return the pgvector column as a string like "[0.1,0.2,...]"
+    # because the result does not pass through the pgvector SQLAlchemy type adapter.
+    # Parse that string form; otherwise iterating it yields characters and float('[') fails.
+    if isinstance(vector, str):
+        s = vector.strip().strip("[]")
+        if not s:
+            return None
+        return [float(part) for part in s.split(",")]
+    return [float(value) for value in vector]  # Преобразовать в список чисел (ndarray/list)
 
 
 def _format_pgvector(vector: Any) -> str:
