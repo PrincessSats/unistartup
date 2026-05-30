@@ -293,24 +293,21 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
                 )
             except Exception as e:
                 detail_parts.append(f"[diag failed: {e}]")
+
+        # ── Baseline — SAME page, re-navigate WITHOUT payload. Under
+        #    --single-process Chromium, opening a second browser context after
+        #    closing the first kills the lone process (TargetClosedError);
+        #    a same-page re-navigation reuses the live renderer/frame and
+        #    re-runs the init script (resets window.__xss_fired=false). ───────
+        try:
+            await page.goto(base_url, timeout=8000, wait_until="domcontentloaded")
+            await page.wait_for_timeout(400)
+            if await _eval_sentinel(page):
+                baseline_safe = False
+        except Exception as exc:
+            detail_parts.append(f"baseline skipped ({type(exc).__name__})")
     finally:
         await ctx.close()
-
-    # ── Baseline (best-effort) — load WITHOUT payload in a fresh context. If the
-    #    runtime crashes on this second navigation we tolerate it and leave
-    #    baseline_safe=True rather than failing the whole self-test. ──────────
-    try:
-        ctx2 = await _make_routed_context()
-        try:
-            page2 = await ctx2.new_page()
-            await page2.goto(base_url, timeout=8000, wait_until="domcontentloaded")
-            await page2.wait_for_timeout(400)
-            if await _eval_sentinel(page2):
-                baseline_safe = False
-        finally:
-            await ctx2.close()
-    except Exception as exc:
-        detail_parts.append(f"baseline skipped ({type(exc).__name__})")
 
     detail = "; ".join(detail_parts) if detail_parts else (
         "no XSS signals detected" if not executed else ""
