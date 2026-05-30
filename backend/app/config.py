@@ -172,6 +172,12 @@ class Settings(BaseSettings):
 
     # AI Generator (GRPO pipeline) (нет английского текста)
     AI_GEN_NUM_VARIANTS: int = 5
+    # Cap concurrent in-flight LLM calls (generation + judge) within one process.
+    # 0 = unlimited (default; preserves production behavior). Set >0 to bound a
+    # process so several concurrent experiment runs stay under the Yandex session
+    # quota (e.g. 2 runs × cap 5 = 10). Shared across the gen fan-out and the judge
+    # fan-out so a single process never exceeds `cap` LLM sessions at once.
+    AI_GEN_MAX_CONCURRENT_LLM: int = 0
     AI_GEN_MAX_RETRIES: int = 2
     AI_GEN_MIN_REWARD_THRESHOLD: float = 0.6
     AI_GEN_BASE_TEMPERATURE: float = 0.7

@@ -53,6 +53,33 @@ _PROMPT_FILE_MAP: dict[str, str] = {
 
 _generator_client: Optional[OpenAI] = None
 
+# Shared concurrency cap for ALL LLM calls in this process (generation + judge).
+# Sized from settings.AI_GEN_MAX_CONCURRENT_LLM on first use. 0/absent = unlimited.
+# Lets several concurrent experiment processes stay under the Yandex session quota
+# (cap × n_processes ≤ quota) without throttling.
+_llm_semaphore: Optional[asyncio.Semaphore] = None
+_llm_sem_init = False
+
+
+def _get_llm_sem() -> Optional[asyncio.Semaphore]:
+    global _llm_semaphore, _llm_sem_init
+    if not _llm_sem_init:
+        limit = int(getattr(settings, "AI_GEN_MAX_CONCURRENT_LLM", 0) or 0)
+        _llm_semaphore = asyncio.Semaphore(limit) if limit > 0 else None
+        _llm_sem_init = True
+        if _llm_semaphore is not None:
+            logger.info("LLM concurrency cap active: max %d in-flight calls/process", limit)
+    return _llm_semaphore
+
+
+async def _bounded(coro):
+    """Await `coro` under the process-wide LLM semaphore (if one is configured)."""
+    sem = _get_llm_sem()
+    if sem is None:
+        return await coro
+    async with sem:
+        return await coro
+
 
 class PipelineError(RuntimeError):
     pass
@@ -318,14 +345,14 @@ async def run_pipeline(
         await _update_stage(db, batch_id, "spec_generation", {"num_variants": num_variants})
         temperatures = [base_temp + i * temp_step for i in range(num_variants)]
         generation_tasks = [
-            _generate_one_spec(
+            _bounded(_generate_one_spec(
                 task_type=task_type,
                 difficulty=difficulty,
                 temperature=temp,
                 failure_context=failure_context,
                 rag_context_text=rag_context_text,
                 feedback_text=feedback_text,
-            )
+            ))
             for temp in temperatures
         ]
         gen_results = await asyncio.gather(*generation_tasks, return_exceptions=True)
@@ -353,6 +380,9 @@ async def run_pipeline(
         variant_rewards: list[VariantReward] = []
         variant_data: list[dict] = []
 
+        # ── Phase A: binary validation for every variant (sequential — the XSS
+        #    self-test container is concurrency=1, so gathering wouldn't help there;
+        #    non-XSS checks are fast in-process). ─────────────────────────────────
         for i, ((spec, gen_err, temp, tok_in, tok_out, gen_ms), artifact) in enumerate(
             zip(specs_and_meta, artifacts)
         ):
@@ -376,26 +406,6 @@ async def run_pipeline(
             vr = VariantReward(variant_number=variant_counter, checks=checks)
             vr.compute()
 
-            # Запустить оценку качества LLM только для прошедших вариантов (экономит токены)
-            quality_score = None
-            quality_details = None
-            if vr.passed_all_binary and spec is not None:
-                await _update_stage(db, batch_id, "llm_quality_review", {"variant_number": variant_counter})
-                try:
-                    quality_score, quality_details = await review_variant(spec, task_type, difficulty)
-                    # Inject quality into checks for total_reward recalculation
-                    from app.services.ai_generator.reward import RewardType, REWARD_WEIGHTS
-                    q_weight = REWARD_WEIGHTS.get(task_type, {}).get(RewardType.QUALITY, 2.0)
-                    checks.append(RewardCheck(
-                        type=RewardType.QUALITY,
-                        score=quality_score,
-                        weight=q_weight,
-                        detail=f"LLM quality assessment: {quality_score:.3f}",
-                    ))
-                    vr.compute()  # recalculate with quality included
-                except Exception as exc:
-                    logger.warning("Quality review failed for variant %d: %s", i, exc)
-
             variant_rewards.append(vr)
             variant_data.append({
                 "spec": spec,
@@ -405,9 +415,45 @@ async def run_pipeline(
                 "tokens_input": tok_in,
                 "tokens_output": tok_out,
                 "generation_time_ms": gen_ms,
-                "quality_score": quality_score,
-                "quality_details": quality_details,
+                "quality_score": None,
+                "quality_details": None,
             })
+
+        # ── Phase B: LLM-as-judge quality review for variants that passed all
+        #    binary gates — run CONCURRENTLY (was sequential per variant). Same
+        #    model/prompts/scoring → identical quality; only the wall-clock of this
+        #    stage drops from sum() to max(). Peak concurrency = #passing ≤ N, which
+        #    only runs after generation finished, so it stays within the LLM quota. ─
+        review_idx = [
+            i for i, (vr, vd) in enumerate(zip(variant_rewards, variant_data))
+            if vr.passed_all_binary and vd["spec"] is not None
+        ]
+        if review_idx:
+            await _update_stage(db, batch_id, "llm_quality_review", {"count": len(review_idx)})
+            review_results = await asyncio.gather(
+                *[
+                    _bounded(review_variant(variant_data[i]["spec"], task_type, difficulty))
+                    for i in review_idx
+                ],
+                return_exceptions=True,
+            )
+            from app.services.ai_generator.reward import RewardType, REWARD_WEIGHTS
+            q_weight = REWARD_WEIGHTS.get(task_type, {}).get(RewardType.QUALITY, 2.0)
+            for i, res in zip(review_idx, review_results):
+                if isinstance(res, Exception):
+                    logger.warning("Quality review failed for variant %d: %s", i, res)
+                    continue
+                quality_score, quality_details = res
+                vr = variant_rewards[i]
+                vr.checks.append(RewardCheck(
+                    type=RewardType.QUALITY,
+                    score=quality_score,
+                    weight=q_weight,
+                    detail=f"LLM quality assessment: {quality_score:.3f}",
+                ))
+                vr.compute()  # recalculate with quality included
+                variant_data[i]["quality_score"] = quality_score
+                variant_data[i]["quality_details"] = quality_details
 
         # ── Шаг 5: Вычислить относительные преимущества группы ─────────────────────────
         await _update_stage(db, batch_id, "grpo_computation")
