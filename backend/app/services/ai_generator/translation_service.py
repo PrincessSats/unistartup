@@ -32,7 +32,7 @@ _ENRICHMENT_SYSTEM = (
 )
 
 _MODEL_URI_MAP = {
-    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
+    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v4-flash/latest",
     "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
     "qwen3": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.6-35b-a3b/latest",
 }

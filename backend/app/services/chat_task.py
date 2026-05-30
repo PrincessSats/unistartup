@@ -32,7 +32,7 @@ LLM_COMPLETION_RETRY_DELAYS_SECONDS = (0.25, 0.6)
 CHAT_ASSISTANT_REPLY_MAX_ROUNDS = 8
 CHAT_ASSISTANT_REPLY_RETRY_DELAYS_SECONDS = (0.35, 0.8, 1.3)
 CHAT_MODEL_REGISTRY: dict[str, Any] = {
-    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v32/latest",
+    "deepseek": lambda folder: f"gpt://{folder}/deepseek-v4-flash/latest",
     "qwen": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.5-35b-a3b-fp8/latest",
     "qwen3": lambda _: "gpt://b1goei423tq1phl6o0av/qwen3.6-35b-a3b/latest",
 }

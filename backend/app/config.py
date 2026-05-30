@@ -95,11 +95,11 @@ class Settings(BaseSettings):
         ),
     )
     ARTICLE_MODEL_ID: str = Field(
-        default="deepseek-v32",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("ARTICLE_MODEL_ID"),
     )
     TRANSLATION_MODEL_ID: str = Field(
-        default="deepseek-v32",
+        default="deepseek-v4-flash",
         validation_alias=AliasChoices("TRANSLATION_MODEL_ID"),
     )
     TRANSLATION_REASONING_EFFORT: str = Field(
@@ -278,9 +278,9 @@ class Settings(BaseSettings):
     @classmethod
     def normalize_model_ids(cls, value: Any) -> str:
         if value is None:
-            return "deepseek-v32"
+            return "deepseek-v4-flash"
         normalized = str(value).strip()
-        return normalized if normalized else "deepseek-v32"
+        return normalized if normalized else "deepseek-v4-flash"
 
     @field_validator("REFRESH_TOKEN_COOKIE_SAMESITE", mode="before")
     @classmethod

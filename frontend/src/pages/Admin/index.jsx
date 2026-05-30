@@ -202,7 +202,7 @@ function Admin() {
                 className="h-10 px-3 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white disabled:opacity-50 cursor-pointer appearance-none pr-7"
                 style={{ backgroundImage: 'none' }}
               >
-                <option value="deepseek" className="bg-[#1a1a2e] text-white">DeepSeek 3.2</option>
+                <option value="deepseek" className="bg-[#1a1a2e] text-white">DeepSeek V4 Flash</option>
                 <option value="qwen" className="bg-[#1a1a2e] text-white">Qwen 3.5</option>
                 <option value="qwen3" className="bg-[#1a1a2e] text-white">Qwen 3.6</option>
               </select>
@@ -221,7 +221,7 @@ function Admin() {
                 className="h-10 px-3 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white disabled:opacity-50 cursor-pointer appearance-none pr-7"
                 style={{ backgroundImage: 'none' }}
               >
-                <option value="deepseek" className="bg-[#1a1a2e] text-white">Platform: DeepSeek 3.2</option>
+                <option value="deepseek" className="bg-[#1a1a2e] text-white">Platform: DeepSeek V4 Flash</option>
                 <option value="qwen" className="bg-[#1a1a2e] text-white">Platform: Qwen 3.5</option>
                 <option value="qwen3" className="bg-[#1a1a2e] text-white">Platform: Qwen 3.6</option>
               </select>

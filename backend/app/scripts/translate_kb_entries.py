@@ -22,7 +22,7 @@ Examples:
     # Translate all entries without delay (faster, but may hit rate limits)
     python -m app.scripts.translate_kb_entries --delay 0
 
-Cost estimate (deepseek-v32 @ 0.5 RUB/1K tokens input + 0.5 RUB/1K tokens output):
+Cost estimate (deepseek-v4-flash @ 0.5 RUB/1K tokens input + 0.5 RUB/1K tokens output):
 - ~100 tokens in (title) + ~50 tokens out = 150 tokens for title
 - ~600 tokens in (summary 3000 chars) + ~300 tokens out = 900 tokens for summary
 - ~2000 tokens in (explainer 8000 chars) + ~1000 tokens out = 3000 tokens for explainer
@@ -138,7 +138,7 @@ async def translate_existing_entries(
     """
     Translate all kb_entries WHERE ru_title IS NULL OR ru_summary IS NULL OR ru_explainer IS NULL.
 
-    Translates FULL content: ru_title + ru_summary + ru_explainer using deepseek-v32.
+    Translates FULL content: ru_title + ru_summary + ru_explainer using deepseek-v4-flash.
 
     Args:
         dry_run: If True, only count entries without translating

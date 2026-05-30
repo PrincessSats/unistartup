@@ -16,7 +16,7 @@ from app.services.ai_generator.llm_retry import llm_call_with_retry
 
 logger = logging.getLogger(__name__)
 
-REVIEWER_MODEL_ID = "deepseek-v32"
+REVIEWER_MODEL_ID = "deepseek-v4-flash"
 REVIEWER_MODEL_VERSION = "latest"
 
 _reviewer_client: Optional[OpenAI] = None

@@ -41,7 +41,7 @@ from app.services.prompt_loader import load_prompt_text, PromptLoadError
 
 logger = logging.getLogger(__name__)
 
-GENERATOR_MODEL_ID = "deepseek-v32"
+GENERATOR_MODEL_ID = "deepseek-v4-flash"
 GENERATOR_MODEL_VERSION = "latest"
 
 _PROMPT_FILE_MAP: dict[str, str] = {

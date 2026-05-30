@@ -46,7 +46,7 @@ from app.services.ai_generator.prompt_safety import SafetyCheckResult
 
 logger = logging.getLogger(__name__)
 
-GENERATOR_MODEL_ID = "deepseek-v32"
+GENERATOR_MODEL_ID = "deepseek-v4-flash"
 GENERATOR_MODEL_VERSION = "latest"
 
 # Prompt file mapping for user variants (excludes chat_llm)
