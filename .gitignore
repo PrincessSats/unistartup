@@ -71,3 +71,9 @@ nvd_translation_cost_optimization_plan.md
 nvd_translation_cost_optimization_plan.md
 node_modules
 backend/migrations/seed_fake_users_and_solves.sql
+
+# Experiments (research output — CSVs, JSONs, ablation results)
+backend/experiments/
+
+# Local deployment guides (may contain real URLs / tokens)
+DEPLOY_SELFTEST.md

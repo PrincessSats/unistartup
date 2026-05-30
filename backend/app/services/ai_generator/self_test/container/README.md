@@ -73,8 +73,31 @@ AI_GEN_SELFTEST_TIMEOUT_S=20
 
 ## Notes
 
-- Container needs no outbound internet: HTML is passed inline via `data:` URI.
-- Single worker (`--workers 1`) — Playwright browser is single-threaded; Yandex
-  Serverless Containers handle parallelism by running multiple container instances.
-- Concurrency=1 per container instance ensures one Playwright context at a time.
-- Memory 1GB minimum for Chromium.
+- Container needs no outbound internet: requests are intercepted in Playwright —
+  the document is fulfilled from memory, all subresources are aborted.
+- Single worker (`--workers 1`); Yandex scales by running more container instances.
+- Deploy with `--cores 1 --memory 2GB --concurrency 1 --execution-timeout 30s`.
+
+## Hard-won Chromium-on-serverless gotchas (do not regress)
+
+These were each a separate failure during bring-up:
+
+1. **`--single-process` is REQUIRED.** Yandex Serverless caps processes/cgroup;
+   multi-process Chromium gets its renderer SIGKILL'd → "Target/Page crashed"
+   (no Chromium stderr, not a total-memory OOM). Single-process keeps the
+   renderer in-process. Same approach as sparticuz/chromium on AWS Lambda.
+   Launch args: `--no-sandbox --disable-setuid-sandbox --disable-dev-shm-usage
+   --disable-gpu --single-process --no-zygote`.
+2. **Relaunch + retry.** A single-process browser still dies occasionally,
+   leaving a stale handle → `TargetClosedError` on the next request. The server
+   checks `browser.is_connected()` and retries once with a fresh browser.
+3. **Playwright pin MUST equal the base image tag** (`v1.60.0` ⇒ `playwright==1.60.0`),
+   else "Executable doesn't exist".
+4. **Run as `pwuser`** (owns `/ms-playwright`, has `$HOME`); a custom
+   `--no-create-home` user crashes Chromium at launch ("exit status 3").
+5. **Image must be linux/amd64, single manifest.** Build with
+   `docker buildx build --platform linux/amd64 --provenance=false --sbom=false`.
+   Apple-Silicon arm64 or buildx manifest-list ⇒ opaque deploy "Internal error".
+6. **Page served via Playwright request interception** (virtual host
+   `http://ctf.local/`), not a `data:` URI (no query string / opaque-origin
+   cookies) and not a localhost server (reentrant fetch under concurrency=1).
