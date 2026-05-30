@@ -391,9 +391,11 @@ async def run_user_variant_pipeline(
                 if isinstance(artifact, Exception):
                     artifact = ArtifactResult(error=str(artifact))
                 
-                # Run binary checks
+                # Run binary checks (enable_self_test=True: XSS SOLVABILITY uses live
+                # Playwright/Chromium verdict from Yandex Serverless Container when
+                # AI_GEN_ENABLE_SELFTEST=true; falls back to static heuristic otherwise)
                 if spec is not None and not artifact.error:
-                    checks = await validate(task_type, spec, artifact, rag_context)
+                    checks = await validate(task_type, spec, artifact, rag_context, enable_self_test=True)
                 else:
                     from app.services.ai_generator.reward import RewardType
                     checks = [RewardCheck(

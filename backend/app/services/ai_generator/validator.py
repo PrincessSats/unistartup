@@ -233,6 +233,7 @@ async def validate(
     spec: dict[str, Any],
     artifact: ArtifactResult,
     rag_context: Optional[Any] = None,
+    enable_self_test: bool = True,
 ) -> list[RewardCheck]:
     """Dispatch to the appropriate validator for this task_type."""
     weights = REWARD_WEIGHTS.get(task_type, {})
@@ -242,7 +243,7 @@ async def validate(
     elif task_type == "forensics_image_metadata":
         checks = await _validate_forensics(spec, artifact, weights)
     elif task_type == "web_static_xss":
-        checks = _validate_xss(spec, artifact, weights)
+        checks = await _validate_xss(spec, artifact, weights, enable_self_test=enable_self_test)
     elif task_type == "chat_llm":
         checks = _validate_chat_llm(spec, artifact, weights)
     else:
@@ -513,10 +514,12 @@ async def _validate_forensics(
 
 # ── web_static_xss валидатор ──────────────────────────────────────────────────
 
-def _validate_xss(
+async def _validate_xss(
     spec: dict,
     artifact,  # ArtifactResult | None
     weights: dict[RewardType, float],
+    *,
+    enable_self_test: bool = True,
 ) -> list[RewardCheck]:
     checks: list[RewardCheck] = []
 
@@ -551,21 +554,73 @@ def _validate_xss(
         detail="HTML page uploaded" if functional_ok else "No artifact / upload failed",
     ))
 
-    # ── РАЗРЕШИМОСТЬ ───────────────────────────────────────────────────────────
+    # ── РАЗРЕШИМОСТЬ ── via Docker self-test (Playwright) when enabled ─────────
+    # Re-render the page from spec (same logic as artifact_creator, no S3 round-trip)
+    # so the container receives the authoritative HTML without needing S3 access.
+    from app.services.ai_generator.self_test.xss_selftest import run_xss_self_test
+    from app.config import settings as _settings
+
     payload = spec.get("payload_solution", "")
+    # These are substring patterns searched in the LLM-generated payload string —
+    # no code is executed here; "eval(" is a literal string to detect, not a call.
     xss_keywords = {"<script", "onerror", "onload", "alert(", "eval(", "document.", "window."}
-    solvable = any(kw in payload.lower() for kw in xss_keywords) and bool(flag)
+    static_solvable = any(kw in payload.lower() for kw in xss_keywords) and bool(flag)
+
+    solvability_score = 1.0 if static_solvable else 0.0
+    solvability_detail = (
+        "Payload contains XSS trigger (static heuristic)" if static_solvable
+        else f"Weak payload: {payload[:80]!r}"
+    )
+
+    if enable_self_test and format_ok and _settings.AI_GEN_ENABLE_SELFTEST:
+        try:
+            from app.services.ai_generator.xss_utils import render_xss_page
+            html = render_xss_page(spec)
+            result = await run_xss_self_test(html, spec)
+            if result.is_live:
+                # Use authoritative container verdict
+                if result.executed and result.flag_reachable:
+                    solvability_score = 1.0
+                    solvability_detail = f"Self-test PASS: {result.detail}"
+                else:
+                    solvability_score = 0.0
+                    solvability_detail = (
+                        f"Self-test FAIL: executed={result.executed} "
+                        f"flag_reachable={result.flag_reachable}; {result.detail}"
+                    )
+            else:
+                # Container unavailable — fall back to static heuristic; log degradation
+                logger.warning("XSS self-test fallback (not live): %s", result.detail)
+                solvability_detail = (
+                    f"Static heuristic (self-test fallback: {result.detail}); "
+                    + ("payload has XSS trigger" if static_solvable else f"weak payload: {payload[:60]!r}")
+                )
+        except Exception as exc:
+            logger.warning("XSS self-test exception, using static heuristic: %s", exc)
+            solvability_detail = (
+                f"Static heuristic (self-test error: {exc}); "
+                + ("payload has XSS trigger" if static_solvable else f"weak payload: {payload[:60]!r}")
+            )
+
     checks.append(RewardCheck(
         type=RewardType.SOLVABILITY,
-        score=1.0 if solvable else 0.0,
+        score=solvability_score,
         weight=_w(weights, RewardType.SOLVABILITY),
-        detail="Payload contains XSS trigger" if solvable else f"Weak payload: {payload[:80]!r}",
+        detail=solvability_detail,
     ))
 
     # ── НЕ_ТРИВИАЛЬНОСТЬ ────────────────────────────────────────────────────────
     description = (spec.get("description") or "").lower()
     title = (spec.get("title") or "").lower()
     trivial = (flag and flag.lower() in description) or (flag and flag.lower() in title)
+
+    # Additional: if self-test ran live and baseline is NOT safe, the page is
+    # exploitable without any payload — disqualify as trivial.
+    if (enable_self_test and format_ok and _settings.AI_GEN_ENABLE_SELFTEST
+            and "self-test" in solvability_detail.lower()):
+        if "baseline_safe=False" in solvability_detail or "baseline not safe" in solvability_detail.lower():
+            trivial = True
+
     checks.append(RewardCheck(
         type=RewardType.NON_TRIVIALITY,
         score=0.0 if trivial else 1.0,
