@@ -1,7 +1,9 @@
+import uuid
+
 from sqlalchemy import Column, BigInteger, Integer, Float, SmallInteger, Text, Boolean, ForeignKey, UniqueConstraint
-from sqlalchemy import true as sa_true
+from sqlalchemy import true as sa_true, text as sa_text
 from sqlalchemy.sql import func
-from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, JSONB, UUID
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 from app.database import Base
@@ -244,5 +246,27 @@ class PromptTemplate(Base):
     description = Column(Text)
     content = Column(Text, nullable=False)
     updated_by = Column(BigInteger, ForeignKey("users.id"))
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class ContestGenJob(Base):
+    """Background job state for the standalone championship-task generation page.
+
+    Persisted (not in-memory) so progress polling works across workers / PgBouncer,
+    mirroring the nvd_sync_log pattern.
+    """
+    __tablename__ = "contest_gen_jobs"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    created_by = Column(BigInteger, ForeignKey("users.id"))
+    status = Column(Text, nullable=False, server_default=sa_text("'running'"))  # running|completed|failed
+    total = Column(Integer, nullable=False, server_default=sa_text("0"))
+    completed = Column(Integer, nullable=False, server_default=sa_text("0"))
+    failed = Column(Integer, nullable=False, server_default=sa_text("0"))
+    params = Column(JSONB)
+    events = Column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    created_task_ids = Column(JSONB, nullable=False, server_default=sa_text("'[]'::jsonb"))
+    error = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

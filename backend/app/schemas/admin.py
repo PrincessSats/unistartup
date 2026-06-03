@@ -347,3 +347,19 @@ class ChampionshipGenerateRequest(BaseModel):
 class ChampionshipGenerateResponse(BaseModel):
     created: List[int]
     failed: List[dict]
+
+
+class ChampionshipGenStartResponse(BaseModel):
+    job_id: str
+    total: int
+
+
+class ChampionshipGenJobStatus(BaseModel):
+    id: str
+    status: str                       # running | completed | failed
+    total: int
+    completed: int
+    failed: int
+    events: List[dict]                # [{index, status, title, category, task_id, error}]
+    created_task_ids: List[int]
+    error: Optional[str] = None

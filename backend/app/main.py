@@ -15,6 +15,7 @@ from app.database import (
     ensure_auth_schema_compatibility,
     ensure_daily_pipeline_schema_compatibility,
     ensure_nvd_sync_schema_compatibility,
+    ensure_contest_gen_jobs_schema_compatibility,
     ensure_performance_indexes,
 )
 from app.security import security_headers_middleware
@@ -153,6 +154,8 @@ async def startup_tasks():
     await cleanup_stale_sync_logs()
     # Всегда выполняется — добавляет столбец referenced_cve_ids при необходимости (идемпотентно)
     await ensure_daily_pipeline_schema_compatibility()
+    # Всегда выполняется — таблица фоновых джоб генерации контестных задач (идемпотентно)
+    await ensure_contest_gen_jobs_schema_compatibility()
 
     if not settings.RUN_STARTUP_DB_MAINTENANCE:
         logger.info(

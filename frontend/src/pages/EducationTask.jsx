@@ -580,11 +580,6 @@ export default function EducationTask() {
               className="relative overflow-hidden px-6 pb-6 pt-4 md:px-8 md:pb-8 md:pt-6"
               style={{ background: 'linear-gradient(86.5deg, #563BA6 1.28%, #9F63FF 98.48%)' }}
             >
-              <img
-                src={heroVisual}
-                alt=""
-                className="pointer-events-none absolute right-0 top-0 h-full w-auto object-contain opacity-95"
-              />
 
               <button
                 type="button"

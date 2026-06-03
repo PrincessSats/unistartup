@@ -337,6 +337,37 @@ async def ensure_daily_pipeline_schema_compatibility() -> None:
     logger.info("Daily pipeline schema compatibility check completed")
 
 
+async def ensure_contest_gen_jobs_schema_compatibility() -> None:
+    """Create the contest_gen_jobs table used by the championship generation page.
+
+    Idempotent; runs on every startup so the standalone generation page works on
+    Yandex Cloud without a manual migration step.
+    """
+    statements = [
+        """
+        CREATE TABLE IF NOT EXISTS contest_gen_jobs (
+            id UUID PRIMARY KEY,
+            created_by BIGINT REFERENCES users(id),
+            status TEXT NOT NULL DEFAULT 'running',
+            total INTEGER NOT NULL DEFAULT 0,
+            completed INTEGER NOT NULL DEFAULT 0,
+            failed INTEGER NOT NULL DEFAULT 0,
+            params JSONB,
+            events JSONB NOT NULL DEFAULT '[]'::jsonb,
+            created_task_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+            error TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_contest_gen_jobs_created_at ON contest_gen_jobs(created_at DESC)",
+    ]
+    async with engine.begin() as conn:
+        for stmt in statements:
+            await conn.execute(text(stmt))
+    logger.info("Contest gen jobs schema compatibility check completed")
+
+
 async def ensure_performance_indexes() -> None:
     """
     Создает недостающие индексы для горячих запросов интерфейса.

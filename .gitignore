@@ -66,6 +66,9 @@ hermes.md
 explain.txt
 nvd_translation_cost_optimization_plan.md
 
+# Backend tests (excluded from repo)
+backend/tests/
+
 # Worktrees
 .worktrees/
 nvd_translation_cost_optimization_plan.md

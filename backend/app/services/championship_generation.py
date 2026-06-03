@@ -5,7 +5,14 @@ from typing import Any, Literal, Optional
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.contest import KBEntry
+from app.models.contest import (
+    KBEntry,
+    Task,
+    TaskFlag,
+    TaskMaterial,
+    TaskAuthorSolution,
+    LlmGeneration,
+)
 from app.services.task_generation import (
     _build_client,
     _strip_code_fence,
@@ -17,6 +24,24 @@ from app.services.task_generation import (
 
 class ChampionshipGenerationError(RuntimeError):
     pass
+
+
+_VALID_CATEGORIES = {"web", "pwn", "crypto", "re", "forensics", "misc", "osint", "mobile", "hardware", "cloud"}
+_VALID_ACCESS_TYPES = {"vpn", "vm", "link", "file", "chat", "just_flag"}
+
+
+def _coerce_access_type(value: Optional[str]) -> str:
+    value = (value or "").strip().lower()
+    return value if value in _VALID_ACCESS_TYPES else "just_flag"
+
+
+def _coerce_category(value: Optional[str]) -> str:
+    value = (value or "misc").strip().lower()
+    return value if value in _VALID_CATEGORIES else "misc"
+
+
+def _normalize_tags(raw_tags: Optional[list[str]]) -> list[str]:
+    return [tag.strip() for tag in (raw_tags or []) if tag and tag.strip()]
 
 
 def _format_kb_entries_for_prompt(kb_entries: list[KBEntry]) -> str:
@@ -80,6 +105,8 @@ def _run_championship_generation(
     base_difficulty: int,
     system_prompt: str,
     model_uri: str,
+    avoid_categories: Optional[list[str]] = None,
+    avoid_titles: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     from app.config import settings
 
@@ -93,6 +120,10 @@ def _run_championship_generation(
         "stage_count": stage_count,
         "kb_entries": kb_text,
     }
+    if avoid_categories:
+        user_payload["avoid_categories"] = sorted(set(avoid_categories))
+    if avoid_titles:
+        user_payload["avoid_titles"] = avoid_titles
 
     try:
         response = client.chat.completions.create(
@@ -137,6 +168,8 @@ async def generate_championship_task(
     base_difficulty: int,
     system_prompt: str,
     model_uri: str,
+    avoid_categories: Optional[list[str]] = None,
+    avoid_titles: Optional[list[str]] = None,
 ) -> dict[str, Any]:
     return await asyncio.to_thread(
         _run_championship_generation,
@@ -144,7 +177,107 @@ async def generate_championship_task(
         base_difficulty,
         system_prompt,
         model_uri,
+        avoid_categories,
+        avoid_titles,
     )
+
+
+async def materialize_championship_task(
+    db: AsyncSession,
+    *,
+    result: dict[str, Any],
+    base_difficulty: int,
+    created_by: Optional[int],
+) -> Task:
+    """Persist a generated championship payload as a draft Task (+ flags/materials/solution).
+
+    Does NOT attach the task to any contest and does NOT commit — the caller decides
+    whether to add a ContestTask row and when to commit. Returns the flushed Task.
+    """
+    payload = result["parsed"]
+    stages = payload.get("stages", []) or []
+    stage_1 = stages[0] if stages else {}
+    stage_1_access = _coerce_access_type(stage_1.get("access_type"))
+    stage_1_chat_prompt = (stage_1.get("chat_system_prompt_template") or "").strip() or None
+
+    difficulty = max(7, min(10, base_difficulty))
+    points = 100 + (difficulty - 1) * 50
+
+    task = Task(
+        title=(payload.get("title") or "Championship Task").strip(),
+        category=_coerce_category(payload.get("category")),
+        difficulty=difficulty,
+        points=points,
+        tags=_normalize_tags(payload.get("tags") or []),
+        language="ru",
+        story=payload.get("narrative") or stage_1.get("story"),
+        participant_description=stage_1.get("participant_description"),
+        state="draft",
+        task_kind="contest",
+        access_type=stage_1_access,
+        chat_system_prompt_template=stage_1_chat_prompt if stage_1_access == "chat" else None,
+        chat_user_message_max_chars=300,
+        chat_model_max_output_tokens=512,
+        chat_session_ttl_minutes=180,
+        llm_raw_response=payload,
+        kb_entry_id=(result.get("kb_entry_ids") or [None])[0],
+        created_by=created_by,
+    )
+    db.add(task)
+    await db.flush()
+
+    if payload.get("author_solution"):
+        db.add(TaskAuthorSolution(
+            task_id=task.id,
+            creation_solution=payload["author_solution"],
+        ))
+
+    for stage in stages:
+        flag_id = (stage.get("flag_id") or f"stage_{stage.get('index', 1)}").strip()
+        s_access = _coerce_access_type(stage.get("access_type"))
+        if s_access == "chat":
+            db.add(TaskFlag(
+                task_id=task.id,
+                flag_id=flag_id,
+                format="FLAG{8HEX}",
+                expected_value=None,
+                description=stage.get("title"),
+            ))
+        else:
+            db.add(TaskFlag(
+                task_id=task.id,
+                flag_id=flag_id,
+                format="FLAG{...}",
+                expected_value=(stage.get("expected_value") or "").strip(),
+                description=stage.get("title"),
+            ))
+
+        for mat in (stage.get("materials") or []):
+            mat_name = (mat.get("name") or "").strip()
+            if not mat_name:
+                continue
+            db.add(TaskMaterial(
+                task_id=task.id,
+                type=(mat.get("type") or "text").strip().lower(),
+                name=mat_name,
+                description=(mat.get("description") or "").strip() or None,
+                url=None,
+                storage_key=None,
+                meta={
+                    "stage_index": stage.get("index", 1),
+                    "role": mat.get("role", "primary"),
+                },
+            ))
+
+    db.add(LlmGeneration(
+        model=result.get("model"),
+        purpose="championship_task_generation",
+        input_payload={"kb_entry_ids": result.get("kb_entry_ids"), "base_difficulty": base_difficulty},
+        output_payload=payload,
+        created_by=created_by,
+    ))
+
+    return task
 
 
 async def select_kb_entry_clusters(
@@ -155,8 +288,14 @@ async def select_kb_entry_clusters(
     filters: Optional[dict],
     count: int,
     k_per_task: int = 3,
+    diversify: bool = False,
 ) -> list[list[KBEntry]]:
-    """Return `count` clusters, each containing up to k_per_task related KBEntry rows."""
+    """Return up to `count` clusters, each containing up to k_per_task related KBEntry rows.
+
+    When `diversify` is True, clusters are kept thematically distinct (no shared CWE/tag
+    between cluster seeds) and the result is NOT padded by cycling — so each generated task
+    has a different theme. When False, the legacy behavior pads to exactly `count` by cycling.
+    """
     if mode == "explicit" and kb_entry_ids:
         rows = (
             await db.execute(select(KBEntry).where(KBEntry.id.in_(kb_entry_ids)))
@@ -170,6 +309,8 @@ async def select_kb_entry_clusters(
                 clusters.append(chunk)
         if not clusters:
             raise ChampionshipGenerationError("Could not form clusters from provided IDs")
+        if diversify:
+            return clusters[:count]
         return [clusters[i % len(clusters)] for i in range(count)]
 
     # Filter mode
@@ -244,15 +385,25 @@ async def select_kb_entry_clusters(
 
     used_ids: set[int] = set()
     result_clusters: list[list[KBEntry]] = []
+    chosen_signatures: list[tuple[set, set]] = []
 
     for seed_entry in all_entries:
         if seed_entry.id in used_ids or len(result_clusters) >= count:
             continue
-        cluster: list[KBEntry] = [seed_entry]
-        used_ids.add(seed_entry.id)
 
         seed_cwes = set(seed_entry.cwe_ids or [])
         seed_tags = set(seed_entry.tags or [])
+
+        # Diversify: skip a seed whose theme (CWE/tag) overlaps an already-chosen cluster,
+        # so the N clusters yield N distinct task themes (no crypto+crypto in one batch).
+        if diversify and any(
+            (seed_cwes & sig_cwes) or (seed_tags & sig_tags)
+            for sig_cwes, sig_tags in chosen_signatures
+        ):
+            continue
+
+        cluster: list[KBEntry] = [seed_entry]
+        used_ids.add(seed_entry.id)
 
         for candidate in all_entries:
             if candidate.id in used_ids or len(cluster) >= k_per_task:
@@ -264,8 +415,11 @@ async def select_kb_entry_clusters(
                 used_ids.add(candidate.id)
 
         result_clusters.append(cluster)
+        chosen_signatures.append((seed_cwes, seed_tags))
 
     if not result_clusters:
         raise ChampionshipGenerationError("Could not form any valid KB entry clusters from filters")
 
+    if diversify:
+        return result_clusters[:count]
     return [result_clusters[i % len(result_clusters)] for i in range(count)]

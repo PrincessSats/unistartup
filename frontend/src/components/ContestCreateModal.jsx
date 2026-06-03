@@ -1,61 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import ContestPlannerDrawer from '../pages/Admin/Drawers/ContestPlannerDrawer';
 
 export default function ContestCreateModal({ isOpen, contestId, onClose, onSuccess }) {
-  const [showDrawer, setShowDrawer] = useState(isOpen);
-
-  useEffect(() => {
-    setShowDrawer(isOpen);
-  }, [isOpen]);
-
-  if (!showDrawer) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center">
-      {/* Фон модалки закрывается по клику */}
-      <div
-        className="absolute inset-0"
-        onClick={() => {
-          setShowDrawer(false);
-          onClose();
-        }}
-      />
-
-      {/* Содержимое модалки */}
-      <div className="relative z-50 bg-slate-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
-        {/* Кнопка закрытия */}
-        <button
-          onClick={() => {
-            setShowDrawer(false);
-            onClose();
-          }}
-          className="absolute top-4 right-4 text-slate-400 hover:text-white transition"
-        >
-          ✕
-        </button>
-
-        {/* Используем существующий компонент ContestPlannerDrawer */}
-        <div className="p-6">
-          <ContestPlannerDrawer
-            open={true}
-            contestId={contestId}
-            onCreated={() => {
-              setShowDrawer(false);
-              onClose();
-              onSuccess?.();
-            }}
-            onUpdated={() => {
-              setShowDrawer(false);
-              onClose();
-              onSuccess?.();
-            }}
-            onClose={() => {
-              setShowDrawer(false);
-              onClose();
-            }}
-          />
-        </div>
-      </div>
-    </div>
+    <ContestPlannerDrawer
+      open={isOpen}
+      contestId={contestId}
+      onClose={onClose}
+      onCreated={() => { onClose(); onSuccess?.(); }}
+      onUpdated={() => { onClose(); onSuccess?.(); }}
+    />
   );
 }

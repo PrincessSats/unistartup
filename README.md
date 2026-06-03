@@ -84,7 +84,6 @@ unistartup/
 │   │   ├── scripts/            Разовые скрипты (migrations, backfill)
 │   │   └── prompts/            Шаблоны промптов в коде
 │   ├── migrations/             Миграции БД
-│   ├── tests/                  Backend-тесты
 │   ├── Dockerfile              Образ для деплоя (port 8080)
 │   ├── requirements.txt        Python-зависимости
 │   └── .env.example            Шаблон переменных окружения
@@ -301,10 +300,6 @@ REACT_APP_API_BASE_URL=http://localhost:8000 npm start
 ## Тесты
 
 ```bash
-# Backend
-cd backend
-python -m unittest discover -s tests -p "test_*.py"
-
 # Frontend
 cd frontend
 npm test

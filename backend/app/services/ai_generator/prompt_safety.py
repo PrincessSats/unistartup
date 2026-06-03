@@ -31,11 +31,11 @@ class PromptSafetyChecker:
 
     # Английские паттерны инъекции
     INJECTION_PATTERNS_EN = [
-        r"ignore\s+(previous|all|the)\s+(instructions|rules|constraints|guidelines)",
-        r"disregard\s+(previous|all|the)\s+(instructions|rules)",
-        r"bypass\s+(security|rules|filters|restrictions|safety)",
+        r"ignore\s+(\w+\s+){0,3}(instructions|rules|constraints|guidelines)",
+        r"disregard\s+(\w+\s+){0,2}(instructions|rules|guidelines|constraints)",
+        r"bypass\s+(\w+\s+)?(security|rules|filters|restrictions|safety)",
         r"you\s+are\s+now\s+(free|unrestricted|liberated|in\s+developer\s+mode)",
-        r"forget\s+(all|your)\s+(rules|instructions|constraints|programming)",
+        r"forget\s+(\w+\s+){0,2}(rules|instructions|constraints|programming)",
         r"system\s+prompt|system\s+message|initial\s+instructions",
         r"developer\s+mode|debug\s+mode|debugging\s+mode",
         r"sudo\s+make\s+me\s+a\s+sandwich",  # Classic xkcd reference
@@ -64,7 +64,7 @@ class PromptSafetyChecker:
     FLAG_PATTERNS = [
         r"CTF\{[^}]+\}",  # Standard flag format
         r"flag\s*[=:]\s*[A-Za-z0-9_]+",
-        r"флаг\s*[=:]\s*[A-Za-z0-9_]+",
+        r"флаг\s*[=:]\s*\S+",
     ]
 
     # Паттерны SQL injection
@@ -127,62 +127,62 @@ class PromptSafetyChecker:
                 sanitized_request="",
             )
 
-        # Проверить паттерны инъекции (английский)
+        # Проверить длину на RAW входе (до санитизации)
+        if len(user_request) > 200:
+            return SafetyCheckResult(
+                is_safe=False,
+                rejection_reason="Запрос слишком длинный (максимум 200 символов)",
+                sanitized_request="",
+            )
+
+        # Санитизировать ПЕРВЫМ (удалить zero-width chars перед проверкой паттернов)
+        sanitized = self._sanitize_request(user_request)
+
+        # Проверить паттерны инъекции (английский) на санитизированном
         for regex in self.injection_regex_en:
-            if regex.search(user_request):
+            if regex.search(sanitized):
                 return SafetyCheckResult(
                     is_safe=False,
                     rejection_reason="Обнаружена попытка обхода инструкций (EN)",
                     sanitized_request="",
                 )
 
-        # Проверить паттерны инъекции (русский)
+        # Проверить паттерны инъекции (русский) на санитизированном
         for regex in self.injection_regex_ru:
-            if regex.search(user_request):
+            if regex.search(sanitized):
                 return SafetyCheckResult(
                     is_safe=False,
                     rejection_reason="Обнаружена попытка обхода инструкций (RU)",
                     sanitized_request="",
                 )
 
-        # Проверить инъекцию формата флага
+        # Проверить инъекцию формата флага на санитизированном
         for regex in self.flag_regex:
-            if regex.search(user_request):
+            if regex.search(sanitized):
                 return SafetyCheckResult(
                     is_safe=False,
                     rejection_reason="Формат флага в запросе запрещён",
                     sanitized_request="",
                 )
 
-        # Проверить SQL injection
+        # Проверить SQL injection на санитизированном
         for regex in self.sql_regex:
-            if regex.search(user_request):
+            if regex.search(sanitized):
                 return SafetyCheckResult(
                     is_safe=False,
                     rejection_reason="Обнаружен SQL injection паттерн",
                     sanitized_request="",
                 )
 
-        # Проверить попытки выполнения кода
+        # Проверить попытки выполнения кода на санитизированном
         for regex in self.code_exec_regex:
-            if regex.search(user_request):
+            if regex.search(sanitized):
                 return SafetyCheckResult(
                     is_safe=False,
                     rejection_reason="Обнаружена попытка выполнения кода",
                     sanitized_request="",
                 )
 
-        # Очистить: удалить потенциально опасные символы, но сохранить смысл
-        sanitized = self._sanitize_request(user_request)
-        
-        # Length check (reasonable limit)
-        if len(sanitized) > 200:
-            return SafetyCheckResult(
-                is_safe=False,
-                rejection_reason="Запрос слишком длинный (максимум 200 символов)",
-                sanitized_request="",
-            )
-        
         return SafetyCheckResult(
             is_safe=True,
             rejection_reason=None,

@@ -2,138 +2,6 @@ import React, { useState } from 'react';
 import ContestCreateModal from '../../../components/ContestCreateModal';
 import { adminAPI } from '../../../services/api';
 
-const initialGenState = {
-  count: 1,
-  mode: 'filter',
-  base_difficulty: 8,
-  cvss_min: '',
-  cvss_max: '',
-  cwe_ids: '',
-  tags: '',
-};
-
-function ChampionshipGenModal({ contestId, onClose, onSuccess }) {
-  const [form, setForm] = useState(initialGenState);
-  const [status, setStatus] = useState('idle');
-  const [result, setResult] = useState(null);
-
-  const handleSubmit = async () => {
-    setStatus('sending');
-    setResult(null);
-    try {
-      const payload = {
-        count: Number(form.count) || 1,
-        mode: form.mode,
-        base_difficulty: Number(form.base_difficulty) || 8,
-      };
-      if (form.mode === 'filter') {
-        payload.filters = {
-          cvss_min: form.cvss_min ? parseFloat(form.cvss_min) : undefined,
-          cvss_max: form.cvss_max ? parseFloat(form.cvss_max) : undefined,
-          cwe_ids: form.cwe_ids ? form.cwe_ids.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-          tags: form.tags ? form.tags.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
-        };
-      }
-      const res = await adminAPI.generateChampionshipTasks(contestId, payload);
-      setResult(res);
-      if (res.created?.length > 0) onSuccess?.();
-    } catch (err) {
-      const detail = err?.response?.data?.detail;
-      setResult({ error: typeof detail === 'string' ? detail : 'Ошибка генерации' });
-    } finally {
-      setStatus('idle');
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-slate-900 border border-slate-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 p-6 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="text-white font-semibold text-lg">Генерация чемпионатных задач</div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition text-xl leading-none">✕</button>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-slate-400 text-xs mb-1 block">Количество (1–5)</label>
-            <input type="number" min="1" max="5" value={form.count}
-              onChange={(e) => setForm((p) => ({ ...p, count: e.target.value }))}
-              className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-          </div>
-          <div>
-            <label className="text-slate-400 text-xs mb-1 block">Сложность (7–10)</label>
-            <input type="number" min="7" max="10" value={form.base_difficulty}
-              onChange={(e) => setForm((p) => ({ ...p, base_difficulty: e.target.value }))}
-              className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-slate-400 text-xs mb-1 block">Источник CVE</label>
-          <div className="flex gap-2">
-            {[['filter', 'По фильтрам'], ['explicit', 'По ID записей']].map(([m, label]) => (
-              <button key={m} type="button" onClick={() => setForm((p) => ({ ...p, mode: m }))}
-                className={`px-3 py-1.5 rounded-lg text-xs transition ${form.mode === m ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {form.mode === 'filter' && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-slate-400 text-xs mb-1 block">CVSS мин</label>
-                <input type="number" min="0" max="10" step="0.1" placeholder="напр. 7.0"
-                  value={form.cvss_min} onChange={(e) => setForm((p) => ({ ...p, cvss_min: e.target.value }))}
-                  className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-              </div>
-              <div>
-                <label className="text-slate-400 text-xs mb-1 block">CVSS макс</label>
-                <input type="number" min="0" max="10" step="0.1" placeholder="напр. 10.0"
-                  value={form.cvss_max} onChange={(e) => setForm((p) => ({ ...p, cvss_max: e.target.value }))}
-                  className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-              </div>
-            </div>
-            <div>
-              <label className="text-slate-400 text-xs mb-1 block">CWE (через запятую)</label>
-              <input type="text" placeholder="напр. CWE-89, CWE-79" value={form.cwe_ids}
-                onChange={(e) => setForm((p) => ({ ...p, cwe_ids: e.target.value }))}
-                className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-            <div>
-              <label className="text-slate-400 text-xs mb-1 block">Теги (через запятую)</label>
-              <input type="text" placeholder="напр. sqli, xss, rce" value={form.tags}
-                onChange={(e) => setForm((p) => ({ ...p, tags: e.target.value }))}
-                className="w-full h-9 bg-slate-800 border border-slate-600 rounded-lg px-3 text-white text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-          </div>
-        )}
-
-        {result && (
-          <div className={`text-sm px-3 py-2 rounded-lg ${result.error ? 'bg-red-900/30 text-red-300 border border-red-700/50' : 'bg-green-900/30 text-green-300 border border-green-700/50'}`}>
-            {result.error
-              ? result.error
-              : `✓ Создано задач: ${result.created?.length || 0}${result.failed?.length ? ` · ошибок: ${result.failed.length}` : ''}`}
-          </div>
-        )}
-
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onClose}
-            className="flex-1 h-10 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition">
-            Закрыть
-          </button>
-          <button type="button" onClick={handleSubmit} disabled={status === 'sending'}
-            className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
-            {status === 'sending' ? 'Генерация...' : 'Генерировать'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const getStatusBadge = (contest) => {
   const now = new Date();
   const startAt = new Date(contest.start_at);
@@ -150,7 +18,6 @@ const getStatusBadge = (contest) => {
 
 export default function ContestCard({ contest, isCurrent, onEditSuccess, onDeleteSuccess }) {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isGenModalOpen, setIsGenModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showActionMenu, setShowActionMenu] = useState(false);
   const status = getStatusBadge(contest);
@@ -234,16 +101,6 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
                   ✏️ Редактировать
                 </button>
 
-                <button
-                  onClick={() => {
-                    setIsGenModalOpen(true);
-                    setShowActionMenu(false);
-                  }}
-                  className="w-full text-left px-4 py-2 hover:bg-slate-800 text-blue-300 transition border-t border-slate-700"
-                >
-                  ⚡ Генерировать задачи
-                </button>
-
                 {isActive && (
                   <button
                     onClick={handleEndNow}
@@ -319,14 +176,6 @@ export default function ContestCard({ contest, isCurrent, onEditSuccess, onDelet
         />
       )}
 
-      {/* Модальное окно генерации чемпионатных задач */}
-      {isGenModalOpen && (
-        <ChampionshipGenModal
-          contestId={contest.id}
-          onClose={() => setIsGenModalOpen(false)}
-          onSuccess={() => onEditSuccess?.()}
-        />
-      )}
     </>
   );
 }

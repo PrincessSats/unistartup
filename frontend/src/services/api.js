@@ -788,6 +788,14 @@ export const adminAPI = {
     );
     return response.data;
   },
+  startChampionshipGeneration: async (payload) => {
+    const response = await api.post('/admin/championship-tasks/generate', payload);
+    return response.data;
+  },
+  getChampionshipGenJob: async (jobId) => {
+    const response = await api.get(`/admin/championship-tasks/jobs/${jobId}`);
+    return response.data;
+  },
   createArticle: async (payload) => {
     const response = await api.post('/admin/kb_entries', payload);
     return response.data;
