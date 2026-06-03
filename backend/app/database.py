@@ -23,6 +23,11 @@ engine = create_async_engine(
     # Переиспользование подключений из пула периодически для снижения ошибок "connection is closed"
     # от timeout'ов неактивности upstream (PG/pgbouncer/network).
     pool_recycle=300,
+    # Явный размер пула: дефолт SQLAlchemy (5) исчерпывается под нагрузкой и
+    # запросы встают в очередь за свободным соединением. Настраивается через env.
+    pool_size=settings.DB_POOL_SIZE,
+    max_overflow=settings.DB_MAX_OVERFLOW,
+    pool_timeout=settings.DB_POOL_TIMEOUT,
 )
 
 # Фабрика для создания сессий (сессия = временное подключение к БД)

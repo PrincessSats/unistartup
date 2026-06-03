@@ -158,56 +158,37 @@ async def admin_panel(
     """
     _user, _profile = current_user_data
 
-    total_users = (await db.execute(text("SELECT COUNT(*) FROM users"))).scalar_one() or 0
-    real_users = (
+    # Все метрики-счётчики независимы; один round-trip с подзапросами вместо 5 отдельных
+    # запросов (на одной AsyncSession их нельзя выполнять параллельно).
+    metrics_row = (
         await db.execute(
             text(
                 """
-                SELECT COUNT(*)
-                FROM users
-                WHERE email NOT LIKE '%@seed.local'
+                SELECT
+                  (SELECT COUNT(*) FROM users) AS total_users,
+                  (SELECT COUNT(*) FROM users
+                     WHERE email NOT LIKE '%@seed.local') AS real_users,
+                  (SELECT COUNT(*) FROM user_profiles
+                     WHERE last_login IS NOT NULL
+                       AND last_login >= now() - INTERVAL '24 hours') AS active_users,
+                  (SELECT COUNT(DISTINCT ut.user_id)
+                     FROM user_tariffs ut
+                     JOIN tariff_plans tp ON tp.id = ut.tariff_id
+                     WHERE tp.code <> 'FREE'
+                       AND ut.is_promo IS FALSE
+                       AND ut.valid_from <= now()
+                       AND (ut.valid_to IS NULL OR ut.valid_to > now())) AS paid_users,
+                  (SELECT COUNT(*) FROM user_profiles
+                     WHERE sub_request = TRUE) AS pro_requests
                 """
             )
         )
-    ).scalar_one() or 0
-    active_users = (
-        await db.execute(
-            text(
-                """
-                SELECT COUNT(*)
-                FROM user_profiles
-                WHERE last_login IS NOT NULL
-                  AND last_login >= now() - INTERVAL '24 hours'
-                """
-            )
-        )
-    ).scalar_one() or 0
-    paid_users = (
-        await db.execute(
-            text(
-                """
-                SELECT COUNT(DISTINCT ut.user_id)
-                FROM user_tariffs ut
-                JOIN tariff_plans tp ON tp.id = ut.tariff_id
-                WHERE tp.code <> 'FREE'
-                  AND ut.is_promo IS FALSE
-                  AND ut.valid_from <= now()
-                  AND (ut.valid_to IS NULL OR ut.valid_to > now())
-                """
-            )
-        )
-    ).scalar_one() or 0
-    pro_requests = (
-        await db.execute(
-            text(
-                """
-                SELECT COUNT(*)
-                FROM user_profiles
-                WHERE sub_request = TRUE
-                """
-            )
-        )
-    ).scalar_one() or 0
+    ).mappings().one()
+    total_users = metrics_row["total_users"] or 0
+    real_users = metrics_row["real_users"] or 0
+    active_users = metrics_row["active_users"] or 0
+    paid_users = metrics_row["paid_users"] or 0
+    pro_requests = metrics_row["pro_requests"] or 0
 
     contest_row = (
         await db.execute(

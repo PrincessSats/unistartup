@@ -41,9 +41,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run backend unit tests
+        env:
+          # Importing the app package eagerly builds Settings() (app/config.py),
+          # which requires these. Dummy values let discovery import modules in CI;
+          # no real DB connection is opened at import time.
+          DB_HOST: localhost
+          DB_NAME: ci
+          DB_USER: ci
+          DB_PASSWORD: ci
+          SECRET_KEY: ci-test-secret
         run: |
           set -euo pipefail
-          python -m unittest discover -s tests -p "test_*.py"
+          python -m unittest discover -s . -p "test_*.py"
 
       - name: Validate backend Docker build
         run: |

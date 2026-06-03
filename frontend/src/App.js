@@ -1,29 +1,32 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+// Критичные для первого рендера экраны грузим сразу; остальное — по требованию (code-splitting),
+// чтобы начальный бандл не тащил все 16 страниц (включая админку, которую обычный юзер не видит).
 import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import AuthBridge from './pages/AuthBridge';
-import TelegramAuth from './pages/TelegramAuth';
-import Profile from './pages/Profile';
-import Championship from './pages/Championship';
-import Knowledge from './pages/Knowledge';
-import KnowledgeArticle from './pages/KnowledgeArticle';
-import Education from './pages/Education';
-import EducationTask from './pages/EducationTask';
 import Home from './pages/Home';
-import Rating from './pages/Rating';
-import Admin from './pages/Admin/index.jsx';
-import ContestManager from './pages/Admin/ContestManager/index.jsx';
-import ContestTasksGen from './pages/Admin/ContestTasksGen/index.jsx';
-import Pipeline from './pages/Pipeline';
-import CvePipeline from './pages/CvePipeline';
-import NvdSync from './pages/NvdSync/index.jsx';
 import Layout from './components/Layout';
 import { FullScreenLoader } from './components/LoadingState';
 import { authAPI } from './services/api';
 import MobileBlock from './components/MobileBlock';
+
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const AuthBridge = lazy(() => import('./pages/AuthBridge'));
+const TelegramAuth = lazy(() => import('./pages/TelegramAuth'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Championship = lazy(() => import('./pages/Championship'));
+const Knowledge = lazy(() => import('./pages/Knowledge'));
+const KnowledgeArticle = lazy(() => import('./pages/KnowledgeArticle'));
+const Education = lazy(() => import('./pages/Education'));
+const EducationTask = lazy(() => import('./pages/EducationTask'));
+const Rating = lazy(() => import('./pages/Rating'));
+const Admin = lazy(() => import('./pages/Admin/index.jsx'));
+const ContestManager = lazy(() => import('./pages/Admin/ContestManager/index.jsx'));
+const ContestTasksGen = lazy(() => import('./pages/Admin/ContestTasksGen/index.jsx'));
+const Pipeline = lazy(() => import('./pages/Pipeline'));
+const CvePipeline = lazy(() => import('./pages/CvePipeline'));
+const NvdSync = lazy(() => import('./pages/NvdSync/index.jsx'));
 
 function useMobileDetect() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
@@ -125,6 +128,7 @@ function App() {
   return (
     <BrowserRouter>
       <MetrikaPageTracker />
+      <Suspense fallback={<FullScreenLoader label="Загрузка..." />}>
       <Routes>
         <Route path="/" element={<Navigate to="/home" replace />} />
 
@@ -156,6 +160,7 @@ function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
