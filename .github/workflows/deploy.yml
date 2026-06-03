@@ -117,6 +117,7 @@ jobs:
           BACKEND_MEMORY: ${{ secrets.BACKEND_MEMORY }}
           BACKEND_CONCURRENCY: ${{ secrets.BACKEND_CONCURRENCY }}
           BACKEND_EXECUTION_TIMEOUT: ${{ secrets.BACKEND_EXECUTION_TIMEOUT }}
+          BACKEND_MIN_INSTANCES: ${{ secrets.BACKEND_MIN_INSTANCES }}
           TRANSLATION_MODEL_ID: ${{ secrets.TRANSLATION_MODEL_ID }}
           TRANSLATION_REASONING_EFFORT: ${{ secrets.TRANSLATION_REASONING_EFFORT }}
           ARTICLE_MODEL_ID: ${{ secrets.ARTICLE_MODEL_ID }}
@@ -139,6 +140,9 @@ jobs:
           MEMORY="${BACKEND_MEMORY:-8192MB}"
           CONCURRENCY="${BACKEND_CONCURRENCY:-16}"
           EXECUTION_TIMEOUT="${BACKEND_EXECUTION_TIMEOUT:-1800s}"
+          # Держим >=1 тёплый инстанс, чтобы убрать холодные старты (главная причина "тормозит загрузка").
+          # Provisioned-инстансы тарифицируются непрерывно — задаётся через секрет BACKEND_MIN_INSTANCES.
+          MIN_INSTANCES="${BACKEND_MIN_INSTANCES:-1}"
           CORS_ORIGIN_REGEX='^https://(www\.)?hacknet\.tech$|^https://[a-zA-Z0-9-]+\.(website|storage)\.yandexcloud\.net$'
 
           ENV_VARS="DB_HOST=${{ secrets.DB_HOST }},DB_PORT=${{ secrets.DB_PORT }},DB_NAME=${{ secrets.DB_NAME }},DB_USER=${{ secrets.DB_USER }},DB_PASSWORD=${{ secrets.DB_PASSWORD }},SECRET_KEY=${{ secrets.SECRET_KEY }},SQL_ECHO=false,CORS_ALLOW_CREDENTIALS=true,CORS_ALLOW_ORIGINS=https://hacknet.tech,CORS_ALLOW_ORIGIN_REGEX=${CORS_ORIGIN_REGEX},REFRESH_TOKEN_COOKIE_SECURE=true,REFRESH_TOKEN_COOKIE_SAMESITE=none,S3_ACCESS_KEY=${{ secrets.S3_ACCESS_KEY }},S3_SECRET_KEY=${{ secrets.S3_SECRET_KEY }},S3_BUCKET_NAME=${{ secrets.S3_BUCKET_NAME }},S3_TASK_BUCKET_NAME=${{ secrets.S3_TASK_BUCKET_NAME }},S3_ENDPOINT_URL=${{ secrets.S3_ENDPOINT_URL }},S3_REGION=${{ secrets.S3_REGION }},YANDEX_CLOUD_API_KEY=${YANDEX_CLOUD_API_KEY},YANDEX_CLOUD_FOLDER=${YANDEX_CLOUD_FOLDER},YANDEX_CLIENT_ID=${YANDEX_CLIENT_ID},YANDEX_CLIENT_SECRET=${YANDEX_CLIENT_SECRET},CLIENT_GIT=${CLIENT_GIT},CLIENT_GIT_SECRET=${CLIENT_GIT_SECRET},TG_BOT_API_TOKEN=${TG_BOT_API_TOKEN},TG_CLIENT_ID=${TG_CLIENT_ID},TG_CLIENT_SECRET=${TG_CLIENT_SECRET},YANDEX_MAIL_LOGIN=${YANDEX_MAIL_LOGIN},YANDEX_MAIL_PASSWORD=${YANDEX_MAIL_PASSWORD},RUN_STARTUP_DB_MAINTENANCE=false,LOG_SLOW_REQUESTS=true,SLOW_REQUEST_THRESHOLD_MS=800,AI_GEN_RAG_CONTEXT_LIMIT=${{ secrets.AI_GEN_RAG_CONTEXT_LIMIT }}"
@@ -166,6 +170,7 @@ jobs:
             --memory "$MEMORY" \
             --concurrency "$CONCURRENCY" \
             --execution-timeout "$EXECUTION_TIMEOUT" \
+            --min-instances "$MIN_INSTANCES" \
             --service-account-id ${{ secrets.YC_SA_ID }} \
             --async-service-account-id ${{ secrets.YC_SA_ID }} \
             --environment "$ENV_VARS"
@@ -199,7 +204,8 @@ jobs:
             exit 1
           fi
           npm ci --legacy-peer-deps
-          CI=true npm run build
+          # Не публиковать source maps в прод: ~3.5 МБ артефактов в бакете, не нужны браузеру.
+          CI=true GENERATE_SOURCEMAP=false npm run build
 
       - name: Install AWS CLI
         run: |
@@ -215,25 +221,50 @@ jobs:
 
       - name: Sync frontend build to Yandex Object Storage
         working-directory: ./frontend/build
+        env:
+          BUCKET: s3://${{ env.FRONTEND_BUCKET_NAME }}
+          ENDPOINT: https://storage.yandexcloud.net
         run: |
           set -euo pipefail
-          # Static hashed assets: long cache
-          aws s3 sync . "s3://${{ env.FRONTEND_BUCKET_NAME }}" \
+          # 1) Static hashed assets: long cache (uncompressed pass; also handles --delete cleanup)
+          aws s3 sync . "$BUCKET" \
             --delete \
-            --endpoint-url=https://storage.yandexcloud.net \
+            --endpoint-url="$ENDPOINT" \
             --acl public-read \
             --exclude "*.html" \
             --exclude "*.json" \
             --cache-control "public, max-age=31536000, immutable"
 
-          # Entry points/manifests: no cache, so UI changes appear immediately after deploy
-          aws s3 sync . "s3://${{ env.FRONTEND_BUCKET_NAME }}" \
-            --endpoint-url=https://storage.yandexcloud.net \
+          # 2) Entry points/manifests: no cache, so UI changes appear immediately after deploy
+          aws s3 sync . "$BUCKET" \
+            --endpoint-url="$ENDPOINT" \
             --acl public-read \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \
             --cache-control "no-cache, no-store, must-revalidate"
+
+          # 3) Re-upload JS/CSS gzip-compressed. S3 static hosting does NOT compress on the fly,
+          #    so the 1 MB bundle ships raw without this. Overwrites the plain objects from step 1
+          #    with gzipped bytes + Content-Encoding header (browsers send Accept-Encoding: gzip).
+          tmp="$(mktemp -d)"
+          find . \( -name '*.js' -o -name '*.css' \) -type f | while IFS= read -r f; do
+            rel="${f#./}"
+            mkdir -p "$tmp/$(dirname "$rel")"
+            gzip -9 -c "$f" > "$tmp/$rel"
+            case "$rel" in
+              *.js)  ct="application/javascript" ;;
+              *.css) ct="text/css" ;;
+              *)     ct="application/octet-stream" ;;
+            esac
+            aws s3 cp "$tmp/$rel" "$BUCKET/$rel" \
+              --endpoint-url="$ENDPOINT" \
+              --acl public-read \
+              --content-encoding gzip \
+              --content-type "$ct" \
+              --cache-control "public, max-age=31536000, immutable"
+          done
+          rm -rf "$tmp"
 
       - name: Configure SPA fallback on bucket
         run: |

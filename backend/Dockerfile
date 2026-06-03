@@ -19,4 +19,7 @@ COPY . .
 EXPOSE 8080
 
 # Запуск приложения
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# uvloop + httptools (уже в requirements) дают быстрее event loop и HTTP-парсер.
+# WEB_CONCURRENCY управляет числом воркеров (дефолт 2; контейнер 4 ядра / concurrency 16).
+ENV WEB_CONCURRENCY=2
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8080 --loop uvloop --http httptools --workers ${WEB_CONCURRENCY}"]

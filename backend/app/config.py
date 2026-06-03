@@ -20,7 +20,12 @@ class Settings(BaseSettings):
     DB_NAME: str
     DB_USER: str
     DB_PASSWORD: str
-    
+    # Пул соединений SQLAlchemy (за PgBouncer на 6432).
+    # Держать (DB_POOL_SIZE + DB_MAX_OVERFLOW) × workers ниже лимита PgBouncer/PG.
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
+
     # JWT токены
     SECRET_KEY: str
     ALGORITHM: str = "HS256"

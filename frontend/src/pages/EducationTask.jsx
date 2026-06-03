@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AppIcon from '../components/AppIcon';
 import { InlineLoader, PageLoader } from '../components/LoadingState';
 import { educationAPI, authAPI } from '../services/api';
-import { getEducationCardVisual } from '../utils/educationVisuals';
 import { clampChatInput, getChatRemaining } from '../utils/chatInput';
 import TaskVariantGenerator from './UserTaskVariants/TaskVariantGenerator';
 import VariantList from './UserTaskVariants/VariantList';
@@ -300,7 +299,6 @@ export default function EducationTask() {
   const difficultyClass = useMemo(() => (
     difficultyBadgeClasses[task?.difficulty_label] || difficultyBadgeClasses.Средне
   ), [task?.difficulty_label]);
-  const heroVisual = useMemo(() => getEducationCardVisual(task), [task]);
   const accessType = useMemo(() => normalizeAccessType(task?.access_type), [task?.access_type]);
   const isChatTask = accessType === 'chat';
   const chatInputMaxChars = Number(
