@@ -23,7 +23,7 @@ from app.auth.dependencies import get_current_user
 from app.auth.security import hash_password, verify_password
 from app.database import get_db
 from app.models.contest import LlmGeneration, PromptTemplate, Task
-from app.models.user import User, UserProfile
+from app.models.user import User, UserProfile, UserRating
 from app.services.auth_sessions import clear_refresh_cookie
 from app.services.storage import upload_avatar, delete_avatar, MAX_FILE_SIZE
 from app.security.rate_limit import enforce_rate_limit, RateLimit
@@ -105,63 +105,51 @@ class MessageResponse(BaseModel):
     message: str
 
 
-async def _get_ratings_and_tariff(
-    db: AsyncSession, user_id: int
-) -> tuple[int, int, int, Optional[CurrentTariffInfo]]:
-    """Рейтинги + текущий тариф одним round-trip.
+async def _get_ratings(db: AsyncSession, user_id: int) -> tuple[int, int, int]:
+    result = await db.execute(
+        select(UserRating).where(UserRating.user_id == user_id)
+    )
+    rating = result.scalar_one_or_none()
+    if not rating:
+        return 0, 0, 0
+    return rating.contest_rating, rating.practice_rating, rating.first_blood
 
-    Раньше это были два отдельных запроса на каждый профильный эндпоинт; на одной
-    AsyncSession их нельзя гонять параллельно, поэтому объединяем в один SELECT
-    (LEFT JOIN рейтингов + LATERAL на активный тариф).
-    """
+
+async def _get_current_tariff(db: AsyncSession, user_id: int) -> Optional[CurrentTariffInfo]:
+    """Получить текущий тариф пользователя."""
     result = await db.execute(
         text(
             """
-            SELECT
-              COALESCE(r.contest_rating, 0)  AS contest_rating,
-              COALESCE(r.practice_rating, 0) AS practice_rating,
-              COALESCE(r.first_blood, 0)     AS first_blood,
-              t.code, t.name, t.monthly_price_rub, t.description, t.limits,
-              t.is_promo, t.valid_to
-            FROM (SELECT :user_id::bigint AS uid) base
-            LEFT JOIN user_ratings r ON r.user_id = base.uid
-            LEFT JOIN LATERAL (
-                SELECT tp.code, tp.name, tp.monthly_price_rub, tp.description,
-                       tp.limits, ut.is_promo, ut.valid_to
-                FROM user_tariffs ut
-                JOIN tariff_plans tp ON tp.id = ut.tariff_id
-                WHERE ut.user_id = base.uid
-                  AND ut.valid_from <= now()
-                  AND (ut.valid_to IS NULL OR ut.valid_to > now())
-                ORDER BY ut.valid_from DESC
-                LIMIT 1
-            ) t ON TRUE
+            SELECT tp.code, tp.name, tp.monthly_price_rub, tp.description, tp.limits,
+                   ut.is_promo, ut.valid_to
+            FROM user_tariffs ut
+            JOIN tariff_plans tp ON tp.id = ut.tariff_id
+            WHERE ut.user_id = :user_id
+              AND ut.valid_from <= now()
+              AND (ut.valid_to IS NULL OR ut.valid_to > now())
+            ORDER BY ut.valid_from DESC
+            LIMIT 1
             """
         ),
         {"user_id": user_id},
     )
-    row = result.mappings().one()
+    row = result.mappings().first()
+    if not row:
+        return None
 
-    contest_rating = row["contest_rating"] or 0
-    practice_rating = row["practice_rating"] or 0
-    first_blood = row["first_blood"] or 0
+    valid_to = row["valid_to"]
+    if valid_to:
+        valid_to = valid_to.isoformat()
 
-    tariff: Optional[CurrentTariffInfo] = None
-    if row["code"] is not None:
-        valid_to = row["valid_to"]
-        if valid_to:
-            valid_to = valid_to.isoformat()
-        tariff = CurrentTariffInfo(
-            code=row["code"],
-            name=row["name"],
-            is_promo=row["is_promo"],
-            valid_to=valid_to,
-            monthly_price_rub=float(row["monthly_price_rub"]),
-            description=row["description"],
-            limits=row["limits"] if row["limits"] else {},
-        )
-
-    return contest_rating, practice_rating, first_blood, tariff
+    return CurrentTariffInfo(
+        code=row["code"],
+        name=row["name"],
+        is_promo=row["is_promo"],
+        valid_to=valid_to,
+        monthly_price_rub=float(row["monthly_price_rub"]),
+        description=row["description"],
+        limits=row["limits"] if row["limits"] else {},
+    )
 
 
 def _build_profile_response(
@@ -202,7 +190,8 @@ async def get_profile(
     """
     user, profile = current_user_data
 
-    contest_rating, practice_rating, first_blood, current_tariff = await _get_ratings_and_tariff(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -251,7 +240,8 @@ async def update_profile(
     await db.commit()
     await db.refresh(profile)
     
-    contest_rating, practice_rating, first_blood, current_tariff = await _get_ratings_and_tariff(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -285,7 +275,8 @@ async def update_onboarding_status(
     await db.commit()
     await db.refresh(profile)
 
-    contest_rating, practice_rating, first_blood, current_tariff = await _get_ratings_and_tariff(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
@@ -466,7 +457,8 @@ async def request_subscription(
     await db.commit()
     await db.refresh(profile)
 
-    contest_rating, practice_rating, first_blood, current_tariff = await _get_ratings_and_tariff(db, user_id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user_id)
+    current_tariff = await _get_current_tariff(db, user_id)
     return _build_profile_response(
         user=user, profile=profile,
         contest_rating=contest_rating, practice_rating=practice_rating,
@@ -545,7 +537,8 @@ async def upload_user_avatar(
             detail="Ошибка загрузки аватара. Попробуйте позже."
         )
     
-    contest_rating, practice_rating, first_blood, current_tariff = await _get_ratings_and_tariff(db, user.id)
+    contest_rating, practice_rating, first_blood = await _get_ratings(db, user.id)
+    current_tariff = await _get_current_tariff(db, user.id)
 
     return _build_profile_response(
         user=user,
