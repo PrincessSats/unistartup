@@ -266,6 +266,22 @@ jobs:
           done
           rm -rf "$tmp"
 
+          # 4) SPA deep-link 200s. With BrowserRouter, a refresh/direct-hit to a clean
+          #    URL (e.g. /home) requests a real object; missing -> ErrorDocument serves
+          #    index.html but with HTTP 404 (Yandex S3 cannot 200 a missing key).
+          #    Upload index.html as a REAL object at each top-level route key so those
+          #    paths return 200 and keep clean URLs/SEO. Must run AFTER step 1 (--delete),
+          #    or the --delete pass would remove these extensionless keys.
+          #    Param routes (/education/<id>, /knowledge/<id>) still fall back (404).
+          ROUTES="home login register forgot-password reset-password auth/telegram auth/bridge profile admin admin/contests admin/contest-tasks-gen pipeline cve-pipeline nvd-sync championship education rating knowledge faq"
+          for r in $ROUTES; do
+            aws s3 cp index.html "$BUCKET/$r" \
+              --endpoint-url="$ENDPOINT" \
+              --acl public-read \
+              --content-type "text/html" \
+              --cache-control "no-cache, no-store, must-revalidate"
+          done
+
       - name: Configure SPA fallback on bucket
         run: |
           set -euo pipefail

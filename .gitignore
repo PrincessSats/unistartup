@@ -80,3 +80,4 @@ backend/experiments/
 
 # Local deployment guides (may contain real URLs / tokens)
 DEPLOY_SELFTEST.md
+/demo
