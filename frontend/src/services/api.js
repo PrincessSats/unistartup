@@ -252,24 +252,101 @@ function buildGetCacheKey(url, params = {}) {
   return serialized ? `${url}?${serialized}` : url;
 }
 
+// Эти ответы переживают перезагрузку через sessionStorage, чтобы повторный заход
+// после простоя рисовался мгновенно из кэша, а не ждал холодный backend.
+// Только некритичные, короткоживущие данные (TTL уже задан в CACHE_TTLS_MS).
+const PERSISTED_CACHE_PREFIX = 'api:getcache:';
+const PERSISTED_CACHE_URL_FRAGMENTS = [
+  '/education/practice/tasks',
+  '/ratings/',
+  '/knowledge/feed',
+];
+
+function isPersistedCacheKey(key) {
+  return PERSISTED_CACHE_URL_FRAGMENTS.some((fragment) => key.includes(fragment));
+}
+
+function readPersistedCache(key) {
+  if (!isPersistedCacheKey(key)) return null;
+  try {
+    const raw = sessionStorage.getItem(PERSISTED_CACHE_PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (!entry || typeof entry.expiresAt !== 'number') return null;
+    return entry;
+  } catch {
+    return null;
+  }
+}
+
+function writePersistedCache(key, entry) {
+  if (!isPersistedCacheKey(key)) return;
+  try {
+    sessionStorage.setItem(PERSISTED_CACHE_PREFIX + key, JSON.stringify(entry));
+  } catch {
+    // Запись в sessionStorage - максимум возможного (квота/приватный режим).
+  }
+}
+
+function removePersistedCache(key) {
+  try {
+    sessionStorage.removeItem(PERSISTED_CACHE_PREFIX + key);
+  } catch {
+    // no-op
+  }
+}
+
+function removePersistedCacheByPrefix(prefix) {
+  const storagePrefix = PERSISTED_CACHE_PREFIX + prefix;
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const storageKey = sessionStorage.key(i);
+      if (storageKey && storageKey.startsWith(storagePrefix)) {
+        keysToRemove.push(storageKey);
+      }
+    }
+    keysToRemove.forEach((storageKey) => sessionStorage.removeItem(storageKey));
+  } catch {
+    // no-op
+  }
+}
+
+function clearPersistedCache() {
+  removePersistedCacheByPrefix('');
+}
+
 function readGetCache(key) {
   const entry = getResponseCache.get(key);
-  if (!entry) {
-    return { hit: false };
+  if (entry) {
+    if (Date.now() > entry.expiresAt) {
+      getResponseCache.delete(key);
+    } else {
+      return { hit: true, data: entry.data };
+    }
   }
-  if (Date.now() > entry.expiresAt) {
-    getResponseCache.delete(key);
-    return { hit: false };
+
+  // Промах в памяти (например, после перезагрузки) — пробуем sessionStorage.
+  const persisted = readPersistedCache(key);
+  if (persisted) {
+    if (Date.now() > persisted.expiresAt) {
+      removePersistedCache(key);
+    } else {
+      getResponseCache.set(key, persisted);
+      return { hit: true, data: persisted.data };
+    }
   }
-  return { hit: true, data: entry.data };
+  return { hit: false };
 }
 
 function writeGetCache(key, data, ttlMs) {
   if (!Number.isFinite(ttlMs) || ttlMs <= 0) return;
-  getResponseCache.set(key, {
+  const entry = {
     data,
     expiresAt: Date.now() + ttlMs,
-  });
+  };
+  getResponseCache.set(key, entry);
+  writePersistedCache(key, entry);
 }
 
 function invalidateGetCacheByPrefix(prefix) {
@@ -283,11 +360,14 @@ function invalidateGetCacheByPrefix(prefix) {
       inFlightGetRequests.delete(key);
     }
   }
+  // Чистим и переживший перезагрузку кэш, даже если его нет в памяти.
+  removePersistedCacheByPrefix(prefix);
 }
 
 function clearAllRequestCache() {
   inFlightGetRequests.clear();
   getResponseCache.clear();
+  clearPersistedCache();
 }
 
 function clearClientAuthState({ clearHint = true } = {}) {

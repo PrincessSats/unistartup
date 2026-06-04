@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from time import perf_counter
@@ -148,24 +149,34 @@ async def health_check():
     return {"status": "ok"}
 
 
+async def _run_startup_maintenance() -> None:
+    """Идемпотентные DB-проверки. Запускаются в фоне, чтобы не блокировать готовность
+    инстанса: на serverless первый запрос не должен ждать round-trip'ы к БД (холодный старт)."""
+    try:
+        # Всегда сбрасываем зависшие синхронизации NVD независимо от флага DB maintenance
+        await cleanup_stale_sync_logs()
+        # Всегда выполняется — добавляет столбец referenced_cve_ids при необходимости (идемпотентно)
+        await ensure_daily_pipeline_schema_compatibility()
+        # Всегда выполняется — таблица фоновых джоб генерации контестных задач (идемпотентно)
+        await ensure_contest_gen_jobs_schema_compatibility()
+
+        if not settings.RUN_STARTUP_DB_MAINTENANCE:
+            logger.info(
+                "Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false "
+                "(run `python -m app.scripts.db_maintenance` during deploy)."
+            )
+            return
+
+        await ensure_auth_schema_compatibility()
+        await ensure_nvd_sync_schema_compatibility()
+        await ensure_daily_pipeline_schema_compatibility()
+        # На старте гарантируем индексы для быстрых сценариев
+        await ensure_performance_indexes()
+    except Exception:  # noqa: BLE001 — фоновая задача не должна валить инстанс
+        logger.exception("Startup DB maintenance failed (running in background)")
+
+
 @app.on_event("startup")
 async def startup_tasks():
-    # Всегда сбрасываем зависшие синхронизации NVD независимо от флага DB maintenance (нет английского текста)
-    await cleanup_stale_sync_logs()
-    # Всегда выполняется — добавляет столбец referenced_cve_ids при необходимости (идемпотентно)
-    await ensure_daily_pipeline_schema_compatibility()
-    # Всегда выполняется — таблица фоновых джоб генерации контестных задач (идемпотентно)
-    await ensure_contest_gen_jobs_schema_compatibility()
-
-    if not settings.RUN_STARTUP_DB_MAINTENANCE:
-        logger.info(
-            "Startup DB maintenance disabled by RUN_STARTUP_DB_MAINTENANCE=false "
-            "(run `python -m app.scripts.db_maintenance` during deploy)."
-        )
-        return
-
-    await ensure_auth_schema_compatibility()
-    await ensure_nvd_sync_schema_compatibility()
-    await ensure_daily_pipeline_schema_compatibility()
-    # На старте гарантируем индексы для быстрых сценариев (нет английского текста)
-    await ensure_performance_indexes()
+    # Выполняем обслуживание БД в фоне — инстанс сразу готов обслуживать запросы.
+    asyncio.create_task(_run_startup_maintenance())

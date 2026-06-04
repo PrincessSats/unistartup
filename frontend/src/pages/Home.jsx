@@ -786,6 +786,25 @@ export default function Home({ currentUser: currentUserProp = null }) {
       };
     }
 
+    // Ждем загрузки списка практики: обычно статус обучающей задачи уже есть в нем,
+    // и тогда дополнительный запрос /practice/tasks/10 не нужен.
+    if (practiceLoading) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const fromList = practiceTrainingItems.find(
+      (item) => Number(item?.id) === INTRO_TRAINING_TASK_ID,
+    );
+    if (fromList) {
+      setIntroTrainingTaskSolved(fromList?.my_status === 'solved');
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    // Обучающей задачи нет в загруженном списке — точечно запрашиваем ее статус.
     const fetchIntroTrainingTaskState = async () => {
       try {
         const task = await educationAPI.getPracticeTask(INTRO_TRAINING_TASK_ID);
@@ -805,7 +824,7 @@ export default function Home({ currentUser: currentUserProp = null }) {
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, practiceLoading, practiceTrainingItems]);
 
   const inProgressTasks = useMemo(
     () => practiceTrainingItems.filter((t) => t.my_status === 'in_progress'),

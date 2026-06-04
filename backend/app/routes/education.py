@@ -1,4 +1,5 @@
 import re
+import time
 import logging
 from pathlib import PurePosixPath
 from datetime import datetime, timezone
@@ -61,6 +62,35 @@ _IP_CIDR_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}/\d{1,2}\b")
 _DATE_RE = re.compile(r"\b\d{2}\.\d{2}\.\d{4}(?:\s+\d{2}:\d{2})?\b")
 _CONNECTION_RE = re.compile(r"\b((?:\d{1,3}\.){3}\d{1,3}(?:\s*\(VPN\))?)\b")
 _PRESIGNED_TTL_SECONDS = 300
+
+# Published practice/UGC categories change rarely; cache the DISTINCT scan so the
+# catalog page does not full-scan tasks on every request. Per-process TTL cache.
+_PRACTICE_CATEGORIES_TTL_S = 300.0
+_practice_categories_cache: Optional[tuple] = None
+
+
+async def _get_practice_categories(db: AsyncSession) -> list[str]:
+    global _practice_categories_cache
+    now = time.monotonic()
+    cached = _practice_categories_cache
+    if cached is not None and (now - cached[0]) < _PRACTICE_CATEGORIES_TTL_S:
+        return list(cached[1])
+
+    rows = (
+        await db.execute(
+            select(Task.category)
+            .where(
+                Task.task_kind.in_(["practice", "ugc"]),
+                Task.state == "published",
+                Task.parent_id.is_(None),
+            )
+            .distinct()
+            .order_by(Task.category.asc())
+        )
+    ).scalars().all()
+    categories = [row for row in rows if row]
+    _practice_categories_cache = (now, categories)
+    return list(categories)
 
 
 def difficulty_label(difficulty: int) -> str:
@@ -505,48 +535,59 @@ async def _load_user_submission_state(
     return has_any_submission, solved_flags, has_any_correct
 
 
-async def _load_all_users_correct_flags(
+async def _load_passed_users_count(
     db: AsyncSession,
     task_ids: Iterable[int],
-) -> Dict[int, Dict[int, set[str]]]:
+) -> Dict[int, int]:
+    """Count distinct users who fully solved each task, entirely in SQL.
+
+    Replaces the previous approach that pulled every correct submission for all
+    users into Python. A user "passes" a task when their distinct correct flag
+    submissions cover the task's required flags; tasks without required flags
+    count any user with a correct submission. Correct submissions can only carry
+    flag_ids belonging to the task, so `solved_count >= req_count` is equivalent
+    to the old `required_flag_ids.issubset(solved_flags)` subset check.
+    """
     task_id_list = list(task_ids)
     if not task_id_list:
         return {}
 
-    result = await db.execute(
-        select(
-            Submission.task_id,
-            Submission.user_id,
-            func.array_remove(
-                func.array_agg(func.distinct(Submission.flag_id)),
-                None,
-            ).label("flag_ids"),
+    rows = (
+        await db.execute(
+            text(
+                """
+                WITH req AS (
+                    SELECT task_id, COUNT(DISTINCT flag_id) AS req_count
+                    FROM task_flags
+                    WHERE task_id = ANY(:task_ids)
+                      AND flag_id IS NOT NULL AND flag_id <> ''
+                    GROUP BY task_id
+                ),
+                correct AS (
+                    SELECT s.task_id, s.user_id,
+                           COUNT(DISTINCT s.flag_id)
+                               FILTER (WHERE s.flag_id IS NOT NULL AND s.flag_id <> '') AS solved_count
+                    FROM submissions s
+                    WHERE s.contest_id IS NULL
+                      AND s.is_correct = TRUE
+                      AND s.task_id = ANY(:task_ids)
+                    GROUP BY s.task_id, s.user_id
+                )
+                SELECT c.task_id,
+                       COUNT(*) FILTER (
+                           WHERE COALESCE(r.req_count, 0) = 0
+                              OR c.solved_count >= r.req_count
+                       ) AS passed
+                FROM correct c
+                LEFT JOIN req r ON r.task_id = c.task_id
+                GROUP BY c.task_id
+                """
+            ),
+            {"task_ids": task_id_list},
         )
-        .where(
-            Submission.contest_id.is_(None),
-            Submission.is_correct.is_(True),
-            Submission.task_id.in_(task_id_list),
-        )
-        .group_by(Submission.task_id, Submission.user_id)
-    )
+    ).all()
 
-    output: Dict[int, Dict[int, set[str]]] = {}
-    for task_id, user_id, flag_ids in result.all():
-        per_task = output.setdefault(task_id, {})
-        normalized_flags = {str(flag_id) for flag_id in (flag_ids or []) if flag_id}
-        per_task[user_id] = normalized_flags
-    return output
-
-
-def _compute_passed_users_count(
-    required_flag_ids: set[str],
-    correct_flags_by_user: Dict[int, set[str]],
-) -> int:
-    if not correct_flags_by_user:
-        return 0
-    if not required_flag_ids:
-        return len(correct_flags_by_user)
-    return sum(1 for flags in correct_flags_by_user.values() if required_flag_ids.issubset(flags))
+    return {int(task_id): int(passed) for task_id, passed in rows}
 
 
 async def _load_task_materials(
@@ -618,19 +659,7 @@ async def list_practice_tasks(
 
     categories: list[str] = []
     if include_categories:
-        categories_rows = (
-            await db.execute(
-                select(Task.category)
-                .where(
-                    Task.task_kind.in_(["practice", "ugc"]), 
-                    Task.state == "published", 
-                    Task.parent_id.is_(None)
-                )
-                .distinct()
-                .order_by(Task.category.asc())
-            )
-        ).scalars().all()
-        categories = [row for row in categories_rows if row]
+        categories = await _get_practice_categories(db)
 
     filters = [
         Task.task_kind.in_(["practice", "ugc"]), 
@@ -683,7 +712,7 @@ async def list_practice_tasks(
         )
     else:
         user_has_submission, user_solved_flags, user_has_correct = set(), {}, set()
-    correct_flags_by_task_user = await _load_all_users_correct_flags(db, task_ids)
+    passed_counts = await _load_passed_users_count(db, task_ids)
 
     cards: list[PracticeTaskCard] = []
     for task in tasks:
@@ -711,10 +740,7 @@ async def list_practice_tasks(
                 difficulty=task.difficulty,
                 difficulty_label=difficulty_label(task.difficulty),
                 points=task.points,
-                passed_users_count=_compute_passed_users_count(
-                    required_flag_ids,
-                    correct_flags_by_task_user.get(task.id, {}),
-                ),
+                passed_users_count=passed_counts.get(task.id, 0),
                 my_status=my_status,
                 access_type=coerce_access_type(getattr(task, "access_type", None)),
                 tags=task.tags or [],
@@ -760,7 +786,7 @@ async def get_practice_task(
         )
     else:
         user_has_submission, user_solved_flags, user_has_correct = set(), {}, set()
-    correct_flags_by_task_user = await _load_all_users_correct_flags(db, [task.id])
+    passed_counts = await _load_passed_users_count(db, [task.id])
 
     required_flag_ids = {flag.flag_id for flag in flags_by_task.get(task.id, []) if flag.flag_id}
     solved_flags = user_solved_flags.get(task.id, set())
@@ -815,10 +841,7 @@ async def get_practice_task(
     ) or vpn_info.config_ip
 
     hints = extract_hints(task.llm_raw_response)
-    passed_users_count = _compute_passed_users_count(
-        required_flag_ids,
-        correct_flags_by_task_user.get(task.id, {}),
-    )
+    passed_users_count = passed_counts.get(task.id, 0)
     chat_limits_payload = None
     if access_type == "chat":
         limits = get_chat_limits_for_task(task)
