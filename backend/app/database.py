@@ -328,13 +328,29 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
 
 
 async def ensure_daily_pipeline_schema_compatibility() -> None:
-    """Add daily-pipeline columns to kb_entries: referenced_cve_ids + visible_in_kb_list."""
+    """Add daily-pipeline columns to kb_entries: referenced_cve_ids + visible_in_kb_list.
+    Also enforces one digest per calendar day (partial unique index on source_id WHERE
+    source='digest') and collapses any pre-existing duplicates, keeping the latest id."""
     statements = [
         "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS referenced_cve_ids text[] DEFAULT '{}'::text[]",
         "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS visible_in_kb_list boolean NOT NULL DEFAULT true",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source ON kb_entries(source)",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source_created ON kb_entries(source, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_visible_source_created ON kb_entries(visible_in_kb_list, source, created_at DESC)",
+        # Remove duplicate digest rows (keep highest id = most recent) before creating
+        # the unique index; idempotent — deletes 0 rows when already clean.
+        """
+        DELETE FROM kb_entries a
+        USING kb_entries b
+        WHERE a.source = 'digest' AND b.source = 'digest'
+          AND a.source_id = b.source_id
+          AND a.id < b.id
+        """,
+        # Partial unique index: at most one digest per source_id value (= one per day).
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_entries_digest_source_id
+          ON kb_entries(source_id) WHERE source = 'digest'
+        """,
     ]
     async with engine.begin() as conn:
         for stmt in statements:

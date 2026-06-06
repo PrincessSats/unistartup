@@ -56,8 +56,7 @@ _DIGEST_LLM_INPUT_CAP = 60
 
 _ALREADY_DONE_SQL = """
     SELECT 1 FROM kb_entries
-    WHERE source = 'digest'
-      AND created_at >= now() - interval '20 hours'
+    WHERE source = 'digest' AND source_id = :source_id
     LIMIT 1
 """
 
@@ -89,8 +88,9 @@ def _cvss_to_grpo_difficulty(cvss: float | None) -> str:
 
 
 async def _is_recently_completed() -> bool:
+    source_id = f"digest-{date.today().isoformat()}"
     async with AsyncSessionLocal() as session:
-        result = await session.execute(text(_ALREADY_DONE_SQL))
+        result = await session.execute(text(_ALREADY_DONE_SQL), {"source_id": source_id})
         return result.scalar() is not None
 
 
@@ -161,6 +161,7 @@ async def _generate_digest(today_entries: list) -> int | None:
                     VALUES
                         ('digest', :source_id, NULL, :raw_en_text, :ru_title, :ru_summary,
                          :ru_explainer, :tags, :referenced_cve_ids, true)
+                    ON CONFLICT (source_id) WHERE source = 'digest' DO NOTHING
                     RETURNING id
                 """),
                 {
@@ -173,8 +174,11 @@ async def _generate_digest(today_entries: list) -> int | None:
                     "referenced_cve_ids": referenced_cve_ids,
                 },
             )
-            entry_id = result.scalar_one()
+            entry_id = result.scalar_one_or_none()
             await session.commit()
+            if entry_id is None:
+                logger.info("daily_pipeline: digest already exists for today, skipped duplicate insert")
+                return None
             logger.info("daily_pipeline: digest created id=%s (covers %d CVEs)", entry_id, len(all_cve_ids))
             return entry_id
         except Exception as exc:

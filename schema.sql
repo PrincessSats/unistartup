@@ -2580,6 +2580,13 @@ CREATE INDEX idx_kb_entries_updated_created_desc ON public.kb_entries USING btre
 
 
 --
+-- Name: idx_kb_entries_digest_source_id; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX idx_kb_entries_digest_source_id ON public.kb_entries USING btree (source_id) WHERE (source = 'digest');
+
+
+--
 -- Name: idx_landing_hunt_session_items_found_at; Type: INDEX; Schema: public; Owner: -
 --
 
