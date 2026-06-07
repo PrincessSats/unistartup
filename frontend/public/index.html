@@ -24,15 +24,21 @@
     -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <!-- Yandex.Metrika counter -->
+    <!-- Stub is sync (tiny) so queued ym() calls from the SPA work before tag.js loads.
+         Loader + init deferred to window load — keeps tag.js off the critical render path.
+         webvisor removed: was injecting ~325 kB session-recording JS on every page. -->
     <script type="text/javascript">
-      (function(m,e,t,r,i,k,a){
-          m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-          m[i].l=1*new Date();
-          for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-          k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-      })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=107200842', 'ym');
-
-      ym(107200842, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+      window['ym'] = window['ym'] || function() {
+        (window['ym'].a = window['ym'].a || []).push(arguments);
+      };
+      window['ym'].l = 1 * new Date();
+      window.addEventListener('load', function() {
+        var k = document.createElement('script');
+        k.async = 1;
+        k.src = 'https://mc.yandex.ru/metrika/tag.js?id=107200842';
+        document.head.appendChild(k);
+        ym(107200842, 'init', {clickmap:true, trackLinks:true, accurateTrackBounce:true});
+      });
     </script>
     <!-- /Yandex.Metrika counter -->
     <!--

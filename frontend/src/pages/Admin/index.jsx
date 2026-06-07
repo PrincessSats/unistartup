@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageLoader } from '../../components/LoadingState';
 
@@ -11,11 +11,7 @@ import RecentArticleCard from './Dashboard/RecentArticleCard';
 import CommentsPanel from './Dashboard/CommentsPanel';
 import FeedbackResolver from './Widgets/FeedbackResolver';
 
-// Выдвижные панели
-import KnowledgeBaseDrawer from './Drawers/KnowledgeBaseDrawer';
-import TaskManagerDrawer from './Drawers/TaskManagerDrawer';
-import TaskEditDrawer from './Drawers/TaskEditDrawer';
-import ContestPlannerDrawer from './Drawers/ContestPlannerDrawer';
+// Выдвижные панели — небольшие грузятся сразу
 import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
@@ -24,6 +20,12 @@ import { UsersIcon, ActivityIcon, CreditIcon, ProRequestIcon } from './Widgets/I
 
 // Хуки
 import { useAdminDashboard } from './hooks/useAdminDashboard';
+
+// Тяжёлые панели: lazy-импорт, чтобы не раздувать начальный Admin-чанк
+const KnowledgeBaseDrawer = lazy(() => import('./Drawers/KnowledgeBaseDrawer'));
+const TaskManagerDrawer = lazy(() => import('./Drawers/TaskManagerDrawer'));
+const TaskEditDrawer = lazy(() => import('./Drawers/TaskEditDrawer'));
+const ContestPlannerDrawer = lazy(() => import('./Drawers/ContestPlannerDrawer'));
 
 function formatNumber(value) {
   if (value === null || value === undefined) return '—';
@@ -36,11 +38,17 @@ function Admin() {
   const { loading, dashboard, error, refresh, setDashboard } = useAdminDashboard(navigate);
 
   // Состояния выдвижных панелей
+  // *Mounted-флаги для ленивых панелей: компонент монтируется при первом открытии
+  // и остаётся в DOM — так работает анимация закрытия.
   const [isKbOpen, setIsKbOpen] = useState(false);
+  const [kbMounted, setKbMounted] = useState(false);
   const [isTaskOpen, setIsTaskOpen] = useState(false);
+  const [taskMounted, setTaskMounted] = useState(false);
   const [isTaskEditOpen, setIsTaskEditOpen] = useState(false);
+  const [taskEditMounted, setTaskEditMounted] = useState(false);
   const [taskEditId, setTaskEditId] = useState(null);
   const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
+  const [contestPlanningMounted, setContestPlanningMounted] = useState(false);
   const [isContestHistoryOpen, setIsContestHistoryOpen] = useState(false);
   const [editingContestId, setEditingContestId] = useState(null);
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
@@ -109,11 +117,13 @@ function Admin() {
 
   const handleEditTask = useCallback((taskId) => {
     setTaskEditId(taskId);
+    setTaskEditMounted(true);
     setIsTaskEditOpen(true);
   }, []);
 
   const handleEditContest = useCallback((contest) => {
     setEditingContestId(contest.id);
+    setContestPlanningMounted(true);
     setIsContestPlanningOpen(true);
   }, []);
 
@@ -182,7 +192,7 @@ function Admin() {
             </button>
             <button
               type="button"
-              onClick={() => setIsContestPlanningOpen(true)}
+              onClick={() => { setContestPlanningMounted(true); setIsContestPlanningOpen(true); }}
               className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
             >
               Планирование контеста
@@ -234,14 +244,14 @@ function Admin() {
             </div>
             <button
               type="button"
-              onClick={() => setIsTaskOpen(true)}
+              onClick={() => { setTaskMounted(true); setIsTaskOpen(true); }}
               className="h-10 px-4 rounded-[12px] bg-[#9B6BFF] text-white text-[14px] tracking-[0.04em] transition-colors duration-200 hover:bg-[#8452FF]"
             >
               Задачи
             </button>
             <button
               type="button"
-              onClick={() => setIsKbOpen(true)}
+              onClick={() => { setKbMounted(true); setIsKbOpen(true); }}
               className="h-10 px-4 rounded-[12px] border border-[#9B6BFF]/60 text-[#CBB6FF] text-[14px] tracking-[0.04em] transition-colors duration-200 hover:bg-[#9B6BFF]/10"
             >
               База знаний
@@ -321,37 +331,55 @@ function Admin() {
       />
 
       {/* Выдвижные панели */}
-      <KnowledgeBaseDrawer
-        open={isKbOpen}
-        onClose={() => setIsKbOpen(false)}
-        onCreated={refresh}
-        onUpdated={refresh}
-      />
-      <TaskManagerDrawer
-        open={isTaskOpen}
-        onClose={() => setIsTaskOpen(false)}
-        onCreated={refresh}
-        onEditTask={handleEditTask}
-      />
-      <TaskEditDrawer
-        open={isTaskEditOpen}
-        taskId={taskEditId}
-        onClose={() => {
-          setIsTaskEditOpen(false);
-          setTaskEditId(null);
-        }}
-        onUpdated={refresh}
-      />
-      <ContestPlannerDrawer
-        open={isContestPlanningOpen}
-        onClose={() => {
-          setIsContestPlanningOpen(false);
-          setEditingContestId(null);
-        }}
-        onCreated={refresh}
-        onUpdated={refresh}
-        contestId={editingContestId}
-      />
+      {/* Lazy-панели: Suspense без fallback — drawer сам показывает скелетон.
+          Mounted-флаг сохраняет компонент в DOM после первого открытия (анимация закрытия). */}
+      {kbMounted && (
+        <Suspense fallback={null}>
+          <KnowledgeBaseDrawer
+            open={isKbOpen}
+            onClose={() => setIsKbOpen(false)}
+            onCreated={refresh}
+            onUpdated={refresh}
+          />
+        </Suspense>
+      )}
+      {taskMounted && (
+        <Suspense fallback={null}>
+          <TaskManagerDrawer
+            open={isTaskOpen}
+            onClose={() => setIsTaskOpen(false)}
+            onCreated={refresh}
+            onEditTask={handleEditTask}
+          />
+        </Suspense>
+      )}
+      {taskEditMounted && (
+        <Suspense fallback={null}>
+          <TaskEditDrawer
+            open={isTaskEditOpen}
+            taskId={taskEditId}
+            onClose={() => {
+              setIsTaskEditOpen(false);
+              setTaskEditId(null);
+            }}
+            onUpdated={refresh}
+          />
+        </Suspense>
+      )}
+      {contestPlanningMounted && (
+        <Suspense fallback={null}>
+          <ContestPlannerDrawer
+            open={isContestPlanningOpen}
+            onClose={() => {
+              setIsContestPlanningOpen(false);
+              setEditingContestId(null);
+            }}
+            onCreated={refresh}
+            onUpdated={refresh}
+            contestId={editingContestId}
+          />
+        </Suspense>
+      )}
       <ContestHistoryDrawer
         open={isContestHistoryOpen}
         onClose={() => setIsContestHistoryOpen(false)}

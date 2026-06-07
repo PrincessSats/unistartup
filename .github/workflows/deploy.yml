@@ -235,14 +235,16 @@ jobs:
             --exclude "*.json" \
             --cache-control "public, max-age=31536000, immutable"
 
-          # 2) Entry points/manifests: no cache, so UI changes appear immediately after deploy
+          # 2) Entry points/manifests: CDN may cache 60 s (s-maxage=60); browsers always
+          #    revalidate (max-age=0). CDN purge step below ensures fresh HTML on deploy.
+          #    no-store removed — it prevented CDN edge caching, causing ~2.7 s S3 TTFB.
           aws s3 sync . "$BUCKET" \
             --endpoint-url="$ENDPOINT" \
             --acl public-read \
             --exclude "*" \
             --include "*.html" \
             --include "*.json" \
-            --cache-control "no-cache, no-store, must-revalidate"
+            --cache-control "public, max-age=0, s-maxage=60, stale-while-revalidate=86400"
 
           # 3) Re-upload JS/CSS gzip-compressed. S3 static hosting does NOT compress on the fly,
           #    so the 1 MB bundle ships raw without this. Overwrites the plain objects from step 1
@@ -279,7 +281,7 @@ jobs:
               --endpoint-url="$ENDPOINT" \
               --acl public-read \
               --content-type "text/html" \
-              --cache-control "no-cache, no-store, must-revalidate"
+              --cache-control "public, max-age=0, s-maxage=60, stale-while-revalidate=86400"
           done
 
       - name: Configure SPA fallback on bucket
@@ -295,3 +297,25 @@ jobs:
             --endpoint-url=https://storage.yandexcloud.net \
             --bucket "${{ env.FRONTEND_BUCKET_NAME }}" \
             --website-configuration file:///tmp/website.json
+
+      - name: Purge Yandex CDN cache
+        # Requires secret YC_CDN_RESOURCE_ID — get it from:
+        #   yc cdn resource list   (copy the id for hacknet-frontend)
+        # Step is a no-op if the secret is not yet set.
+        env:
+          YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+          YANDEX_CLOUD_FOLDER: ${{ secrets.YANDEX_CLOUD_FOLDER }}
+          YC_CDN_RESOURCE_ID: ${{ secrets.YC_CDN_RESOURCE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${YC_CDN_RESOURCE_ID:-}" ]; then
+            echo "YC_CDN_RESOURCE_ID secret not set — skipping CDN purge (HTML may be stale up to 60 s)"
+            exit 0
+          fi
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i /opt/yc -n
+          export PATH="/opt/yc/bin:$PATH"
+          echo "$YC_SA_JSON_CREDENTIALS" > /tmp/yc-sa.json
+          yc config set service-account-key /tmp/yc-sa.json
+          yc config set folder-id "$YANDEX_CLOUD_FOLDER"
+          yc cdn cache purge --resource-id "$YC_CDN_RESOURCE_ID" --path "/*"
+          echo "CDN cache purged for resource $YC_CDN_RESOURCE_ID"
