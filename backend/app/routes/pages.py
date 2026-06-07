@@ -9,7 +9,7 @@ from sqlalchemy.exc import ProgrammingError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user, get_current_admin
 from app.config import settings
-from app.database import get_db, ensure_nvd_sync_schema_compatibility
+from app.database import get_db, AsyncSessionLocal, ensure_nvd_sync_schema_compatibility
 from app.models.user import User, UserProfile
 from app.models.activity import ActivityLog, EventType, EventSource
 from app.models.contest import (
@@ -158,95 +158,111 @@ async def admin_panel(
     """
     _user, _profile = current_user_data
 
-    # Все метрики-счётчики независимы; один round-trip с подзапросами вместо 5 отдельных
-    # запросов (на одной AsyncSession их нельзя выполнять параллельно).
-    metrics_row = (
-        await db.execute(
-            text(
+    # Параллельное выполнение независимых запросов через отдельные сессии.
+    # AsyncSession не допускает параллельных await на одном соединении,
+    # поэтому каждый запрос получает собственную сессию из пула.
+    async def _fetch_metrics(s: AsyncSession):
+        row = (await s.execute(text(
+            """
+            SELECT
+              (SELECT COUNT(*) FROM users) AS total_users,
+              (SELECT COUNT(*) FROM users
+                 WHERE email NOT LIKE '%@seed.local') AS real_users,
+              (SELECT COUNT(*) FROM user_profiles
+                 WHERE last_login IS NOT NULL
+                   AND last_login >= now() - INTERVAL '24 hours') AS active_users,
+              (SELECT COUNT(DISTINCT ut.user_id)
+                 FROM user_tariffs ut
+                 JOIN tariff_plans tp ON tp.id = ut.tariff_id
+                 WHERE tp.code <> 'FREE'
+                   AND ut.is_promo IS FALSE
+                   AND ut.valid_from <= now()
+                   AND (ut.valid_to IS NULL OR ut.valid_to > now())) AS paid_users,
+              (SELECT COUNT(*) FROM user_profiles
+                 WHERE sub_request = TRUE) AS pro_requests
+            """
+        ))).mappings().one()
+        return row
+
+    async def _fetch_contest(s: AsyncSession):
+        row = (await s.execute(text(
+            """
+            SELECT id, title, description, start_at, end_at, is_public, leaderboard_visible
+            FROM contests
+            WHERE start_at <= now() AND end_at >= now()
+            ORDER BY start_at DESC
+            LIMIT 1
+            """
+        ))).mappings().first()
+        if row is None:
+            row = (await s.execute(text(
                 """
-                SELECT
-                  (SELECT COUNT(*) FROM users) AS total_users,
-                  (SELECT COUNT(*) FROM users
-                     WHERE email NOT LIKE '%@seed.local') AS real_users,
-                  (SELECT COUNT(*) FROM user_profiles
-                     WHERE last_login IS NOT NULL
-                       AND last_login >= now() - INTERVAL '24 hours') AS active_users,
-                  (SELECT COUNT(DISTINCT ut.user_id)
-                     FROM user_tariffs ut
-                     JOIN tariff_plans tp ON tp.id = ut.tariff_id
-                     WHERE tp.code <> 'FREE'
-                       AND ut.is_promo IS FALSE
-                       AND ut.valid_from <= now()
-                       AND (ut.valid_to IS NULL OR ut.valid_to > now())) AS paid_users,
-                  (SELECT COUNT(*) FROM user_profiles
-                     WHERE sub_request = TRUE) AS pro_requests
+                SELECT id, title, description, start_at, end_at, is_public, leaderboard_visible
+                FROM contests
+                ORDER BY start_at DESC
+                LIMIT 1
                 """
-            )
-        )
-    ).mappings().one()
+            ))).mappings().first()
+        return row
+
+    async def _fetch_feedbacks(s: AsyncSession):
+        return (await s.execute(text(
+            """
+            SELECT f.id, f.user_id, p.username, f.topic, f.message,
+                   COALESCE(f.resolved, FALSE) AS resolved, f.created_at
+            FROM feedback f
+            LEFT JOIN user_profiles p ON p.user_id = f.user_id
+            WHERE COALESCE(f.resolved, FALSE) = FALSE
+            ORDER BY f.created_at DESC NULLS LAST
+            LIMIT 8
+            """
+        ))).mappings().all()
+
+    async def _fetch_article(s: AsyncSession):
+        return (await s.execute(text(
+            """
+            SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, created_at, updated_at
+            FROM kb_entries
+            ORDER BY COALESCE(updated_at, created_at) DESC
+            LIMIT 1
+            """
+        ))).mappings().first()
+
+    async def _fetch_nvd(s: AsyncSession):
+        try:
+            return await get_latest_sync_log(s)
+        except ProgrammingError as exc:
+            if "nvd_sync_log" not in str(exc):
+                raise
+            return None
+
+    async def _run(fn):
+        async with AsyncSessionLocal() as s:
+            return await fn(s)
+
+    metrics_row, contest_row, feedback_rows, article_row, nvd_row = await asyncio.gather(
+        _run(_fetch_metrics),
+        _run(_fetch_contest),
+        _run(_fetch_feedbacks),
+        _run(_fetch_article),
+        _run(_fetch_nvd),
+    )
+
     total_users = metrics_row["total_users"] or 0
     real_users = metrics_row["real_users"] or 0
     active_users = metrics_row["active_users"] or 0
     paid_users = metrics_row["paid_users"] or 0
     pro_requests = metrics_row["pro_requests"] or 0
 
-    contest_row = (
-        await db.execute(
-            text(
-                """
-                SELECT id, title, description, start_at, end_at, is_public, leaderboard_visible
-                FROM contests
-                WHERE start_at <= now() AND end_at >= now()
-                ORDER BY start_at DESC
-                LIMIT 1
-                """
-            )
-        )
-    ).mappings().first()
-
-    if contest_row is None:
-        contest_row = (
-            await db.execute(
-                text(
-                    """
-                    SELECT id, title, description, start_at, end_at, is_public, leaderboard_visible
-                    FROM contests
-                    ORDER BY start_at DESC
-                    LIMIT 1
-                    """
-                )
-            )
-        ).mappings().first()
-
+    # submissions зависит от contest_id — отдельный запрос после gather
     submissions_count = 0
     if contest_row is not None:
         submissions_count = (
             await db.execute(
-                text(
-                    """
-                    SELECT COUNT(*)
-                    FROM submissions
-                    WHERE contest_id = :contest_id
-                    """
-                ),
-                {"contest_id": contest_row["id"]},
+                text("SELECT COUNT(*) FROM submissions WHERE contest_id = :cid"),
+                {"cid": contest_row["id"]},
             )
         ).scalar_one() or 0
-
-    feedback_rows = (
-        await db.execute(
-            text(
-                """
-                SELECT f.id, f.user_id, p.username, f.topic, f.message, COALESCE(f.resolved, FALSE) AS resolved, f.created_at
-                FROM feedback f
-                LEFT JOIN user_profiles p ON p.user_id = f.user_id
-                WHERE COALESCE(f.resolved, FALSE) = FALSE
-                ORDER BY f.created_at DESC NULLS LAST
-                LIMIT 8
-                """
-            )
-        )
-    ).mappings().all()
 
     latest_feedbacks = [
         AdminFeedback(
@@ -260,27 +276,6 @@ async def admin_panel(
         )
         for row in feedback_rows
     ]
-
-    article_row = (
-        await db.execute(
-            text(
-                """
-                SELECT id, source, source_id, cve_id, ru_title, ru_summary, ru_explainer, created_at, updated_at
-                FROM kb_entries
-                ORDER BY COALESCE(updated_at, created_at) DESC
-                LIMIT 1
-                """
-            )
-        )
-    ).mappings().first()
-
-    nvd_row = None
-    try:
-        nvd_row = await get_latest_sync_log(db)
-    except ProgrammingError as exc:
-        error_text = str(exc)
-        if "nvd_sync_log" not in error_text:
-            raise
 
     return AdminDashboardResponse(
         stats=AdminStats(
