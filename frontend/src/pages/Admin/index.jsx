@@ -11,11 +11,7 @@ import RecentArticleCard from './Dashboard/RecentArticleCard';
 import CommentsPanel from './Dashboard/CommentsPanel';
 import FeedbackResolver from './Widgets/FeedbackResolver';
 
-// Выдвижные панели — тяжёлые грузятся лениво (только при первом открытии)
-const KnowledgeBaseDrawer = lazy(() => import('./Drawers/KnowledgeBaseDrawer'));
-const TaskManagerDrawer = lazy(() => import('./Drawers/TaskManagerDrawer'));
-const TaskEditDrawer = lazy(() => import('./Drawers/TaskEditDrawer'));
-const ContestPlannerDrawer = lazy(() => import('./Drawers/ContestPlannerDrawer'));
+// Выдвижные панели — небольшие грузятся сразу
 import ContestHistoryDrawer from './Drawers/ContestHistoryDrawer';
 import PromptManagerDrawer from './Drawers/PromptManagerDrawer';
 
@@ -24,6 +20,12 @@ import { UsersIcon, ActivityIcon, CreditIcon, ProRequestIcon } from './Widgets/I
 
 // Хуки
 import { useAdminDashboard } from './hooks/useAdminDashboard';
+
+// Тяжёлые панели: lazy-импорт, чтобы не раздувать начальный Admin-чанк
+const KnowledgeBaseDrawer = lazy(() => import('./Drawers/KnowledgeBaseDrawer'));
+const TaskManagerDrawer = lazy(() => import('./Drawers/TaskManagerDrawer'));
+const TaskEditDrawer = lazy(() => import('./Drawers/TaskEditDrawer'));
+const ContestPlannerDrawer = lazy(() => import('./Drawers/ContestPlannerDrawer'));
 
 function formatNumber(value) {
   if (value === null || value === undefined) return '—';
