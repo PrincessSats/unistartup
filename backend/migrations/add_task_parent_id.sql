@@ -1,4 +1,4 @@
--- Add parent_id to tasks table for UGC (User-Generated Content) relationship
+-- Добавляем parent_id в таблицу tasks для связи с пользовательским контентом (UGC)
 ALTER TABLE tasks
     ADD COLUMN IF NOT EXISTS parent_id BIGINT REFERENCES tasks(id) ON DELETE SET NULL;
 

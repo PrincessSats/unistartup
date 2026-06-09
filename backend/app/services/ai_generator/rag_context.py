@@ -1,8 +1,8 @@
 """
-RAG context builder: semantic search over kb_entries via pgvector cosine distance.
+Построитель RAG-контекста: семантический поиск по kb_entries через pgvector косинусное расстояние.
 
-RAGContext   — dataclass holding fetched CVE entries + metadata
-RAGContextBuilder — builds RAGContext for a given generation request
+RAGContext   — датакласс, хранящий загруженные CVE-записи и метаданные
+RAGContextBuilder — строит RAGContext для заданного запроса генерации
 """
 from __future__ import annotations
 
@@ -142,7 +142,7 @@ class CVEEntry:
     raw_en_text: Optional[str]
     tags: list[str] = field(default_factory=list)
     difficulty: Optional[str] = None
-    stored_embedding: Optional[list[float]] = None  # Pre-computed embedding vector from DB
+    stored_embedding: Optional[list[float]] = None  # предварительно вычисленный вектор эмбеддинга из БД
     # Структурированные метаданные (заполняются после миграции Фазы 1)
     cwe_ids: list[str] = field(default_factory=list)
     cvss_base_score: Optional[float] = None
@@ -181,7 +181,7 @@ class RAGContext:
             "",
         ]
 
-        # Add scenario templates for this task type
+        # Добавить шаблоны сценариев для данного типа задачи
         scenario_templates = _SCENARIO_TEMPLATES.get(self.task_type, [])
         if scenario_templates:
             lines.append("### Примеры сценариев (используй как вдохновение)")
@@ -196,7 +196,7 @@ class RAGContext:
             if entry.cve_id:
                 lines.append(f"- **CVE ID:** {entry.cve_id}")
 
-            # CWE context — structured, drives task mechanics
+            # Контекст CWE — структурированный, определяет механику задания
             if entry.cwe_ids:
                 cwe_descs = []
                 for cwe in entry.cwe_ids[:3]:
@@ -208,7 +208,7 @@ class RAGContext:
                 if hint:
                     lines.append(f"- **Практическое значение:** {hint}")
 
-            # CVSS severity
+            # Уровень серьёзности CVSS
             if entry.cvss_base_score is not None:
                 severity = _cvss_severity_label(entry.cvss_base_score)
                 av_label = f" | Вектор: {entry.attack_vector}" if entry.attack_vector else ""
@@ -221,7 +221,7 @@ class RAGContext:
                 lines.append(f"- **Описание (EN):** {snippet}...")
 
             if entry.tags:
-                # Filter out redundant tags for cleaner output
+                # Отфильтровать лишние теги для чистого вывода
                 display_tags = [t for t in entry.tags if not t.startswith("cve-") and t != "nvd"]
                 if display_tags:
                     lines.append(f"- **Теги:** {', '.join(display_tags[:5])}")
@@ -253,15 +253,15 @@ def _cvss_severity_label(score: float) -> str:
 def _vector_to_floats(vector: Any) -> Optional[list[float]]:
     if vector is None:
         return None
-    # Raw SQL (text()) queries return the pgvector column as a string like "[0.1,0.2,...]"
-    # because the result does not pass through the pgvector SQLAlchemy type adapter.
-    # Parse that string form; otherwise iterating it yields characters and float('[') fails.
+    # Сырые SQL-запросы (text()) возвращают столбец pgvector как строку вида "[0.1,0.2,...]",
+    # потому что результат не проходит через адаптер типов pgvector SQLAlchemy.
+    # Парсим строковую форму; иначе итерация даёт символы, и float('[') падает.
     if isinstance(vector, str):
         s = vector.strip().strip("[]")
         if not s:
             return None
         return [float(part) for part in s.split(",")]
-    return [float(value) for value in vector]  # Преобразовать в список чисел (ndarray/list)
+    return [float(value) for value in vector]  # преобразовать в список чисел (ndarray/list)
 
 
 def _format_pgvector(vector: Any) -> str:
@@ -273,7 +273,7 @@ class RAGContextBuilder:
     def __init__(self, db: AsyncSession, context_limit: Optional[int] = None) -> None:
         self._db = db
         self._limit = context_limit or settings.AI_GEN_RAG_CONTEXT_LIMIT
-        self._svc: Optional[EmbeddingService] = None  # created lazily in build_context
+        self._svc: Optional[EmbeddingService] = None  # создаётся лениво в build_context
 
     async def _rollback_after_error(self) -> None:
         try:
@@ -288,7 +288,7 @@ class RAGContextBuilder:
         specific_cve: Optional[str] = None,
         specific_topic: Optional[str] = None,
     ) -> RAGContext:
-        """Build a RAGContext for the generation request."""
+        """Построить RAGContext для запроса генерации."""
         try:
             query_text = ""
             if specific_cve:
@@ -452,12 +452,12 @@ class RAGContextBuilder:
                 await self._rollback_after_error()
                 logger.warning("Stage 2 semantic fallback search failed: %s", exc)
 
-        # Отсортировать по составному баллу поиска в порядке убывания
+        # Отсортировать по составному баллу в порядке убывания
         results.sort(key=lambda e: e._retrieval_score, reverse=True)
         return results[: self._limit]
 
     async def _fetch_recent_relevant_cves(self, task_type: str) -> list[CVEEntry]:
-        """Deterministic fallback when vector search returns no usable rows."""
+        """Детерминированный резервный вариант, когда векторный поиск не даёт результатов."""
         from app.services.ai_generator.cwe_mapping import get_relevant_cwes_for_task_type
 
         relevant_cwes = get_relevant_cwes_for_task_type(task_type)
@@ -565,6 +565,7 @@ class RAGContextBuilder:
                 self._row_to_cve_entry(row, retrieval_score=float(row.similarity) if row.similarity else 0.0)
                 for row in result.fetchall()
             ]
+
         except Exception as exc:
             await self._rollback_after_error()
             logger.warning("Failed to fetch similar CVEs for %s: %s", cve_id, exc)

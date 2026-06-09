@@ -23,16 +23,16 @@ class AIGenerationBatch(Base):
     current_stage = Column(Text, default="pending")
     stage_started_at = Column(TIMESTAMP(timezone=True))
     stage_meta = Column(JSONB)
-    # GRPO group stats
+    # Групповая статистика GRPO
     group_mean_reward = Column(Float)
     group_std_reward = Column(Float)
     pass_rate = Column(Float)
-    # Result
+    # Результат
     selected_variant_id = Column(UUID(as_uuid=True))
     failure_reasons_summary = Column(JSONB)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     completed_at = Column(TIMESTAMP(timezone=True))
-    # RAG context
+    # RAG-контекст
     rag_context_ids = Column(ARRAY(Integer))
     rag_context_summary = Column(Text)
     rag_query_text = Column(Text)
@@ -47,34 +47,34 @@ class AIGenerationVariant(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     batch_id = Column(UUID(as_uuid=True), ForeignKey("ai_generation_batches.id", ondelete="CASCADE"), nullable=False)
     variant_number = Column(Integer, nullable=False)
-    # Generation params
+    # Параметры генерации
     model_used = Column(Text)
     temperature = Column(Float)
     tokens_input = Column(Integer)
     tokens_output = Column(Integer)
     generation_time_ms = Column(Integer)
-    # LLM output
+    # Вывод LLM
     generated_spec = Column(JSONB)
-    # Artifact result
+    # Результат артефакта
     artifact_result = Column(JSONB)
-    # Reward scoring (GRPO core)
+    # Reward-оценка (ядро GRPO)
     reward_checks = Column(JSONB)
     reward_total = Column(Float)
     reward_binary = Column(Float)
     passed_all_binary = Column(Boolean, default=False)
-    # LLM quality assessment (only if passed binary)
+    # Оценка качества LLM (только если прошёл бинарный порог)
     quality_score = Column(Float)
     quality_details = Column(JSONB)
-    # GRPO group-relative
+    # GRPO относительно группы
     advantage = Column(Float)
     rank_in_group = Column(Integer)
-    # Selection
+    # Выбор
     is_selected = Column(Boolean, default=False)
     published_task_id = Column(Integer, ForeignKey("tasks.id"))
-    # Failure tracking
+    # Отслеживание ошибок
     failure_reason = Column(Text)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
-    # Embedding of generated spec (title + description) for feedback similarity search
+    # Эмбеддинг сгенерированного спека (title + description) для поиска похожих в feedback
     embedding = Column(Vector(256), nullable=True)
 
     batch = relationship("AIGenerationBatch", back_populates="variants")

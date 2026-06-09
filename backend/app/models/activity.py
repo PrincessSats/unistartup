@@ -1,8 +1,8 @@
 """
-Activity log model for tracking contest-related events.
+Модель лога активности для отслеживания событий, связанных с контестами.
 
-Stores events like contest CRUD, task assignments, submissions, and participant actions.
-Used for audit trail and admin activity feed.
+Хранит события: создание/обновление/удаление контестов, назначение задач, сабмиты и действия участников.
+Используется для аудит-трейла и ленты активности в админке.
 """
 
 from datetime import datetime, timezone
@@ -25,32 +25,32 @@ from app.database import Base
 
 
 class EventType(str, enum.Enum):
-    """Types of events that can be logged."""
-    # Contest CRUD
+    """Типы событий, которые можно логировать."""
+    # CRUD контеста
     CONTEST_CREATED = "contest_created"
     CONTEST_UPDATED = "contest_updated"
     CONTEST_DELETED = "contest_deleted"
     CONTEST_ENDED = "contest_ended"
 
-    # Task assignments
+    # Назначение задач
     TASK_ADDED = "task_added"
     TASK_REMOVED = "task_removed"
 
-    # Submissions
+    # Сабмиты
     SUBMISSION_RECEIVED = "submission_received"
     SUBMISSION_CORRECT = "submission_correct"
     SUBMISSION_INCORRECT = "submission_incorrect"
 
-    # Participants
+    # Участники
     PARTICIPANT_JOINED = "participant_joined"
     PARTICIPANT_LEFT = "participant_left"
 
-    # Chat
+    # Чат
     CHAT_MESSAGE = "chat_message"
 
 
 class EventSource(str, enum.Enum):
-    """Source of the event."""
+    """Источник события."""
     ADMIN_ACTION = "admin_action"
     SYSTEM_EVENT = "system_event"
     PARTICIPANT_ACTION = "participant_action"
@@ -58,10 +58,10 @@ class EventSource(str, enum.Enum):
 
 class ActivityLog(Base):
     """
-    Activity log entry for contest-related events.
+    Запись лога активности для событий, связанных с контестами.
 
-    Stores an immutable record of actions in the contest management system
-    for auditing, admin visibility, and debugging.
+    Хранит неизменяемую запись действий в системе управления контестами
+    для аудита, видимости администратором и отладки.
     """
 
     __tablename__ = "activity_log"
@@ -112,7 +112,7 @@ class ActivityLog(Base):
         )
 
     def to_dict(self) -> dict:
-        """Convert to dictionary for API responses."""
+        """Преобразовать в словарь для API-ответов."""
         return {
             "id": self.id,
             "admin_id": self.admin_id,

@@ -1,11 +1,11 @@
 """
-User Task Variants API routes.
+API роуты для пользовательских вариантов задач.
 
-Endpoints:
-  POST /user-variants/tasks/{task_id}/generate  — start variant generation
-  GET  /user-variants/requests/{request_id}/status — poll generation status
-  GET  /user-variants/tasks/{task_id}/variants — list variants for a task
-  POST /user-variants/variants/{variant_id}/vote — vote on a variant
+Эндпоинты:
+  POST /user-variants/tasks/{task_id}/generate  — запустить генерацию варианта
+  GET  /user-variants/requests/{request_id}/status — проверить статус генерации
+  GET  /user-variants/tasks/{task_id}/variants — список вариантов задачи
+  POST /user-variants/variants/{variant_id}/vote — проголосовать за вариант
 """
 import logging
 import uuid
@@ -28,26 +28,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/user-variants", tags=["User Task Variants"])
 
 
-# ── Rate Limits ──────────────────────────────────────────────────────────────
-# (Defined inline in the route)
+# ── Лимиты запросов ──────────────────────────────────────────────────────────
+# (Задаются прямо в роуте)
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
 
 class UserVariantRequestSchema(BaseModel):
-    """Request to generate a task variant."""
-    user_request: str = Field(..., min_length=1, max_length=500, description="User's wishes for the variant")
+    """Запрос на генерацию варианта задачи."""
+    user_request: str = Field(..., min_length=1, max_length=500, description="Пожелания пользователя к варианту")
 
 
 class UserVariantRequestResponse(BaseModel):
-    """Response after starting variant generation."""
+    """Ответ после запуска генерации варианта."""
     request_id: str
     status: str  # pending, generating
     message: str
 
 
 class VariantStatusResponse(BaseModel):
-    """Status of a variant generation request."""
+    """Статус запроса на генерацию варианта."""
     request_id: str
     status: str  # pending, generating, completed, failed
     progress_message: Optional[str] = None
@@ -75,7 +75,7 @@ class VariantInfoSchema(BaseModel):
     upvotes: int = 0
     downvotes: int = 0
     net_rating: int = 0
-    user_vote: Optional[str] = None  # голос текущего пользователя (если есть)
+    user_vote: Optional[str] = None  # голос текущего пользователя (если голосовал)
     created_at: Optional[str] = None
     published_task_id: Optional[int] = None  # ID автоопубликованной задачи
     # Информация о родительской задаче (для отображения в UGC task page)
@@ -107,7 +107,7 @@ async def _get_vote_counts(db: AsyncSession, variant_id: uuid.UUID) -> tuple[int
 
 
 async def _get_user_vote(db: AsyncSession, variant_id: uuid.UUID, user_id: int) -> Optional[str]:
-    """Get current user's vote for a variant."""
+    """Получить голос текущего пользователя за вариант."""
     result = await db.execute(
         select(UserTaskVariantVote.vote_type)
         .where(
@@ -133,13 +133,13 @@ async def create_variant_request(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Start variant generation for a task.
-    
-    - Validates parent task (crypto/forensics/web only)
-    - Checks prompt injection
-    - Creates request record
-    - Launches background pipeline
-    - Returns request_id for polling
+    Запустить генерацию варианта для задачи.
+
+    - Валидирует родительскую задачу (только crypto/forensics/web)
+    - Проверяет prompt-инъекцию
+    - Создаёт запись запроса
+    - Запускает фоновый pipeline
+    - Возвращает request_id для опроса статуса
     """
     from app.models.contest import Task
     
@@ -160,7 +160,7 @@ async def create_variant_request(
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task {task_id} not found",
+            detail=f"Задача {task_id} не найдена",
         )
     
     # Определяем эффективный parent ID для generation
@@ -176,7 +176,7 @@ async def create_variant_request(
     if not parent_task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Parent task not found",
+            detail="Родительская задача не найдена",
         )
     
     # Проверяем категорию (только crypto/forensics/web, НЕ chat)
@@ -187,15 +187,15 @@ async def create_variant_request(
             detail=f"Task category '{parent_task.category}' not supported for user variants. Allowed: {', '.join(ALLOWED_CATEGORIES)}",
         )
     
-    # Проверяем безопасность prompt (нет английского текста)
+    # Проверяем безопасность prompt
     safety_result = await check_prompt_safety(request_data.user_request)
     if not safety_result.is_safe:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Request rejected: {safety_result.rejection_reason}",
+            detail=f"Запрос отклонён: {safety_result.rejection_reason}",
         )
 
-    # Создаем запись request
+    # Создаём запись запроса
     request_id = uuid.uuid4()
     variant_request = UserTaskVariantRequest(
         id=request_id,
@@ -232,13 +232,13 @@ async def get_variant_status(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Poll generation status.
-    
-    Returns:
-    - pending: waiting to start
-    - generating: pipeline running (show tic-tac-toe)
-    - completed: variant ready
-    - failed: error occurred
+    Проверить статус генерации.
+
+    Возвращает:
+    - pending: ждём начала
+    - generating: pipeline запущен (можно показать анимацию)
+    - completed: вариант готов
+    - failed: произошла ошибка
     """
     user, _profile = current_user_data
     result = await db.execute(
@@ -249,14 +249,14 @@ async def get_variant_status(
     if not variant_request:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Request not found",
+            detail="Запрос не найден",
         )
     
-    # Проверяем владение (нет английского текста)
+    # Проверяем владение
     if variant_request.user_id != user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not authorized to view this request",
+            detail="Нет доступа к этому запросу",
         )
 
     # Строим прогресс сообщение
@@ -287,10 +287,10 @@ async def list_task_variants(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    List all user-generated variants for a task.
+    Список всех пользовательских вариантов для задачи.
 
-    Returns variants sorted by net rating (upvotes - downvotes).
-    Includes current user's vote for each variant.
+    Возвращает варианты, отсортированные по net rating (upvotes - downvotes).
+    Включает голос текущего пользователя для каждого варианта.
     """
     user, _profile = current_user_data
     from app.models.contest import Task
@@ -301,10 +301,10 @@ async def list_task_variants(
     if not task:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Task {task_id} not found",
+            detail=f"Задача {task_id} не найдена",
         )
 
-    # Определяем parent ID если это daughter задача
+    # Определяем parent ID если это дочерняя задача
     effective_parent_id = task.parent_id if task.parent_id else task.id
 
     # Ищем завершенные requests для эффективного parent
@@ -367,7 +367,7 @@ async def list_task_variants(
             user_vote=user_vote,
             created_at=variant.created_at.isoformat() if variant.created_at else None,
             published_task_id=variant.published_task_id,
-            # Информация parent task (нет английского текста)
+            # Информация о родительской задаче
             parent_task_id=request.parent_task_id,
             parent_task_title=parent_task_title,
             parent_task_category=parent_task_category,
@@ -391,9 +391,9 @@ async def vote_variant(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Upvote or downvote a variant.
-    
-    One vote per user per variant. Changing vote type updates existing vote.
+    Поставить upvote или downvote варианту.
+
+    Один голос на пользователя на вариант. Смена типа голоса обновляет существующий.
     """
     user, _profile = current_user_data
     # Проверяем существование варианта
@@ -403,7 +403,7 @@ async def vote_variant(
     if not variant_result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Variant not found",
+            detail="Вариант не найден",
         )
 
     # Проверяем уже ли пользователь голосовал
@@ -440,6 +440,6 @@ async def vote_variant(
         # Обрабатываем race condition - голос был уже изменен/удален
         logger.warning("Vote race condition for user=%d variant=%s: %s", user.id, variant_id, exc)
         await db.rollback()
-        # Возвращаем успех все равно - frontend обновит
+        # Всё равно возвращаем успех — фронтенд обновится
     
     return {"status": "ok", "message": "Vote recorded"}

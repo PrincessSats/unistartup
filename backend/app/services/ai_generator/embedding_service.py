@@ -1,11 +1,11 @@
 """
-Yandex text-search embedding service.
+Сервис эмбеддингов Yandex для текстового поиска.
 
-Uses the asymmetric text-search-doc / text-search-query pair:
-  - text-search-doc   → for indexing documents (kb_entries, tasks)
-  - text-search-query → for retrieval queries (RAG search)
+Использует асимметричную пару text-search-doc / text-search-query:
+  - text-search-doc   → для индексации документов (kb_entries, задания)
+  - text-search-query → для поисковых запросов (RAG-поиск)
 
-Model URI format: emb://{folder_id}/{model_type}/latest
+Формат URI модели: emb://{folder_id}/{model_type}/latest
 API: https://llm.api.cloud.yandex.net/foundationModels/v1/textEmbedding
 """
 from __future__ import annotations
@@ -118,11 +118,11 @@ class EmbeddingService:
         raise EmbeddingError("Yandex embedding failed")
 
     async def embed_document(self, text: str) -> list[float]:
-        """Embed a document (kb_entry body, task description) for indexing."""
+        """Создаёт эмбеддинг документа (тело kb_entry, описание задания) для индексации."""
         return await self._embed(text, "text-search-doc")
 
     async def embed_query(self, query: str) -> list[float]:
-        """Embed a retrieval query for semantic search."""
+        """Создаёт эмбеддинг поискового запроса для семантического поиска."""
         return await self._embed(query, "text-search-query")
 
     async def close(self) -> None:

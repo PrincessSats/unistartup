@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 @router.post("/cron/daily/{secret}")
 async def trigger_daily_pipeline(secret: str, force: bool = False):
-    """Yandex Cloud Timer Trigger endpoint. Synchronous — blocks until pipeline done.
-    Requires BACKEND_EXECUTION_TIMEOUT >= 1800s on the container revision."""
+    """Эндпоинт триггера таймера Yandex Cloud. Синхронный — блокирует выполнение до завершения пайплайна.
+    Требует BACKEND_EXECUTION_TIMEOUT >= 1800s на ревизии контейнера."""
     cron_secret = (settings.CRON_SECRET or "").strip()
     if not cron_secret:
         raise HTTPException(

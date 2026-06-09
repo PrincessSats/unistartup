@@ -1,4 +1,4 @@
-"""Retry helpers for Yandex Cloud LLM calls (503/429) and REST HTTP calls."""
+"""Вспомогательные функции повтора запросов к Yandex Cloud LLM (503/429) и REST HTTP-вызовам."""
 import asyncio
 import logging
 import time
@@ -53,7 +53,7 @@ _RETRYABLE_HTTP = {429, 500, 502, 503, 504}
 
 
 async def http_call_with_retry_async(fn: Callable, max_retries: int = _DEFAULT_RETRIES):
-    """Retry helper for httpx-based REST calls. Retries on 429/5xx and transport errors."""
+    """Вспомогательная функция повтора для REST-вызовов на основе httpx. Повторяет при 429/5xx и транспортных ошибках."""
     delay = _BASE_DELAY
     for attempt in range(max_retries + 1):
         try:

@@ -1,83 +1,83 @@
 """
-CWE-to-task-type relevance mapping for CTF challenge generation.
+Сопоставление CWE с типами задач для генерации CTF-заданий.
 
-Used to:
-1. Filter kb_entries by CWE relevance during RAG retrieval
-2. Infer the best task type for a given CVE (CVE-first generation)
+Используется для:
+1. Фильтрации kb_entries по релевантности CWE при RAG-поиске
+2. Определения лучшего типа задачи для заданного CVE (генерация от CVE)
 """
 from __future__ import annotations
 
 from typing import Optional
 
-# Maps CWE IDs to the task types they are most relevant for.
-# A CWE can map to multiple task types.
+# Сопоставляет ID CWE с типами задач, для которых они наиболее релевантны.
+# Один CWE может соответствовать нескольким типам задач.
 CWE_TO_TASK_TYPES: dict[str, list[str]] = {
-    # ── Cryptography ────────────────────────────────────────────────────────
-    "CWE-327": ["crypto_text_web"],       # Use of a broken or risky cryptographic algorithm
-    "CWE-328": ["crypto_text_web"],       # Use of weak hash
-    "CWE-326": ["crypto_text_web"],       # Inadequate encryption strength
-    "CWE-325": ["crypto_text_web"],       # Missing required cryptographic step
-    "CWE-330": ["crypto_text_web"],       # Use of insufficiently random values
-    "CWE-331": ["crypto_text_web"],       # Insufficient entropy
-    "CWE-338": ["crypto_text_web"],       # Use of cryptographically weak PRNG
-    "CWE-347": ["crypto_text_web"],       # Improper verification of cryptographic signature
-    "CWE-757": ["crypto_text_web"],       # Selection of less-secure algorithm during negotiation
-    "CWE-916": ["crypto_text_web"],       # Use of password hash with insufficient computational effort
-    "CWE-311": ["crypto_text_web"],       # Missing encryption of sensitive data
-    "CWE-319": ["crypto_text_web"],       # Cleartext transmission of sensitive information
-    "CWE-522": ["crypto_text_web"],       # Insufficiently protected credentials
-    "CWE-256": ["crypto_text_web"],       # Plaintext storage of password
-    "CWE-321": ["crypto_text_web"],       # Use of hard-coded cryptographic key
-    "CWE-334": ["crypto_text_web"],       # Small space of random values
-    "CWE-760": ["crypto_text_web"],       # Use of a one-way hash with a predictable salt
+    # ── Криптография ────────────────────────────────────────────────────────
+    "CWE-327": ["crypto_text_web"],       # Использование устаревшего или небезопасного крипто-алгоритма
+    "CWE-328": ["crypto_text_web"],       # Использование слабой хеш-функции
+    "CWE-326": ["crypto_text_web"],       # Недостаточная стойкость шифрования
+    "CWE-325": ["crypto_text_web"],       # Пропущен обязательный шаг шифрования
+    "CWE-330": ["crypto_text_web"],       # Использование недостаточно случайных значений
+    "CWE-331": ["crypto_text_web"],       # Недостаточная энтропия
+    "CWE-338": ["crypto_text_web"],       # Использование криптографически слабого ГПСЧ
+    "CWE-347": ["crypto_text_web"],       # Некорректная проверка криптографической подписи
+    "CWE-757": ["crypto_text_web"],       # Выбор менее безопасного алгоритма при согласовании
+    "CWE-916": ["crypto_text_web"],       # Хэш пароля с недостаточными вычислительными затратами
+    "CWE-311": ["crypto_text_web"],       # Отсутствие шифрования конфиденциальных данных
+    "CWE-319": ["crypto_text_web"],       # Передача конфиденциальных данных в открытом виде
+    "CWE-522": ["crypto_text_web"],       # Недостаточно защищённые учётные данные
+    "CWE-256": ["crypto_text_web"],       # Хранение пароля в открытом виде
+    "CWE-321": ["crypto_text_web"],       # Использование жёстко заданного крипто-ключа
+    "CWE-334": ["crypto_text_web"],       # Малое пространство случайных значений
+    "CWE-760": ["crypto_text_web"],       # Хэш с предсказуемой солью
 
-    # ── Forensics / Information Disclosure ──────────────────────────────────
-    "CWE-200": ["forensics_image_metadata"],  # Exposure of sensitive information to unauthorized actor
-    "CWE-201": ["forensics_image_metadata"],  # Insertion of sensitive information into sent data
-    "CWE-203": ["forensics_image_metadata"],  # Observable discrepancy
-    "CWE-209": ["forensics_image_metadata"],  # Generation of error message containing sensitive info
-    "CWE-212": ["forensics_image_metadata"],  # Improper removal of sensitive information before storage
-    "CWE-359": ["forensics_image_metadata"],  # Exposure of private personal information
-    "CWE-497": ["forensics_image_metadata"],  # Exposure of sensitive system information
-    "CWE-532": ["forensics_image_metadata"],  # Insertion of sensitive information into log file
-    "CWE-538": ["forensics_image_metadata"],  # Insertion of sensitive information into externally-accessible file
-    "CWE-540": ["forensics_image_metadata"],  # Inclusion of sensitive information in source code
-    "CWE-615": ["forensics_image_metadata"],  # Inclusion of sensitive information in source code comments
+    # ── Криминалистика / Утечка информации ──────────────────────────────────
+    "CWE-200": ["forensics_image_metadata"],  # Раскрытие конфиденциальных данных неавторизованному лицу
+    "CWE-201": ["forensics_image_metadata"],  # Внедрение конфиденциальной информации в отправляемые данные
+    "CWE-203": ["forensics_image_metadata"],  # Наблюдаемое расхождение
+    "CWE-209": ["forensics_image_metadata"],  # Сообщение об ошибке с конфиденциальной информацией
+    "CWE-212": ["forensics_image_metadata"],  # Неполное удаление конфиденциальных данных перед хранением
+    "CWE-359": ["forensics_image_metadata"],  # Раскрытие персональных данных
+    "CWE-497": ["forensics_image_metadata"],  # Раскрытие системной информации
+    "CWE-532": ["forensics_image_metadata"],  # Запись конфиденциальных данных в лог
+    "CWE-538": ["forensics_image_metadata"],  # Конфиденциальные данные в файлах с внешним доступом
+    "CWE-540": ["forensics_image_metadata"],  # Конфиденциальные данные в исходном коде
+    "CWE-615": ["forensics_image_metadata"],  # Конфиденциальные данные в комментариях к исходному коду
 
-    # Dual: forensics + crypto
-    "CWE-312": ["crypto_text_web", "forensics_image_metadata"],  # Cleartext storage of sensitive information
-    "CWE-798": ["crypto_text_web", "forensics_image_metadata"],  # Use of hard-coded credentials
+    # Двойная принадлежность: forensics + crypto
+    "CWE-312": ["crypto_text_web", "forensics_image_metadata"],  # Хранение конфиденциальных данных в открытом виде
+    "CWE-798": ["crypto_text_web", "forensics_image_metadata"],  # Использование жёстко закодированных учётных данных
 
-    # ── Web / XSS ───────────────────────────────────────────────────────────
-    "CWE-79":  ["web_static_xss"],        # Improper neutralization of input during web page generation (XSS)
-    "CWE-80":  ["web_static_xss"],        # Improper neutralization of script-related HTML tags
-    "CWE-81":  ["web_static_xss"],        # Improper neutralization of script error message contents
-    "CWE-83":  ["web_static_xss"],        # Improper neutralization of script in attributes
-    "CWE-84":  ["web_static_xss"],        # Improper neutralization of encoded URI schemes in a web page
-    "CWE-86":  ["web_static_xss"],        # Improper neutralization of invalid characters in identifiers
-    "CWE-87":  ["web_static_xss"],        # Improper neutralization of alternate XSS syntax
-    "CWE-116": ["web_static_xss"],        # Improper encoding or escaping of output
-    "CWE-184": ["web_static_xss"],        # Incomplete list of disallowed inputs
-    "CWE-20":  ["web_static_xss"],        # Improper input validation (broad, but often web)
-    "CWE-352": ["web_static_xss"],        # Cross-site request forgery
-    "CWE-601": ["web_static_xss"],        # URL redirection to untrusted site (open redirect)
+    # ── Веб / XSS ───────────────────────────────────────────────────────────
+    "CWE-79":  ["web_static_xss"],        # Некорректная нейтрализация ввода при генерации веб-страницы (XSS)
+    "CWE-80":  ["web_static_xss"],        # Некорректная нейтрализация HTML-тегов со скриптами
+    "CWE-81":  ["web_static_xss"],        # Некорректная нейтрализация содержимого сообщений об ошибках скриптов
+    "CWE-83":  ["web_static_xss"],        # Некорректная нейтрализация скриптов в атрибутах
+    "CWE-84":  ["web_static_xss"],        # Некорректная нейтрализация URI-схем в веб-странице
+    "CWE-86":  ["web_static_xss"],        # Некорректная нейтрализация недопустимых символов в идентификаторах
+    "CWE-87":  ["web_static_xss"],        # Некорректная нейтрализация альтернативного XSS-синтаксиса
+    "CWE-116": ["web_static_xss"],        # Некорректное кодирование или экранирование вывода
+    "CWE-184": ["web_static_xss"],        # Неполный список запрещённых входных данных
+    "CWE-20":  ["web_static_xss"],        # Некорректная валидация входных данных (широкий, часто web)
+    "CWE-352": ["web_static_xss"],        # Межсайтовая подделка запроса
+    "CWE-601": ["web_static_xss"],        # Перенаправление URL на недоверенный сайт (open redirect)
 
-    # ── Chat / LLM / Injection ──────────────────────────────────────────────
-    "CWE-74":  ["chat_llm"],              # Improper neutralization of special elements (injection)
-    "CWE-77":  ["chat_llm"],              # Improper neutralization of special elements in command
-    "CWE-94":  ["chat_llm"],              # Improper control of generation of code (code injection)
-    "CWE-1336": ["chat_llm"],             # Improper neutralization of special elements (template injection)
-    "CWE-706": ["chat_llm"],              # Use of incorrectly-resolved name or reference
-    "CWE-114": ["chat_llm"],              # Process control
+    # ── Чат / LLM / Инъекции ──────────────────────────────────────────────
+    "CWE-74":  ["chat_llm"],              # Некорректная нейтрализация специальных элементов (инъекция)
+    "CWE-77":  ["chat_llm"],              # Некорректная нейтрализация специальных элементов в команде
+    "CWE-94":  ["chat_llm"],              # Некорректный контроль генерации кода (инъекция кода)
+    "CWE-1336": ["chat_llm"],             # Некорректная нейтрализация специальных элементов (инъекция шаблона)
+    "CWE-706": ["chat_llm"],              # Использование некорректно разрешённого имени или ссылки
+    "CWE-114": ["chat_llm"],              # Управление процессом
 }
 
-# Reverse mapping: task_type -> set of relevant CWE IDs
+# Обратное сопоставление: task_type -> множество релевантных CWE ID
 TASK_TYPE_TO_CWES: dict[str, set[str]] = {}
 for _cwe, _task_types in CWE_TO_TASK_TYPES.items():
     for _tt in _task_types:
         TASK_TYPE_TO_CWES.setdefault(_tt, set()).add(_cwe)
 
-# Human-readable CWE descriptions for prompt context
+# Человекочитаемые описания CWE для контекста промпта
 CWE_DESCRIPTIONS: dict[str, str] = {
     "CWE-327": "использование устаревшего или небезопасного криптографического алгоритма",
     "CWE-328": "использование слабой хеш-функции",
@@ -103,7 +103,7 @@ CWE_DESCRIPTIONS: dict[str, str] = {
     "CWE-1336": "инъекция через шаблоны или управление потоком данных (prompt injection)",
 }
 
-# Per-task-type guidance for how to use a CWE in task mechanics
+# Подсказки по применению CWE в механике задания для каждого типа
 CWE_TASK_RELEVANCE_HINTS: dict[str, dict[str, str]] = {
     "crypto_text_web": {
         "CWE-327": "слабого алгоритма шифрования — используй устаревший шифр (caesar, rot13, substitution) как отражение уязвимости",
@@ -137,7 +137,7 @@ CWE_TASK_RELEVANCE_HINTS: dict[str, dict[str, str]] = {
     },
 }
 
-# Fallback: attack_vector to likely task types for CVEs without CWE data
+# Запасной вариант: вектор атаки → вероятные типы задач для CVE без данных CWE
 ATTACK_VECTOR_TO_TASK_TYPES: dict[str, list[str]] = {
     "NETWORK": ["web_static_xss", "crypto_text_web", "chat_llm"],
     "ADJACENT_NETWORK": ["crypto_text_web"],
@@ -145,12 +145,12 @@ ATTACK_VECTOR_TO_TASK_TYPES: dict[str, list[str]] = {
     "PHYSICAL": ["forensics_image_metadata"],
 }
 
-# All implemented task types (used for infer_task_type fallback)
+# Все реализованные типы задач (используется для резервного варианта infer_task_type)
 IMPLEMENTED_TASK_TYPES = {"crypto_text_web", "forensics_image_metadata", "web_static_xss", "chat_llm"}
 
 
 def get_relevant_cwes_for_task_type(task_type: str) -> list[str]:
-    """Return list of CWE IDs relevant to the given task type."""
+    """Вернуть список CWE ID, релевантных для данного типа задачи."""
     return sorted(TASK_TYPE_TO_CWES.get(task_type, set()))
 
 
@@ -159,10 +159,10 @@ def infer_task_type(
     attack_vector: Optional[str] = None,
     implemented_only: bool = True,
 ) -> str:
-    """Infer the best task type for a CVE based on its CWE IDs and attack vector.
+    """Определить лучший тип задачи для CVE по его CWE ID и вектору атаки.
 
-    Returns the task type with the highest relevance score.
-    Falls back to 'crypto_text_web' when no match is found.
+    Возвращает тип задачи с наивысшим баллом релевантности.
+    Если совпадений нет — возвращает 'crypto_text_web'.
     """
     scores: dict[str, float] = {tt: 0.0 for tt in IMPLEMENTED_TASK_TYPES}
 
@@ -171,7 +171,7 @@ def infer_task_type(
             if task_type in scores:
                 scores[task_type] += 1.0
 
-    # Bonus for attack vector match
+    # Бонус за совпадение вектора атаки
     if attack_vector:
         for task_type in ATTACK_VECTOR_TO_TASK_TYPES.get(attack_vector, []):
             if task_type in scores:
@@ -179,12 +179,12 @@ def infer_task_type(
 
     best = max(scores, key=lambda tt: scores[tt])
     if scores[best] == 0.0:
-        return "crypto_text_web"  # universal fallback
+        return "crypto_text_web"  # универсальный резервный вариант
     return best
 
 
 def get_cwe_hint_for_task(task_type: str, cwe_ids: list[str]) -> Optional[str]:
-    """Return the best CWE-to-mechanics hint for the task type, given a list of CVE CWEs."""
+    """Вернуть лучшую подсказку CWE→механика для типа задачи по списку CWE из CVE."""
     hints = CWE_TASK_RELEVANCE_HINTS.get(task_type, {})
     for cwe in cwe_ids:
         if cwe in hints:

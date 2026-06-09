@@ -1,13 +1,13 @@
 """
-Feedback loop context builder for the GRPO pipeline.
+Строитель контекста обратной связи для GRPO-пайплайна.
 
-Queries historical ai_generation_variants to build few-shot context:
-- positive_examples: top past variants by quality_score (passed_all_binary=True)
-  — injected as "here's what a good challenge looks like"
-- negative_patterns: most frequent failure reasons
-  — injected as "avoid these known mistakes"
-- best_temperature: which temperature historically produces highest avg quality
-- recent_pass_rate: overall success rate for this task_type/difficulty
+Запрашивает исторические ai_generation_variants для формирования few-shot контекста:
+- positive_examples: лучшие варианты по quality_score (passed_all_binary=True)
+  — вставляются как "вот как выглядит хорошее задание"
+- negative_patterns: самые частые причины отказа
+  — вставляются как "избегай этих ошибок"
+- best_temperature: температура, дающая исторически лучшее качество
+- recent_pass_rate: общий процент успеха для данного task_type/difficulty
 """
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class FeedbackContext:
         )
 
     def format_for_prompt(self) -> str:
-        """Format as a text block to inject into the generator system/user prompt."""
+        """Форматирует данные в текстовый блок для вставки в системный/пользовательский промпт."""
         if self.is_empty():
             return ""
 
@@ -100,9 +100,9 @@ async def compute_feedback_context(
     db: AsyncSession,
 ) -> FeedbackContext:
     """
-    Build FeedbackContext from historical generation data.
+    Строит FeedbackContext из исторических данных генерации.
 
-    Returns an empty FeedbackContext (not an exception) if DB is empty or query fails.
+    Возвращает пустой FeedbackContext (без исключения), если БД пуста или запрос не удался.
     """
     ctx = FeedbackContext()
     try:
@@ -136,7 +136,7 @@ async def _load_positive_examples(
     result = await db.execute(query)
     for v in result.scalars().all():
         spec = v.generated_spec or {}
-        # Redact the flag so it never gets injected into future prompts
+        # Убираем флаг, чтобы он не попал в будущие промпты
         safe_spec = {k: val for k, val in spec.items() if k != "flag"}
         ctx.positive_examples.append({
             "quality_score": v.quality_score or 0.0,

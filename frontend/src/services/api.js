@@ -1236,7 +1236,7 @@ export const userVariantsAPI = {
   },
   
   /**
-   * Get generation request status
+   * Статус запроса генерации
    */
   getRequestStatus: async (requestId) => {
     const response = await api.get(`/user-variants/requests/${requestId}/status`);
@@ -1244,7 +1244,7 @@ export const userVariantsAPI = {
   },
   
   /**
-   * Get all variants for a task
+   * Все варианты для задачи
    */
   getTaskVariants: async (taskId) => {
     const response = await api.get(`/user-variants/tasks/${taskId}/variants`);
@@ -1252,7 +1252,7 @@ export const userVariantsAPI = {
   },
   
   /**
-   * Vote on a variant
+   * Голосование за вариант
    */
   voteVariant: async (variantId, payload) => {
     const response = await api.post(`/user-variants/variants/${variantId}/vote`, payload);

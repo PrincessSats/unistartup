@@ -98,14 +98,14 @@ class OAuthLoginFinalizeRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     """
-    Request for password reset link.
+    Запрос ссылки для сброса пароля.
     """
     email: EmailStr
 
 
 class ResetPasswordRequest(BaseModel):
     """
-    Request to reset password using a reset token.
+    Запрос на сброс пароля с использованием токена сброса.
     """
     token: str
     new_password: str
@@ -113,6 +113,6 @@ class ResetPasswordRequest(BaseModel):
 
 class MessageResponse(BaseModel):
     """
-    Generic message response.
+    Универсальный ответ с сообщением.
     """
     message: str

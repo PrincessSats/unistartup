@@ -28,7 +28,7 @@ class RewardType(str, Enum):
 @dataclass
 class RewardCheck:
     type: RewardType
-    score: float          # 0.0 or 1.0 for binary checks; 0.0-1.0 for QUALITY
+    score: float          # 0.0 или 1.0 для двоичных проверок; 0.0-1.0 для QUALITY
     weight: float
     detail: str = ""
     error: Optional[str] = None
@@ -41,15 +41,15 @@ class RewardCheck:
 class VariantReward:
     variant_number: int
     checks: list[RewardCheck] = field(default_factory=list)
-    # Populated by compute()
+    # Заполняется методом compute()
     total_reward: float = 0.0
     binary_reward: float = 0.0
     passed_all_binary: bool = False
-    # Populated by compute_group_advantages()
+    # Заполняется методом compute_group_advantages()
     advantage: float = 0.0
 
     def compute(self) -> None:
-        """Compute total_reward, binary_reward, and passed_all_binary from checks."""
+        """Вычислить total_reward, binary_reward и passed_all_binary из проверок."""
         if not self.checks:
             return
 

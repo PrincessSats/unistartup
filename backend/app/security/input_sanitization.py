@@ -1,8 +1,8 @@
 """
-Input sanitization utilities for preventing XSS and injection attacks.
+Утилиты для очистки пользовательского ввода — защита от XSS и инъекций.
 
-This module provides functions for sanitizing user input before storing
-or displaying it. Uses bleach library for HTML sanitization.
+Содержит функции санитизации данных перед сохранением или отображением.
+Использует библиотеку bleach для очистки HTML.
 """
 
 import re
@@ -12,7 +12,7 @@ from typing import Optional
 try:
     import bleach
 except ImportError:
-    # Fallback if bleach is not installed
+    # Запасной вариант, если bleach не установлен
     bleach = None
 
 
@@ -38,14 +38,14 @@ XSS_PATTERNS = [
 
 def sanitize_html(text: str, allowed_tags: Optional[list] = None) -> str:
     """
-    Sanitize HTML input by removing dangerous tags and attributes.
-    
+    Очищает HTML-ввод: убирает опасные теги и атрибуты.
+
     Args:
-        text: Input text that may contain HTML
-        allowed_tags: List of allowed HTML tags (default: none)
-    
+        text: Текст, который может содержать HTML
+        allowed_tags: Список разрешённых тегов (по умолчанию: пусто)
+
     Returns:
-        Sanitized text safe for HTML display
+        Очищенный текст, безопасный для отображения в HTML
     """
     if not text:
         return ""
@@ -64,13 +64,13 @@ def sanitize_html(text: str, allowed_tags: Optional[list] = None) -> str:
 
 def strip_html_tags(text: str) -> str:
     """
-    Remove all HTML tags from text.
-    
+    Удаляет все HTML-теги из текста.
+
     Args:
-        text: Input text with potential HTML tags
-    
+        text: Текст с возможными HTML-тегами
+
     Returns:
-        Plain text with HTML tags removed
+        Чистый текст без HTML-тегов
     """
     if not text:
         return ""
@@ -82,13 +82,13 @@ def strip_html_tags(text: str) -> str:
 
 def escape_html(text: str) -> str:
     """
-    Escape HTML special characters to prevent XSS.
-    
+    Экранирует спецсимволы HTML для защиты от XSS.
+
     Args:
-        text: Input text to escape
-    
+        text: Текст для экранирования
+
     Returns:
-        HTML-escaped text safe for display
+        Экранированный HTML-безопасный текст
     """
     if not text:
         return ""
@@ -98,13 +98,13 @@ def escape_html(text: str) -> str:
 
 def detect_xss_attempt(text: str) -> bool:
     """
-    Detect potential XSS attack patterns in input.
-    
+    Ищет признаки XSS-атаки во входных данных.
+
     Args:
-        text: Input text to check
-    
+        text: Текст для проверки
+
     Returns:
-        True if XSS pattern detected, False otherwise
+        True если найден XSS-паттерн, иначе False
     """
     if not text:
         return False
@@ -118,16 +118,16 @@ def detect_xss_attempt(text: str) -> bool:
 
 def sanitize_username(username: str) -> str:
     """
-    Sanitize username input.
-    
-    Allowed: alphanumeric, underscore, hyphen
-    Max length: 50 characters
-    
+    Очищает имя пользователя.
+
+    Разрешено: буквы, цифры, подчёркивание, дефис.
+    Максимум: 50 символов.
+
     Args:
-        username: Raw username input
-    
+        username: Сырое имя пользователя
+
     Returns:
-        Sanitized username
+        Очищенное имя пользователя
     """
     if not username:
         return ""
@@ -141,13 +141,13 @@ def sanitize_username(username: str) -> str:
 
 def sanitize_email(email: str) -> str:
     """
-    Sanitize email input.
-    
+    Очищает email.
+
     Args:
-        email: Raw email input
-    
+        email: Сырой email
+
     Returns:
-        Sanitized email (lowercase, trimmed)
+        Очищенный email (в нижнем регистре, без пробелов)
     """
     if not email:
         return ""
@@ -158,18 +158,18 @@ def sanitize_email(email: str) -> str:
 
 def sanitize_comment(body: str, max_length: int = 2000) -> str:
     """
-    Sanitize comment body.
-    
-    - Strips all HTML
-    - Escapes special characters
-    - Enforces length limit
-    
+    Очищает текст комментария.
+
+    - Удаляет весь HTML
+    - Экранирует спецсимволы
+    - Обрезает по лимиту длины
+
     Args:
-        body: Comment text
-        max_length: Maximum allowed length
-    
+        body: Текст комментария
+        max_length: Максимальная длина
+
     Returns:
-        Sanitized comment text
+        Очищенный текст комментария
     """
     if not body:
         return ""
@@ -186,14 +186,14 @@ def sanitize_comment(body: str, max_length: int = 2000) -> str:
 
 def sanitize_feedback_message(message: str, max_length: int = 500) -> str:
     """
-    Sanitize feedback message.
-    
+    Очищает сообщение обратной связи.
+
     Args:
-        message: Feedback text
-        max_length: Maximum allowed length
-    
+        message: Текст фидбека
+        max_length: Максимальная длина
+
     Returns:
-        Sanitized feedback message
+        Очищенное сообщение
     """
     if not message:
         return ""
@@ -207,14 +207,14 @@ def sanitize_feedback_message(message: str, max_length: int = 500) -> str:
 
 def sanitize_topic(topic: str, max_length: int = 100) -> str:
     """
-    Sanitize topic/title input.
-    
+    Очищает тему/заголовок.
+
     Args:
-        topic: Topic text
-        max_length: Maximum allowed length
-    
+        topic: Текст темы
+        max_length: Максимальная длина
+
     Returns:
-        Sanitized topic
+        Очищенная тема
     """
     if not topic:
         return ""
@@ -228,17 +228,17 @@ def sanitize_topic(topic: str, max_length: int = 100) -> str:
 
 def validate_sql_sort_order(order: str, allowed_values: tuple = ("asc", "desc")) -> str:
     """
-    Validate SQL ORDER BY parameter to prevent injection.
-    
+    Проверяет параметр ORDER BY для защиты от SQL-инъекций.
+
     Args:
-        order: Sort order parameter from user
-        allowed_values: Tuple of allowed values
-    
+        order: Порядок сортировки от пользователя
+        allowed_values: Допустимые значения
+
     Returns:
-        Validated sort order or default value
-    
+        Проверенный порядок сортировки или значение по умолчанию
+
     Raises:
-        ValueError: If order is not in allowed values
+        ValueError: Если значение не входит в допустимые
     """
     if not order:
         return allowed_values[0]

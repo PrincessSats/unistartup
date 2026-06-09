@@ -189,10 +189,10 @@ async def materialize_championship_task(
     base_difficulty: int,
     created_by: Optional[int],
 ) -> Task:
-    """Persist a generated championship payload as a draft Task (+ flags/materials/solution).
+    """Сохраняет сгенерированные данные чемпионата как черновик Task (+ флаги/материалы/решение).
 
-    Does NOT attach the task to any contest and does NOT commit — the caller decides
-    whether to add a ContestTask row and when to commit. Returns the flushed Task.
+    НЕ привязывает задание к контесту и НЕ делает commit — вызывающий код сам решает,
+    добавлять ли строку ContestTask и когда делать commit. Возвращает сброшенный Task.
     """
     payload = result["parsed"]
     stages = payload.get("stages", []) or []
@@ -290,11 +290,11 @@ async def select_kb_entry_clusters(
     k_per_task: int = 3,
     diversify: bool = False,
 ) -> list[list[KBEntry]]:
-    """Return up to `count` clusters, each containing up to k_per_task related KBEntry rows.
+    """Возвращает до `count` кластеров, каждый содержит до k_per_task связанных строк KBEntry.
 
-    When `diversify` is True, clusters are kept thematically distinct (no shared CWE/tag
-    between cluster seeds) and the result is NOT padded by cycling — so each generated task
-    has a different theme. When False, the legacy behavior pads to exactly `count` by cycling.
+    Если `diversify` равно True, кластеры тематически различны (нет общих CWE/тегов
+    между seed-записями) и результат НЕ дополняется циклически — каждое задание имеет свою тему.
+    Если False, применяется устаревшее поведение: дополнение до ровно `count` записей циклически.
     """
     if mode == "explicit" and kb_entry_ids:
         rows = (
@@ -313,7 +313,7 @@ async def select_kb_entry_clusters(
             return clusters[:count]
         return [clusters[i % len(clusters)] for i in range(count)]
 
-    # Filter mode
+    # Режим фильтрации
     filters = filters or {}
     conditions = ["visible_in_kb_list = TRUE", "embedding IS NOT NULL"]
     params: dict[str, Any] = {}
@@ -357,7 +357,7 @@ async def select_kb_entry_clusters(
     seed_ids = [row[0] for row in seed_rows]
 
     if not seed_ids:
-        # Fall back without the embedding IS NOT NULL constraint
+        # Запрос без ограничения embedding IS NOT NULL
         params2 = {k: v for k, v in params.items()}
         conditions2 = [c for c in conditions if "embedding" not in c]
         where2 = " AND ".join(conditions2)
@@ -394,8 +394,8 @@ async def select_kb_entry_clusters(
         seed_cwes = set(seed_entry.cwe_ids or [])
         seed_tags = set(seed_entry.tags or [])
 
-        # Diversify: skip a seed whose theme (CWE/tag) overlaps an already-chosen cluster,
-        # so the N clusters yield N distinct task themes (no crypto+crypto in one batch).
+        # Разнообразие: пропускаем сид, чья тема (CWE/тег) пересекается с уже выбранным кластером,
+        # чтобы N кластеров давали N разных тем задач (не crypto+crypto в одном батче).
         if diversify and any(
             (seed_cwes & sig_cwes) or (seed_tags & sig_tags)
             for sig_cwes, sig_tags in chosen_signatures

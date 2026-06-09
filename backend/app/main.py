@@ -34,7 +34,7 @@ if allow_origin_regex:
     try:
         re.compile(allow_origin_regex)
     except re.error:
-        logger.exception("Invalid CORS_ALLOW_ORIGIN_REGEX=%r. Ignoring it.", allow_origin_regex)
+        logger.exception("Невалидный CORS_ALLOW_ORIGIN_REGEX=%r. Игнорируем.", allow_origin_regex)
         allow_origin_regex = None
 
 allow_origins = [
@@ -53,8 +53,8 @@ for required_origin in required_public_origins:
 
 if not allow_credentials and settings.REFRESH_TOKEN_COOKIE_SAMESITE == "none":
     logger.warning(
-        "Refresh cookie flow requires credentials for cross-origin requests. "
-        "Forcing CORS allow_credentials=True because REFRESH_TOKEN_COOKIE_SAMESITE=none."
+        "Refresh cookie flow требует credentials для кросс-доменных запросов. "
+        "Принудительно включаем CORS allow_credentials=True, так как REFRESH_TOKEN_COOKIE_SAMESITE=none."
     )
     allow_credentials = True
 
@@ -70,15 +70,15 @@ if allow_credentials and "*" in allow_origins:
             if str(origin).strip() and origin != "*"
         ]
     logger.warning(
-        "CORS wildcard origin is incompatible with credentials. "
-        "Removed '*' and kept credentials enabled. Effective origins: %s",
+        "CORS wildcard origin несовместим с credentials. "
+        "Удалили '*' и оставили credentials включёнными. Действующие origins: %s",
         ", ".join(allow_origins) if allow_origins else "<none>",
     )
 
 if allow_credentials and not allow_origins and not allow_origin_regex:
     logger.warning(
-        "CORS credentials requested but no origins configured. "
-        "Disabling credentials header to avoid invalid CORS responses."
+        "CORS credentials запрошены, но origins не настроены. "
+        "Отключаем credentials header, чтобы не слать невалидные CORS-ответы."
     )
     allow_credentials = False
 
@@ -104,7 +104,7 @@ app.middleware("http")(security_headers_middleware)
 app.include_router(auth.router)
 app.include_router(auth_registration.router)
 app.include_router(pages.router)
-app.include_router(profile.router)  # ← новый роутер
+app.include_router(profile.router)  # ← роутер профиля
 app.include_router(contests.router)
 app.include_router(ratings.router)
 app.include_router(feedback.router)

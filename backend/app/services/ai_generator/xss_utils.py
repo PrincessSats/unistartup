@@ -1,8 +1,8 @@
 """
-XSS task utilities: HTML page generation and upload.
+Утилиты XSS-заданий: генерация HTML-страницы и загрузка.
 
-render_xss_page(spec) -> str   — generates self-contained HTML with a vulnerable input
-upload_xss_page(html, batch_id, variant_id) -> str  — uploads to S3, returns key
+render_xss_page(spec) -> str   — генерирует самодостаточный HTML с уязвимым вводом
+upload_xss_page(html, batch_id, variant_id) -> str  — загружает в S3, возвращает ключ
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class XSSError(RuntimeError):
     pass
 
 
-# ── Templates ──────────────────────────────────────────────────────────────────
+# ── Шаблоны ───────────────────────────────────────────────────────────────────
 
 _REFLECTED_TEMPLATE = """\
 <!DOCTYPE html>
@@ -46,15 +46,15 @@ _REFLECTED_TEMPLATE = """\
     </form>
   </div>
   <div class="results show" id="results">
-    <!-- search results will appear here -->
+    <!-- здесь появятся результаты поиска -->
   </div>
   <footer>CTF Challenge Platform &copy; 2025</footer>
 
   <script>
-    // Set flag in cookie
+    // Установить флаг в cookie
     document.cookie = "flag={flag}; path=/";
 
-    // Reflected XSS: inject URL param value directly into DOM
+    // Reflected XSS: вставить значение URL-параметра прямо в DOM
     (function() {{
       var params = new URLSearchParams(window.location.search);
       var q = params.get("{param}");
@@ -95,7 +95,7 @@ _DOM_TEMPLATE = """\
   <script>
     document.cookie = "flag={flag}; path=/";
 
-    // DOM XSS: value from location.hash injected via innerHTML
+    // DOM XSS: значение из location.hash вставляется через innerHTML
     (function() {{
       var hash = window.location.hash.slice(1);
       var params = new URLSearchParams(hash);
@@ -142,7 +142,7 @@ _STORED_TEMPLATE = """\
   <script>
     document.cookie = "flag={flag}; path=/";
 
-    // Stored XSS simulation: comments stored in localStorage, rendered unsanitized
+    // Stored XSS: комментарии хранятся в localStorage, рендерятся без санитизации
     var comments = JSON.parse(localStorage.getItem("ctf_comments") || "[]");
 
     function renderComments() {{
@@ -172,16 +172,16 @@ _STORED_TEMPLATE = """\
 """
 
 
-# ── Filter JS snippets ────────────────────────────────────────────────────────
+# ── Сниппеты JS-фильтров ─────────────────────────────────────────────────────
 
-_FILTER_NONE = ""  # No filter
+_FILTER_NONE = ""  # без фильтра
 
 _FILTER_SCRIPT_TAG = """\
-        // Basic filter: replace <script> tag (bypass via event handlers)
+        // Простой фильтр: убирает тег <script> (обходится через обработчики событий)
         q = q.replace(/<script[^>]*>/gi, "").replace(/<\\/script>/gi, "");"""
 
 _FILTER_SCRIPT_TAG_STORED = """\
-      // Basic filter: replace <script> tag (bypass via event handlers)
+      // Простой фильтр: убирает тег <script> (обходится через обработчики событий)
       comments = comments.map(function(c) {{
         return c.replace(/<script[^>]*>/gi, "").replace(/<\\/script>/gi, "");
       }});"""
@@ -189,12 +189,12 @@ _FILTER_SCRIPT_TAG_STORED = """\
 
 def render_xss_page(spec: dict) -> str:
     """
-    Generate a self-contained HTML page for an XSS CTF task.
+    Сгенерировать самодостаточную HTML-страницу для XSS CTF-задания.
 
-    The page:
-    - Sets the flag in document.cookie as 'flag=CTF{...}'
-    - Has a vulnerability matching xss_type and vulnerable_param
-    - Optionally applies a basic filter (for intermediate tasks)
+    Страница:
+    - Устанавливает флаг в document.cookie как 'flag=CTF{...}'
+    - Содержит уязвимость, соответствующую xss_type и vulnerable_param
+    - Опционально применяет простой фильтр (для заданий среднего уровня)
     """
     flag = (spec.get("flag") or "").strip()
     xss_type = (spec.get("xss_type") or "reflected").strip().lower()
@@ -203,7 +203,7 @@ def render_xss_page(spec: dict) -> str:
     title = (spec.get("title") or "CTF Challenge").strip()
     description = (spec.get("description") or "Найдите флаг.").strip()
 
-    # Pick filter JS based on whether a filter is described
+    # Выбрать JS-фильтр в зависимости от наличия описания фильтра
     has_filter = bool(filter_bypass)
 
     if xss_type == "dom":
@@ -223,7 +223,7 @@ def render_xss_page(spec: dict) -> str:
             filter_js=filter_js,
         )
     else:
-        # default: reflected
+        # по умолчанию: reflected
         filter_js = _FILTER_SCRIPT_TAG if has_filter else _FILTER_NONE
         page = _REFLECTED_TEMPLATE.format(
             page_title=html_lib.escape(title),
@@ -238,8 +238,8 @@ def render_xss_page(spec: dict) -> str:
 
 def upload_xss_page(html_content: str, batch_id: str, variant_id: str) -> str:
     """
-    Upload the HTML page to S3 and return the object key.
-    Raises XSSError on failure.
+    Загрузить HTML-страницу в S3 и вернуть ключ объекта.
+    При ошибке бросает XSSError.
     """
     from botocore.exceptions import ClientError
     from app.services.storage import get_s3_client

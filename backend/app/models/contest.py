@@ -36,7 +36,7 @@ class KBEntry(Base):
     ru_explainer = Column(Text)
     tags = Column(ARRAY(Text), default=list)
     difficulty = Column(Text)
-    # Structured metadata extracted from NVD API
+    # Структурированные метаданные из NVD API
     cwe_ids = Column(ARRAY(Text), default=list)
     cvss_base_score = Column(Float)
     cvss_vector = Column(Text)
@@ -84,7 +84,7 @@ class Task(Base):
     chat_sessions = relationship("TaskChatSession", back_populates="task", cascade="all, delete-orphan")
     user_variant_requests = relationship("UserTaskVariantRequest", back_populates="parent_task", cascade="all, delete-orphan")
     
-    # Self-referential relationship for parent-daughter (UGC) tasks
+    # Самореферентная связь для родительских/дочерних (UGC) задач
     parent = relationship("Task", remote_side=[id], back_populates="variants")
     variants = relationship("Task", back_populates="parent")
 
@@ -251,10 +251,10 @@ class PromptTemplate(Base):
 
 
 class ContestGenJob(Base):
-    """Background job state for the standalone championship-task generation page.
+    """Состояние фоновой задачи для страницы генерации заданий чемпионата.
 
-    Persisted (not in-memory) so progress polling works across workers / PgBouncer,
-    mirroring the nvd_sync_log pattern.
+    Хранится в БД (не в памяти), чтобы опрос прогресса работал через несколько воркеров / PgBouncer,
+    по аналогии с паттерном nvd_sync_log.
     """
     __tablename__ = "contest_gen_jobs"
 

@@ -63,8 +63,8 @@ _DATE_RE = re.compile(r"\b\d{2}\.\d{2}\.\d{4}(?:\s+\d{2}:\d{2})?\b")
 _CONNECTION_RE = re.compile(r"\b((?:\d{1,3}\.){3}\d{1,3}(?:\s*\(VPN\))?)\b")
 _PRESIGNED_TTL_SECONDS = 300
 
-# Published practice/UGC categories change rarely; cache the DISTINCT scan so the
-# catalog page does not full-scan tasks on every request. Per-process TTL cache.
+# Категории практики/UGC меняются редко; кэшируем DISTINCT-скан,
+# чтобы страница каталога не делала full-scan на каждый запрос. TTL-кэш на процесс.
 _PRACTICE_CATEGORIES_TTL_S = 300.0
 _practice_categories_cache: Optional[tuple] = None
 
@@ -100,7 +100,7 @@ def difficulty_label(difficulty: int) -> str:
         return "Средне"
     if 8 <= difficulty <= 10:
         return "Сложно"
-    return "Средне"  # (нет английского текста)
+    return "Средне"
 
 
 def difficulty_bounds(bucket: str) -> tuple[int, int]:
@@ -115,7 +115,7 @@ def coerce_access_type(value: Optional[str]) -> str:
     normalized = str(value or "").strip().lower()
     if normalized in {"vpn", "vm", "link", "file", "chat", "just_flag"}:
         return normalized
-    return "just_flag"  # (нет английского текста)
+    return "just_flag"
 
 
 def infer_access_type_from_materials(material_rows: list[dict]) -> str:
@@ -539,14 +539,13 @@ async def _load_passed_users_count(
     db: AsyncSession,
     task_ids: Iterable[int],
 ) -> Dict[int, int]:
-    """Count distinct users who fully solved each task, entirely in SQL.
+    """Считает уникальных пользователей, полностью решивших каждую задачу, целиком в SQL.
 
-    Replaces the previous approach that pulled every correct submission for all
-    users into Python. A user "passes" a task when their distinct correct flag
-    submissions cover the task's required flags; tasks without required flags
-    count any user with a correct submission. Correct submissions can only carry
-    flag_ids belonging to the task, so `solved_count >= req_count` is equivalent
-    to the old `required_flag_ids.issubset(solved_flags)` subset check.
+    Заменяет предыдущий подход, который тащил все правильные сабмиты в Python.
+    Пользователь «прошёл» задачу, когда его уникальные правильные сабмиты покрывают
+    все обязательные флаги; для задач без обязательных флагов достаточно любого
+    правильного сабмита. Правильные сабмиты могут содержать только flag_id из этой
+    задачи, поэтому `solved_count >= req_count` эквивалентно старой проверке подмножества.
     """
     task_id_list = list(task_ids)
     if not task_id_list:

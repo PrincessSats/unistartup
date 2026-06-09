@@ -1,10 +1,10 @@
 """
-Backlog article generation for kb_entries that have no Russian content yet.
+Генерация статей бэклога для kb_entries без русского контента.
 
-Queries kb_entries WHERE source='nvd' AND ru_explainer IS NULL, then runs
-_translate_entries_for_log (which now uses generate_article_payload) on them.
+Запрашивает kb_entries WHERE source='nvd' AND ru_explainer IS NULL, затем запускает
+_translate_entries_for_log (который теперь использует generate_article_payload) на них.
 
-Usage:
+Использование:
     cd backend
     python -m scripts.backlog_generate_articles [--limit N] [--dry-run]
 """
@@ -25,9 +25,9 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate Russian KB articles for untranslated NVD entries")
-    parser.add_argument("--limit", type=int, default=None, help="Max entries to process (default: all)")
-    parser.add_argument("--dry-run", action="store_true", help="Show count only, do not generate")
+    parser = argparse.ArgumentParser(description="Генерирует русские статьи KB для непереведённых NVD записей")
+    parser.add_argument("--limit", type=int, default=None, help="Максимум записей для обработки (по умолчанию: все)")
+    parser.add_argument("--dry-run", action="store_true", help="Только показать количество, не генерировать")
     args = parser.parse_args()
 
     async with AsyncSessionLocal() as session:
@@ -53,7 +53,7 @@ async def main() -> int:
         logger.info("Dry run — exiting without generating.")
         return 0
 
-    # Use log_id=0: the UPDATE on nvd_sync_log will match 0 rows (harmless).
+    # log_id=0: UPDATE по nvd_sync_log не найдёт строк — безопасно.
     stats = await _translate_entries_for_log(0, rows)
     logger.info("Done. completed=%d, failed=%d", stats["completed"], stats["failed"])
     return 0

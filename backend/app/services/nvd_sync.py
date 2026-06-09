@@ -19,7 +19,7 @@ NVD_BASE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 DEFAULT_SLEEP_SECONDS = 6
 DEFAULT_HOURS = 24
 BATCH_SIZE = 20
-CONCURRENCY_LIMIT = 3  # Reduced to avoid hitting 429 ResourceExhausted (quota is 10)
+CONCURRENCY_LIMIT = 3  # Снижено, чтобы не получать 429 ResourceExhausted (квота — 10)
 
 logger = logging.getLogger(__name__)
 SYNC_LOG_COLUMNS = (
@@ -31,7 +31,7 @@ SYNC_LOG_COLUMNS = (
 
 
 def _chunked(iterable: Iterable[Any], n: int) -> Iterable[List[Any]]:
-    """Yield successive n-sized chunks from iterable."""
+    """Разбивает итерируемый объект на чанки по n элементов."""
     it = iter(iterable)
     while True:
         chunk = []
@@ -80,12 +80,12 @@ def _build_embedding_text(row: Dict[str, Any]) -> str:
 
 
 def _extract_cwe_ids(cve: Dict[str, Any]) -> List[str]:
-    """Extract CWE IDs from NVD CVE record, e.g. ['CWE-79', 'CWE-80']."""
+    """Извлекает CWE ID из записи NVD CVE, например ['CWE-79', 'CWE-80']."""
     cwe_ids: List[str] = []
     for weakness in cve.get("weaknesses") or []:
         for desc in weakness.get("description") or []:
             value = desc.get("value") or ""
-            # Skip NVD catch-all placeholders
+            # Пропускаем заглушки NVD вроде CWE-noinfo
             if value.startswith("CWE-") and value not in ("CWE-noinfo", "CWE-other"):
                 if value not in cwe_ids:
                     cwe_ids.append(value)
@@ -93,9 +93,9 @@ def _extract_cwe_ids(cve: Dict[str, Any]) -> List[str]:
 
 
 def _extract_cvss_data(cve: Dict[str, Any]) -> Dict[str, Any]:
-    """Extract CVSS base score, vector string, attack vector and complexity.
+    """Извлекает базовый балл CVSS, вектор, тип атаки и сложность.
 
-    Tries CVSSv3.1, then v3.0, then v2.0.
+    Пробует CVSSv3.1, потом v3.0, потом v2.0.
     """
     metrics = cve.get("metrics") or {}
     for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
@@ -114,14 +114,14 @@ def _extract_cvss_data(cve: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _extract_affected_products(cve: Dict[str, Any]) -> List[str]:
-    """Extract vendor:product pairs from CPE match strings (capped at 10)."""
+    """Извлекает пары vendor:product из CPE-строк (не более 10 штук)."""
     products: List[str] = []
     seen: set = set()
     for config in cve.get("configurations") or []:
         for node in config.get("nodes") or []:
             for match in node.get("cpeMatch") or []:
                 criteria = match.get("criteria") or ""
-                # CPE 2.3 format: cpe:2.3:a:vendor:product:version:...
+                # Формат CPE 2.3: cpe:2.3:a:vendor:product:version:...
                 parts = criteria.split(":")
                 if len(parts) >= 5:
                     vendor, product = parts[3], parts[4]
@@ -140,12 +140,12 @@ def _utc_now() -> datetime:
 
 
 def _format_dt(dt: datetime) -> str:
-    # NVD expects extended ISO-8601 with UTC offset
+    # NVD ожидает расширенный ISO-8601 с UTC-смещением
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
 
 def _parse_dt(value: str) -> datetime:
-    # Accept ISO-8601 strings with optional "Z"
+    # Принимает ISO-8601 строки с опциональным "Z"
     if value.endswith("Z"):
         value = value[:-1] + "+00:00"
     return datetime.fromisoformat(value)
@@ -204,7 +204,7 @@ async def fetch_recent_cves(
     items: List[Dict[str, Any]] = []
     start_index = 0
 
-    # Use shorter delay if API key is provided (NVD allows more requests)
+    # С API-ключом можно делать больше запросов — уменьшаем задержку
     actual_sleep = sleep_seconds
     if api_key and actual_sleep == DEFAULT_SLEEP_SECONDS:
         actual_sleep = 1
@@ -277,7 +277,7 @@ async def store_kb_entries(
         cvss_data = _extract_cvss_data(cve)
         affected_products = _extract_affected_products(cve)
 
-        # Tags include CWE IDs for GIN-indexed filtering
+        # Теги включают CWE ID для фильтрации по GIN-индексу
         tags = ["nvd", cve_id.lower()] + [c.lower() for c in cwe_ids]
 
         to_insert.append(
@@ -369,7 +369,7 @@ async def store_kb_entries(
                         }
                     )
 
-        # Translation hook — translate ru_title, ru_summary, ru_explainer for new entries
+        # Хук перевода — переводим ru_title, ru_summary, ru_explainer для новых записей
         if translate_new_entries:
             try:
                 from app.services.ai_generator.translation_service import TranslationService, FullTranslationResult, get_active_translation_model_key
@@ -391,7 +391,7 @@ async def store_kb_entries(
                             )
                             return row, result
 
-                    # Process in batches
+                    # Обрабатываем порциями
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
                         tasks = [translate_task(row) for row in chunk]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -426,7 +426,7 @@ async def store_kb_entries(
                                 updates,
                             )
 
-                        # Update sync log with translation stats
+                        # Обновляем лог синхронизации со статистикой перевода
                         await session.execute(
                             text(
                                 "UPDATE nvd_sync_log SET "
@@ -446,7 +446,7 @@ async def store_kb_entries(
                             "NVD translation progress: %d completed, %d failed (total %d)",
                             translation_completed, translation_failed, translation_count,
                         )
-                        # Avoid burst limit
+                        # Избегаем burst-лимита
                         await asyncio.sleep(2.0)
 
                 finally:
@@ -455,8 +455,8 @@ async def store_kb_entries(
             except Exception as exc:
                 logger.warning("NVD translation hook failed: %s", exc)
 
-        # Embeddings are optional here. The admin-triggered sync should not block
-        # on external embedding calls because the UI request has a hard timeout.
+        # Эмбеддинги опциональны. Синхронизация, запущенная из админки, не должна
+        # зависать на внешних вызовах — у UI-запроса жёсткий таймаут.
         if embed_new_entries:
             try:
                 from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
@@ -581,7 +581,7 @@ async def cleanup_stale_sync_logs() -> None:
     что данные были сохранены.
     """
     async with AsyncSessionLocal() as session:
-        # First, check for syncs that completed fetch/store but failed during translation/embedding
+        # Сначала ищем синхронизации, завершившие fetch/store, но упавшие при переводе/эмбеддинге
         partial_result = await session.execute(
             text(
                 """
@@ -597,7 +597,7 @@ async def cleanup_stale_sync_logs() -> None:
         )
         partial = partial_result.fetchall()
 
-        # Mark translation/embedding partial progress (data saved but process interrupted)
+        # Помечаем частичный прогресс перевода/эмбеддинга (данные сохранены, процесс прерван)
         translation_partial_result = await session.execute(
             text(
                 """
@@ -614,7 +614,7 @@ async def cleanup_stale_sync_logs() -> None:
         )
         translation_partial = translation_partial_result.fetchall()
         
-        # Then, mark truly failed syncs (no data was saved)
+        # Помечаем полностью упавшие синхронизации (данные не сохранились)
         failed_result = await session.execute(
             text(
                 """
@@ -765,7 +765,7 @@ async def _translate_entries_for_log(
     event_log: Optional[List[Dict[str, str]]] = None,
     model: Optional[str] = None,
 ) -> Dict[str, int]:
-    """Translate kb_entries to Russian via Yandex Translate (+ optional LLM EN synthesis)."""
+    """Переводит kb_entries на русский через Yandex Translate (+ опциональный LLM-синтез EN)."""
     from app.services.ai_generator.translation_service import TranslationService, FullTranslationResult
 
     done = 0
@@ -788,7 +788,7 @@ async def _translate_entries_for_log(
         async with AsyncSessionLocal() as session:
             for chunk in _chunked(entries, BATCH_SIZE):
                 if await _is_cancelled(log_id):
-                    logger.info("NVD translate cancelled at chunk boundary log_id=%s done=%d", log_id, done)
+                    logger.info("NVD translate отменён на границе чанка log_id=%s done=%d", log_id, done)
                     break
                 tasks = [translate_task(row) for row in chunk]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -928,8 +928,7 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
                     try:
                         embed_text = _build_embedding_text(row)
                         if not embed_text:
-                            # Empty text is considered a "failure" to embed, or just skip?
-                            # Original code raised EmbeddingError for empty text.
+                            # Пустой текст — считаем это ошибкой эмбеддинга.
                             raise EmbeddingError("Empty text for NVD embedding")
 
                         vector = await svc.embed_document(embed_text)
@@ -960,7 +959,7 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
         async with AsyncSessionLocal() as session:
             for chunk in _chunked(entries, BATCH_SIZE):
                 if await _is_cancelled(log_id):
-                    logger.info("NVD embed cancelled at chunk boundary log_id=%s done=%d", log_id, done)
+                    logger.info("NVD embed отменён на границе чанка log_id=%s done=%d", log_id, done)
                     break
                 tasks = [embed_task(row) for row in chunk]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -974,7 +973,7 @@ async def _embed_entries_for_log(log_id: int, entries: List[Dict[str, Any]]) -> 
                         chunk_failed += 1
                         continue
 
-                    # unpack tuple
+                    # Распаковываем кортеж
                     if not res:
                         chunk_failed += 1
                         continue
@@ -1046,7 +1045,7 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
     try:
         add_event("INIT", f"Starting NVD sync (log_id={log_id}, hours={hours})")
 
-        # Step 1: Fetch and Store (without automatic translation/embedding)
+        # Шаг 1: Загрузка и сохранение (без автоматического перевода/эмбеддинга)
         add_event("FETCHING", "Connecting to NVD API")
         result = await run_sync(
             hours=hours,
@@ -1106,12 +1105,12 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
                 await session.commit()
             return
 
-        # Step 2: Translation
+        # Шаг 2: Перевод
         add_event("TRANSLATING", f"Starting article generation for {inserted_count} entries...")
         translate_result = await _translate_entries_for_log(log_id, inserted_rows)
         add_event("TRANSLATING", f"Completed: {translate_result['completed']} ok, {translate_result['failed']} failed")
 
-        # Update status before embedding
+        # Обновляем статус перед эмбеддингом
         async with AsyncSessionLocal() as session:
             await session.execute(
                 text(
@@ -1121,10 +1120,10 @@ async def run_sync_background(log_id: int, *, hours: int = DEFAULT_HOURS, date_f
             )
             await session.commit()
 
-        # Step 3: Embedding
+        # Шаг 3: Эмбеддинг
         add_event("EMBEDDING", f"Starting embeddings for {inserted_count} entries...")
         embedding_result = await _embed_entries_for_log(log_id, inserted_rows)
-        # We don't fail the whole sync if some embeddings fail, but we log it
+        # Не падаем из-за частичных ошибок эмбеддинга, просто логируем
         add_event("EMBEDDING", f"Completed: {embedding_result['completed']} successful, {embedding_result['failed']} failed")
 
         add_event(
@@ -1539,7 +1538,7 @@ async def run_embed_standalone_background(log_id: int) -> None:
 
 async def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Fetch NVD CVEs modified in the last N hours and store them in kb_entries."
+        description="Загружает CVE из NVD за последние N часов и сохраняет в kb_entries."
     )
     parser.add_argument("--hours", type=int, default=DEFAULT_HOURS)
     parser.add_argument("--start", type=str, default=None)

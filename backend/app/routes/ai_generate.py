@@ -1,11 +1,11 @@
 """
-AI Generator API routes — GRPO-based CTF challenge generation pipeline.
+Маршруты API генератора на базе GRPO для создания CTF-заданий.
 
-Endpoints:
-  POST /ai-generate/                            — start generation batch (admin or PRO)
-  GET  /ai-generate/batch/{batch_id}            — poll batch status + variant scores
-  POST /ai-generate/batch/{batch_id}/publish/{variant_id} — admin: publish best variant as task
-  GET  /ai-generate/analytics                   — admin: aggregated generation stats
+Эндпоинты:
+  POST /ai-generate/                            — запустить пакет генерации (админ или PRO)
+  GET  /ai-generate/batch/{batch_id}            — опросить статус пакета + оценки вариантов
+  POST /ai-generate/batch/{batch_id}/publish/{variant_id} — админ: опубликовать лучший вариант как задание
+  GET  /ai-generate/analytics                   — админ: агрегированная статистика генерации
 """
 import logging
 import uuid
@@ -106,7 +106,7 @@ async def _run_pipeline_bg(
     cve_id: Optional[str] = None,
     topic: Optional[str] = None,
 ) -> None:
-    """Background task wrapper — creates its own DB session."""
+    """Обёртка фоновой задачи — создаёт собственную сессию БД."""
     import traceback
     print(f"[PIPELINE] background task started batch={batch_id}", flush=True)
     from app.database import AsyncSessionLocal
@@ -149,7 +149,7 @@ async def start_generation(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> GenerateResponse:
-    """Start a new AI generation batch. Returns batch_id immediately; poll for status."""
+    """Запускает новый пакет AI-генерации. Сразу возвращает batch_id; статус можно опрашивать."""
     user, profile = current_user_data
     _require_admin_or_pro(user, profile)
 
@@ -202,7 +202,7 @@ async def get_batch_status(
     current_user_data: tuple = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BatchStatusResponse:
-    """Poll batch status and variant scores. Does not expose generated_spec."""
+    """Опрашивает статус пакета и оценки вариантов. generated_spec не раскрывается."""
     user, profile = current_user_data
 
     try:
@@ -254,7 +254,7 @@ async def get_variant_review(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> VariantReviewSchema:
-    """Admin only: full variant detail including flag and verification data for pre-publish review."""
+    """Только для админа: полный просмотр варианта, включая флаг и данные верификации, перед публикацией."""
     try:
         bid = uuid.UUID(batch_id)
         vid = uuid.UUID(variant_id)
@@ -327,7 +327,7 @@ async def publish_variant(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Admin only: publish the selected variant as a live CTF task."""
+    """Только для админа: публикует выбранный вариант как активное CTF-задание."""
     user, profile = current_user_data
 
     try:
@@ -575,7 +575,7 @@ async def list_batches(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Admin only: paginated list of generation batches."""
+    """Только для админа: постраничный список пакетов генерации."""
     query = select(AIGenerationBatch).order_by(AIGenerationBatch.created_at.desc())
     if status:
         query = query.where(AIGenerationBatch.status == status)
@@ -614,7 +614,7 @@ async def get_analytics(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[AnalyticsResponse]:
-    """Admin only: aggregated generation stats per task_type and difficulty."""
+    """Только для админа: агрегированная статистика генерации по task_type и сложности."""
     result = await db.execute(
         select(AIGenerationAnalytics).order_by(
             AIGenerationAnalytics.task_type,

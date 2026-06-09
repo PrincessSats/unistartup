@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Figma -> compact JSON snapshot for code generation (Codex-friendly).
+Figma -> компактный JSON-снимок для генерации кода (удобен для Codex).
 
-Why we do this:
-- Figma raw API payload is huge and noisy.
-- Codex works better with a consistent, minimal schema: geometry + layout + styles + tree.
-- This snapshot can be versioned, diffed, and used to generate React/Tailwind components.
+Зачем это нужно:
+- Сырой payload Figma API огромный и шумный.
+- Codex лучше работает с минимальной схемой: геометрия + layout + стили + дерево.
+- Снимок можно версионировать, диффить и использовать для генерации React/Tailwind компонентов.
 
-Security:
-- Never hardcode tokens.
-- Use FIGMA_TOKEN env var.
+Безопасность:
+- Никогда не хардкодить токены.
+- Используй переменную окружения FIGMA_TOKEN.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ FIGMA_API = "https://api.figma.com/v1"
 
 
 def http_get_json(url: str, token: str) -> dict:
-    """Authenticated GET request to Figma API and parse JSON."""
+    """Авторизованный GET-запрос к Figma API с парсингом JSON."""
     req = urllib.request.Request(url, headers={"X-Figma-Token": token})
     with urllib.request.urlopen(req, timeout=30) as resp:
         raw = resp.read().decode("utf-8")
@@ -37,7 +37,7 @@ def http_get_json(url: str, token: str) -> dict:
 
 def rgb01_to_hex(color: dict) -> str:
     """
-    Convert Figma color {r,g,b} in 0..1 floats into #RRGGBB.
+    Конвертирует Figma-цвет {r,g,b} из диапазона 0..1 в #RRGGBB.
     """
     r = int(round(color.get("r", 0) * 255))
     g = int(round(color.get("g", 0) * 255))
@@ -58,7 +58,7 @@ def pick_fills(node: dict) -> List[dict]:
                 "color": rgb01_to_hex(f.get("color", {})),
                 "opacity": f.get("opacity", 1)
             })
-        # You can extend this to GRADIENT_* and IMAGE if needed.
+        # Можно расширить до GRADIENT_* и IMAGE при необходимости.
     return out
 
 
@@ -81,7 +81,7 @@ def pick_text_style(node: dict) -> Optional[dict]:
     style = node.get("style")
     if not style:
         return None
-    # Normalize lineHeight, letterSpacing formats if present.
+    # Нормализуем lineHeight и letterSpacing, если присутствуют.
     return {
         "fontFamily": style.get("fontFamily"),
         "fontPostScriptName": style.get("fontPostScriptName"),
@@ -115,7 +115,7 @@ def pick_effects(node: dict) -> List[dict]:
 
 
 def pick_layout(node: dict) -> Optional[dict]:
-    # Auto-layout exists mainly on FRAME/COMPONENT/INSTANCE that have layoutMode
+    # Auto-layout есть в основном у FRAME/COMPONENT/INSTANCE с layoutMode
     if "layoutMode" not in node:
         return None
     mode = node.get("layoutMode")
@@ -147,7 +147,7 @@ def pick_radii(node: dict) -> Optional[Any]:
 
 def compact_node(node: dict) -> dict:
     """
-    Convert a raw Figma node into a compact representation.
+    Преобразует сырой Figma-узел в компактное представление.
     """
     box = node.get("absoluteBoundingBox") or {}
     out: Dict[str, Any] = {
@@ -198,9 +198,9 @@ def compact_node(node: dict) -> dict:
 
 def build_snapshot(file_key: str, root_node_id: str, raw: dict) -> dict:
     """
-    Build Codex-friendly snapshot JSON from `/nodes` response.
+    Строит Codex-совместимый снимок JSON из ответа `/nodes`.
     """
-    # Figma returns: {"nodes": {"<id>": {"document": {...}, "components": {...}}}}
+    # Figma возвращает: {"nodes": {"<id>": {"document": {...}, "components": {...}}}}
     node_payload = (raw.get("nodes") or {}).get(root_node_id) or {}
     doc = node_payload.get("document")
     if not doc:
@@ -213,7 +213,7 @@ def build_snapshot(file_key: str, root_node_id: str, raw: dict) -> dict:
             "captured_at": dt.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
             "root_node_id": root_node_id,
         },
-        # Tokens are optional; you can fill these later by analyzing styles across nodes.
+        # Токены опциональны; можно заполнить позже, анализируя стили по узлам.
         "tokens": {
             "colors": {},
             "radii": {},

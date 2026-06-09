@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 GENERATOR_MODEL_ID = "deepseek-v4-flash"
 GENERATOR_MODEL_VERSION = "latest"
 
-# Prompt file mapping for user variants (excludes chat_llm)
+# Сопоставление файлов промптов для вариантов пользователя (chat_llm исключён)
 _PROMPT_FILE_MAP: dict[str, str] = {
     "crypto_text_web": "crypto_generator.txt",
     "forensics_image_metadata": "forensics_generator.txt",
@@ -391,9 +391,9 @@ async def run_user_variant_pipeline(
                 if isinstance(artifact, Exception):
                     artifact = ArtifactResult(error=str(artifact))
                 
-                # Run binary checks (enable_self_test=True: XSS SOLVABILITY uses live
-                # Playwright/Chromium verdict from Yandex Serverless Container when
-                # AI_GEN_ENABLE_SELFTEST=true; falls back to static heuristic otherwise)
+                # Запустить двоичные проверки (enable_self_test=True: SOLVABILITY для XSS использует живой
+                # вердикт Playwright/Chromium из Yandex Serverless Container при AI_GEN_ENABLE_SELFTEST=true;
+                # иначе падает на статическую эвристику)
                 if spec is not None and not artifact.error:
                     checks = await validate(task_type, spec, artifact, rag_context, enable_self_test=True)
                 else:
@@ -478,7 +478,7 @@ async def run_user_variant_pipeline(
                 
                 variant = AIGenerationVariant(
                     id=variant_uuids[i],
-                    batch_id=batch_id,  # Use the batch we created
+                    batch_id=batch_id,  # использовать созданный пакет
                     variant_number=vr.variant_number,
                     model_used=model_name,
                     temperature=vdata["temperature"],

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { pipelineAPI, cveAPI } from '../services/api';
 
-// ── Constants ────────────────────────────────────────────────────���─────────────
+// ── Константы ────────────────────────────────────────────────────────────────────
 
 const TASK_TYPES = [
   { value: 'auto', label: 'Auto (from CVE)' },
@@ -837,7 +837,7 @@ function CveSearchWidget({ selectedCve, onSelect }) {
   );
 }
 
-// ── Main Page ───────────────────────��─────────────────────────────────���────────
+// ── Главная страница ─────────────────────────────────────────────────────────────
 
 export default function CvePipeline() {
   const [selectedCve, setSelectedCve] = useState(null);
@@ -867,7 +867,7 @@ export default function CvePipeline() {
     try {
       const data = await pipelineAPI.listBatches({ limit: 30 });
       setBatches(data.items || []);
-    } catch { /* not critical */ } finally {
+    } catch { /* не критично */ } finally {
       setBatchesLoading(false);
     }
   }, []);

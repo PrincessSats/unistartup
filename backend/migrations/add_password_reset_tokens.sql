@@ -1,6 +1,6 @@
--- Migration: Add password reset tokens table
--- Date: 2026-04-03
--- Issue: auth_password_reset_tokens table missing from local/dev database
+-- Миграция: таблица токенов сброса пароля
+-- Дата: 2026-04-03
+-- Проблема: таблица auth_password_reset_tokens отсутствовала в локальной/dev БД
 
 CREATE TABLE IF NOT EXISTS auth_password_reset_tokens (
     id BIGSERIAL PRIMARY KEY,

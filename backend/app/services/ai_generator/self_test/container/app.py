@@ -1,18 +1,18 @@
 """
-XSS self-test container — FastAPI + Playwright/Chromium.
+Контейнер XSS self-test — FastAPI + Playwright/Chromium.
 
 POST /selftest
   Body: {html, xss_type, vulnerable_param, payload_solution, flag}
   Returns: {executed, flag_reachable, baseline_safe, detail}
 
-The caller (xss_selftest.py) passes the page HTML inline (re-rendered from spec),
-so this container needs no S3 or outbound network access.
+Вызывающий (xss_selftest.py) передаёт HTML страницы инлайн (перерендеренный из спека),
+поэтому контейнеру не нужен S3 или внешний сетевой доступ.
 
-Hardening:
-  - New browser context per request (isolation, no cookie leak across calls)
-  - Hard 15-second Playwright timeout
-  - No outbound routes needed (HTML served internally via data: URI trick)
-  - Single uvicorn worker
+Защита:
+  - Новый контекст браузера на каждый запрос (изоляция, без утечки cookie между вызовами)
+  - Жёсткий таймаут Playwright 15 секунд
+  - Внешние маршруты не нужны (HTML отдаётся внутренне через data: URI)
+  - Один воркер uvicorn
 """
 from __future__ import annotations
 
@@ -30,16 +30,16 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
 app = FastAPI(title="XSS Self-Test Service", docs_url=None, redoc_url=None)
 
-# Shared Playwright browser instance — created lazily on first use, reused after.
+# Общий экземпляр браузера Playwright — создаётся лениво при первом использовании, затем переиспользуется.
 _browser = None
 _playwright = None
-_browser_error: str | None = None  # last launch failure, surfaced via /health
+_browser_error: str | None = None  # последняя ошибка запуска, отображается через /health
 _browser_lock = asyncio.Lock()
 
-# The page under test is served from a real localhost HTTP route (not a data:
-# URI) so query strings, location.hash and document.cookie all behave like a
-# real site. concurrency=1 (Yandex) + this lock guarantee one test at a time,
-# so a single module-level slot for the current page is safe.
+# Тестируемая страница отдаётся из реального HTTP-маршрута на localhost (не data: URI),
+# чтобы строки запроса, location.hash и document.cookie работали как на реальном сайте.
+# concurrency=1 (Yandex) + этот lock гарантируют один тест за раз,
+# поэтому один слот на уровне модуля для текущей страницы безопасен.
 _current_html: str = ""
 _selftest_lock = asyncio.Lock()
 _PORT = int(__import__("os").environ.get("PORT", "8080"))
@@ -62,19 +62,19 @@ class SelfTestResponse(BaseModel):
 
 async def _ensure_browser():
     """
-    Lazily launch Chromium on first request. A launch failure is recorded in
-    _browser_error and surfaced via /health and /selftest, instead of crashing
-    the process at startup (which Yandex reports as an opaque "exit status 3").
+    Лениво запустить Chromium при первом запросе. Ошибка запуска записывается в
+    _browser_error и отображается через /health и /selftest, вместо падения
+    процесса при старте (которое Yandex сообщает как непрозрачный "exit status 3").
     """
     global _browser, _playwright, _browser_error
-    # Reuse only if still connected; a single-process browser can die and leave
-    # a stale handle that poisons every later request with TargetClosedError.
+    # Переиспользовать только если ещё подключён; однопроцессный браузер может умереть и оставить
+    # устаревший дескриптор, который портит все последующие запросы TargetClosedError.
     if _browser is not None and _browser.is_connected():
         return _browser
     async with _browser_lock:
         if _browser is not None and _browser.is_connected():
             return _browser
-        # Discard a dead browser before relaunching.
+        # Удалить мёртвый браузер перед перезапуском.
         if _browser is not None:
             try:
                 await _browser.close()
@@ -84,11 +84,10 @@ async def _ensure_browser():
         try:
             from playwright.async_api import async_playwright
             _playwright = await async_playwright().__aenter__()
-            # Serverless/Lambda-style flags. The renderer child is SIGKILL'd by
-            # the container's process/cgroup limits (no Chromium stderr, not
-            # total-memory OOM). --single-process keeps everything in one process
-            # so there is no renderer fork to kill. This is the same approach
-            # sparticuz/chromium uses on AWS Lambda.
+            # Флаги в стиле Serverless/Lambda. Дочерний рендерер убивается SIGKILL
+            # из-за ограничений процесса/cgroup контейнера (не stderr Chromium, не OOM).
+            # --single-process держит всё в одном процессе, нет форка рендерера для убийства.
+            # Такой же подход используется sparticuz/chromium на AWS Lambda.
             _browser = await _playwright.chromium.launch(
                 headless=True,
                 args=[
@@ -101,7 +100,7 @@ async def _ensure_browser():
                 ],
             )
             _browser_error = None
-            logger.info("Chromium browser started")
+            logger.info("Браузер Chromium запущен")
             return _browser
         except Exception as exc:
             _browser_error = f"{type(exc).__name__}: {exc}"
@@ -116,14 +115,14 @@ async def shutdown() -> None:
         await _browser.close()
     if _playwright:
         await _playwright.__aexit__(None, None, None)
-    logger.info("Chromium browser closed")
+    logger.info("Браузер Chromium закрыт")
 
 
 @app.post("/selftest", response_model=SelfTestResponse)
 async def selftest(req: SelfTestRequest) -> SelfTestResponse:
     global _browser
-    # The single-process browser dies occasionally; relaunch + retry once so a
-    # transient crash does not fail an otherwise-solvable task.
+    # Однопроцессный браузер иногда падает; перезапустить + повторить один раз,
+    # чтобы случайный сбой не провалил иначе разрешимое задание.
     last_err = ""
     for attempt in range(2):
         if await _ensure_browser() is None:
@@ -131,15 +130,15 @@ async def selftest(req: SelfTestRequest) -> SelfTestResponse:
         try:
             return await asyncio.wait_for(_run_selftest(req), timeout=20.0)
         except asyncio.TimeoutError:
-            logger.warning("Self-test timed out for xss_type=%s", req.xss_type)
+            logger.warning("Self-test превысил таймаут для xss_type=%s", req.xss_type)
             return SelfTestResponse(
                 executed=False, flag_reachable=False, baseline_safe=True,
                 detail="Playwright timed out after 20s",
             )
         except Exception as exc:
             last_err = f"{type(exc).__name__}: {exc}"
-            logger.warning("Self-test attempt %d failed: %s", attempt, last_err)
-            # Drop the (likely dead) browser so the next attempt relaunches.
+            logger.warning("Self-test попытка %d не удалась: %s", attempt, last_err)
+            # Удалить (вероятно мёртвый) браузер, чтобы следующая попытка перезапустила его.
             try:
                 if _browser is not None:
                     await _browser.close()
@@ -154,30 +153,30 @@ async def selftest(req: SelfTestRequest) -> SelfTestResponse:
 
 async def _run_selftest(req: SelfTestRequest) -> SelfTestResponse:
     """
-    Core Playwright logic.
-    1. Serve the page from a localhost HTTP route (GET /_page) so query/hash/
-       cookies behave like a real site.
-    2. Baseline check: load page, confirm no XSS fires.
-    3. Attack check: inject payload, confirm XSS fires + cookie readable.
+    Основная логика Playwright.
+    1. Отдать страницу из HTTP-маршрута localhost (GET /_page), чтобы query/hash/
+       cookies работали как на реальном сайте.
+    2. Базовая проверка: загрузить страницу, убедиться что XSS не срабатывает.
+    3. Атакующая проверка: внедрить payload, убедиться что XSS срабатывает + cookie читается.
     """
     global _current_html
     assert _browser is not None
 
     async with _selftest_lock:
         _current_html = req.html
-        # Routed/intercepted virtual host — never actually resolved or fetched.
+        # Виртуальный хост с перехватом маршрутов — никогда реально не резолвится и не запрашивается.
         base_url = "http://ctf.local/"
         return await _do_selftest(req, base_url)
 
 
 async def _make_routed_context():
     """
-    New context whose requests are fully intercepted:
-      - the main document is fulfilled from _current_html (no server round-trip)
-      - every subresource (img/script/css/font/xhr) is aborted (no real network)
-    This keeps the renderer stable in the constrained serverless runtime while
-    still letting `<img src=x onerror=...>` style payloads fire (aborted load →
-    error event → payload runs).
+    Новый контекст с полным перехватом запросов:
+      - основной документ отдаётся из _current_html (без обращения к серверу)
+      - каждый подресурс (img/script/css/font/xhr) прерывается (без реальной сети)
+    Это держит рендерер стабильным в ограниченном serverless-окружении,
+    при этом позволяя срабатывать payload вида `<img src=x onerror=...>`
+    (прерванная загрузка → событие ошибки → payload выполняется).
     """
     ctx = await _browser.new_context()
     await ctx.add_init_script(_INIT_SCRIPT)
@@ -202,11 +201,11 @@ async def _make_routed_context():
     return ctx
 
 
-# Injected BEFORE any page script runs. Overrides the dialog APIs so an XSS
-# payload that calls alert/confirm/prompt sets a detectable sentinel instead of
-# opening a real modal dialog (real dialogs block the renderer and crash
-# page.evaluate with "Target crashed"). Also flags eval/Function/cookie reads as
-# execution signals for non-alert payloads.
+# Внедряется ДО запуска любых скриптов страницы. Переопределяет dialog API,
+# чтобы XSS-payload, вызывающий alert/confirm/prompt, устанавливал обнаруживаемый
+# sentinel вместо открытия реального диалога (реальные диалоги блокируют рендерер
+# и роняют page.evaluate с "Target crashed"). Также помечает eval/Function/чтение cookie
+# как сигналы выполнения для payload без alert.
 _INIT_SCRIPT = """
 window.__xss_fired = false;
 (function () {
@@ -243,11 +242,11 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
         attack_url = f"{base_url}?{param}={quote(payload)}"
     elif xss_type == "dom":
         attack_url = f"{base_url}#{param}={quote(payload)}"
-    else:  # stored / unknown → load plain, inject via form below
+    else:  # stored / unknown → загрузить чистым, внедрить через форму ниже
         attack_url = base_url
 
-    # ── Attack FIRST — authoritative verdict (executed + flag_reachable) from
-    #    the first page load; baseline is a best-effort second load. ──────────
+    # ── Сначала атака — авторитетный вердикт (executed + flag_reachable) с
+    #    первой загрузки страницы; baseline — лучший вариант со второй загрузки. ─
     ctx = await _make_routed_context()
     try:
         page = await ctx.new_page()
@@ -267,7 +266,7 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
 
         if await _eval_sentinel(page):
             executed = True
-            detail_parts.append("XSS fired (alert/confirm/prompt sentinel)")
+            detail_parts.append("XSS сработал (sentinel alert/confirm/prompt)")
 
         try:
             cookies = await page.evaluate("() => document.cookie")
@@ -275,12 +274,12 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
             cookies = ""
         if flag and flag in cookies:
             flag_reachable = True
-            detail_parts.append("flag found in document.cookie")
+            detail_parts.append("флаг найден в document.cookie")
         elif executed:
-            detail_parts.append(f"XSS fired but flag not in cookie (cookie={cookies[:80]!r})")
+            detail_parts.append(f"XSS сработал, но флаг не в cookie (cookie={cookies[:80]!r})")
 
-        # Diagnostics only when the attack did NOT fire — helps debug a page
-        # that should have been solvable. Successful runs stay clean.
+        # Диагностика только когда атака НЕ сработала — помогает отлаживать страницу,
+        # которая должна была быть разрешимой. Успешные запуски остаются чистыми.
         if not executed:
             try:
                 content = await page.content()
@@ -294,11 +293,11 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
             except Exception as e:
                 detail_parts.append(f"[diag failed: {e}]")
 
-        # ── Baseline — SAME page, re-navigate WITHOUT payload. Under
-        #    --single-process Chromium, opening a second browser context after
-        #    closing the first kills the lone process (TargetClosedError);
-        #    a same-page re-navigation reuses the live renderer/frame and
-        #    re-runs the init script (resets window.__xss_fired=false). ───────
+        # ── Baseline — ТА ЖЕ страница, повторная навигация БЕЗ payload. При
+        #    --single-process Chromium открытие второго контекста браузера после
+        #    закрытия первого убивает единственный процесс (TargetClosedError);
+        #    повторная навигация на той же странице переиспользует живой рендерер/фрейм
+        #    и перезапускает init script (сбрасывает window.__xss_fired=false). ──
         try:
             await page.goto(base_url, timeout=8000, wait_until="domcontentloaded")
             await page.wait_for_timeout(400)
@@ -310,7 +309,7 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
         await ctx.close()
 
     detail = "; ".join(detail_parts) if detail_parts else (
-        "no XSS signals detected" if not executed else ""
+        "сигналы XSS не обнаружены" if not executed else ""
     )
 
     logger.info(
@@ -328,14 +327,14 @@ async def _do_selftest(req: SelfTestRequest, base_url: str) -> SelfTestResponse:
 
 @app.get("/_page")
 async def serve_page() -> Response:
-    """Serve the page currently under test (set by _run_selftest)."""
+    """Отдать страницу, которая сейчас тестируется (устанавливается в _run_selftest)."""
     return Response(content=_current_html, media_type="text/html; charset=utf-8")
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    # Trigger a lazy launch so health reflects real browser state and surfaces
-    # any launch error instead of the process having crashed at startup.
+    # Запустить ленивый старт, чтобы health отражал реальное состояние браузера
+    # и показывал ошибки запуска вместо падения процесса при старте.
     await _ensure_browser()
     return {
         "status": "ok",

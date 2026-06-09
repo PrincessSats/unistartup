@@ -68,7 +68,7 @@ async def register(
     5. Сохраняем в БД
     """
 
-    # Проверяем email (нет английского текста)
+    # Проверяем email
     result = await db.execute(select(User).where(User.email == user_data.email))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -76,7 +76,7 @@ async def register(
             detail="Email уже зарегистрирован"
         )
     
-    # Проверяем username (нет английского текста)
+    # Проверяем username
     result = await db.execute(select(UserProfile).where(UserProfile.username == user_data.username))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -84,7 +84,7 @@ async def register(
             detail="Username уже занят"
         )
     
-    # Создаем пользователя (нет английского текста)
+    # Создаем пользователя
     new_user = User(
         email=user_data.email,
         password_hash=hash_password(user_data.password),
@@ -93,11 +93,11 @@ async def register(
     db.add(new_user)
     await db.flush()  # Получаем ID пользователя
 
-    # Создаем профиль (нет английского текста)
+    # Создаем профиль
     new_profile = UserProfile(
         user_id=new_user.id,
         username=user_data.username,
-        role="participant",  # По умолчанию обычный участник (нет английского текста)
+        role="participant",  # По умолчанию обычный участник
         onboarding_status="pending",
     )
     db.add(new_profile)
@@ -366,8 +366,8 @@ async def forgot_password(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Request a password reset link. Returns 200 even if email not found (prevents email enumeration).
-    Rate limited to 3 requests per email per hour.
+    Запросить ссылку для сброса пароля. Всегда возвращает 200, даже если email не найден (защита от перебора).
+    Ограничено 3 запросами на email в час.
     """
     # Получаем client IP для логирования
     client_ip = request_obj.client.host if request_obj.client else "unknown"
@@ -382,7 +382,7 @@ async def forgot_password(
             ),
         )
         if not allowed:
-            # Все равно возвращаем 200 для предотвращения перечисления email'ов
+            # Всё равно возвращаем 200, чтобы не раскрывать email
             logger.warning(f"Password reset rate limit exceeded for {request.email} from {client_ip}")
             return MessageResponse(message="Email sent")
     except Exception as e:
@@ -394,15 +394,15 @@ async def forgot_password(
     user = await db.scalar(stmt)
 
     if not user:
-        # Возвращаем успех даже если пользователь не найден (защита от перечисления)
+        # Возвращаем успех даже если пользователь не найден (защита от перебора)
         logger.info(f"Password reset request for non-existent email: {request.email}")
         return MessageResponse(message="Email sent")
 
-    # Генерируем reset token
+    # Генерируем токен сброса
     plaintext_token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(plaintext_token.encode()).hexdigest()
 
-    # Создаем запись токена
+    # Создаём запись токена в БД
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.PASSWORD_RESET_TOKEN_TTL_MINUTES)
     reset_token = PasswordResetToken(
         user_id=user.id,
@@ -412,9 +412,9 @@ async def forgot_password(
     db.add(reset_token)
     await db.commit()
 
-    # Отправляем email (async не дожидаемся)
+    # Отправляем email (не ждём)
     frontend_url = settings.BACKEND_CALLBACK_BASE_URL or "https://hacknet.tech"
-    # Удаляем /api суффикс если присутствует для frontend URL
+    # Убираем суффикс /api, если он есть, чтобы получить URL фронтенда
     if frontend_url.endswith("/api"):
         frontend_url = frontend_url[:-4]
 
@@ -422,7 +422,7 @@ async def forgot_password(
         await send_password_reset_email(user.email, plaintext_token, frontend_base_url=frontend_url)
     except Exception as e:
         logger.error(f"Failed to send password reset email to {user.email}: {e}")
-        # Все равно возвращаем успех клиенту
+        # Всё равно возвращаем успех клиенту
 
     logger.info(f"Password reset requested for {user.email}")
     return MessageResponse(message="Email sent")
@@ -435,9 +435,9 @@ async def reset_password(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Reset password using a valid reset token. Token is single-use.
-    Revokes all refresh tokens for the user (logs them out everywhere).
-    Rate limited to 5 requests per IP per minute.
+    Сбросить пароль по валидному токену. Токен одноразовый.
+    Отзывает все refresh-токены пользователя (выход из всех сессий).
+    Ограничено 5 запросами с IP в минуту.
     """
     # Получаем client IP для rate limiting
     client_ip = request_obj.client.host if request_obj.client else "unknown"
@@ -464,15 +464,15 @@ async def reset_password(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
-    # Хешируем plaintext token для поиска в БД
+    # Хешируем plaintext-токен для поиска в БД
     token_hash = hashlib.sha256(request.token.encode()).hexdigest()
 
     # Ищем токен
     stmt = select(PasswordResetToken).where(
         and_(
             PasswordResetToken.token_hash == token_hash,
-            PasswordResetToken.used_at.is_(None),  # Еще не использован
-            PasswordResetToken.expires_at > datetime.now(timezone.utc),  # Не истек
+            PasswordResetToken.used_at.is_(None),  # Ещё не использован
+            PasswordResetToken.expires_at > datetime.now(timezone.utc),  # Не истёк
         )
     )
     reset_token = await db.scalar(stmt)
@@ -480,7 +480,7 @@ async def reset_password(
     if not reset_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired reset token."
+            detail="Недействительный или просроченный токен сброса."
         )
 
     # Отмечаем токен как использованный
@@ -489,7 +489,7 @@ async def reset_password(
     # Получаем пользователя и обновляем пароль
     user = await db.get(User, reset_token.user_id)
     if not user:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found.")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Пользователь не найден.")
 
     user.password_hash = hash_password(request.new_password)
 
@@ -507,4 +507,4 @@ async def reset_password(
     await db.commit()
 
     logger.info(f"Password reset successful for {user.email}")
-    return MessageResponse(message="Password reset successfully")
+    return MessageResponse(message="Пароль успешно сброшен")

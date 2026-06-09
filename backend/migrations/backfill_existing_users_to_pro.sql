@@ -1,8 +1,8 @@
--- Migration: Backfill all existing users to PRO plan
--- Date: 2026-04-03
--- Purpose: Give all existing users PRO access retroactively
+-- Миграция: перевод всех существующих пользователей на тариф PRO
+-- Дата: 2026-04-03
+-- Цель: ретроактивно выдать PRO всем существующим пользователям
 
--- Step 1: Upgrade users who already have an active tariff (likely FREE) to PRO
+-- Шаг 1: обновляем пользователей с активным тарифом (скорее всего FREE) до PRO
 UPDATE user_tariffs
 SET tariff_id = (SELECT id FROM tariff_plans WHERE code = 'PRO' LIMIT 1),
     is_promo = TRUE,
@@ -10,7 +10,7 @@ SET tariff_id = (SELECT id FROM tariff_plans WHERE code = 'PRO' LIMIT 1),
 WHERE valid_to IS NULL
   AND tariff_id != (SELECT id FROM tariff_plans WHERE code = 'PRO' LIMIT 1);
 
--- Step 2: Insert PRO tariffs for users who have no active tariff
+-- Шаг 2: вставляем PRO тем, у кого нет активного тарифа
 INSERT INTO user_tariffs (user_id, tariff_id, is_promo, source)
 SELECT u.id, tp.id, TRUE, 'backfill_retroactive'
 FROM users u

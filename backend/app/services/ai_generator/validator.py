@@ -1,7 +1,7 @@
 """
-Binary reward check validator for AI-generated CTF challenges.
+Валидатор двоичных проверок вознаграждения для автоматически сгенерированных CTF-заданий.
 
-Each check returns a RewardCheck with score 0.0 (fail) or 1.0 (pass).
+Каждая проверка возвращает RewardCheck с баллом 0.0 (неудача) или 1.0 (успех).
 """
 from __future__ import annotations
 
@@ -35,14 +35,14 @@ def cosine_distance(a: list[float], b: list[float]) -> float:
 
 async def check_rag_grounding(
     spec: dict[str, Any],
-    rag_context: Any,  # RAGContext — avoid circular import
+    rag_context: Any,  # RAGContext — избегаем циклического импорта
     weight: float,
 ) -> RewardCheck:
     """
-    Compute semantic similarity between generated spec and RAG context entries.
+    Вычислить семантическое сходство между сгенерированным спеком и записями RAG-контекста.
 
-    Uses pre-computed embeddings from kb_entries.embedding column when available,
-    falling back to on-the-fly embedding only for entries without stored vectors.
+    Использует предварительно вычисленные эмбеддинги из столбца kb_entries.embedding,
+    при отсутствии — вычисляет на лету только для записей без сохранённых векторов.
     """
     from app.services.ai_generator.embedding_service import EmbeddingService, EmbeddingError
     from app.services.ai_generator.rag_context import RAGContext
@@ -79,14 +79,14 @@ async def check_rag_grounding(
             error=str(exc),
         )
 
-    # Использовать предварительно вычисленные встраивания из записей контекста RAG
-    # CVEEntry теперь включает вектор встраивания из базы данных
+    # Использовать предварительно вычисленные эмбеддинги из записей контекста RAG
+    # CVEEntry теперь включает вектор эмбеддинга из базы данных
     similarities: list[float] = []
     for entry in rag_context.cve_entries:
-        # Prefer pre-computed embedding if available
+        # Предпочитать предварительно вычисленный эмбеддинг, если доступен
         entry_vec = getattr(entry, 'stored_embedding', None)
         if entry_vec is None:
-            # Fallback: embed on the fly (shouldn't happen for kb_entries with embeddings)
+            # Резервный вариант: вычислить на лету (не должно происходить для kb_entries с эмбеддингами)
             entry_text = " ".join(filter(None, [
                 entry.cve_id or "",
                 entry.ru_title or "",
@@ -115,9 +115,9 @@ async def check_rag_grounding(
         )
 
     best_similarity = max(similarities)
-    # Скорректированные пороги сходства spec-to-CVE
-    # Примечание: spec — это творческий сценарий, CVE — это техническое описание
-    # Поэтому мы ожидаем более низкое сходство, чем сравнение документ-документ
+    # Скорректированные пороги сходства spec-CVE
+    # Примечание: спек — творческий сценарий, CVE — техническое описание
+    # Поэтому ожидаем более низкое сходство, чем при сравнении документ-документ
     if best_similarity >= 0.7:
         score = 1.0
     elif best_similarity >= 0.5:
@@ -137,18 +137,18 @@ async def check_rag_grounding(
 
 def check_cve_relevance(
     spec: dict[str, Any],
-    rag_context: Any,  # RAGContext — avoid circular import
+    rag_context: Any,  # RAGContext — избегаем циклического импорта
     task_type: str,
     weight: float,
 ) -> RewardCheck:
-    """Soft reward (0.0-1.0) checking whether the generated spec is technically
-    connected to the CVE context, not just name-dropping the CVE ID.
+    """Мягкая награда (0.0-1.0): проверяет, технически ли связан спек с CVE-контекстом,
+    а не просто упоминает ID CVE.
 
-    Scoring:
-    - 1.0: spec description contains CWE-specific technical keywords from the CVE
-    - 0.7: spec references CVE ID and mentions relevant domain terms
-    - 0.4: spec mentions CVE ID but no technical connection evident
-    - 0.1: no CVE reference found in spec
+    Оценка:
+    - 1.0: описание спека содержит технические ключевые слова CWE из CVE
+    - 0.7: спек ссылается на ID CVE и упоминает релевантные термины домена
+    - 0.4: спек упоминает ID CVE, но технической связи не видно
+    - 0.1: в спеке нет ссылки на CVE
     """
     from app.services.ai_generator.rag_context import RAGContext
 
@@ -160,7 +160,7 @@ def check_cve_relevance(
             detail="No RAG context — neutral score",
         )
 
-    # Keywords that indicate genuine technical CVE integration per task type
+    # Ключевые слова, указывающие на реальную техническую интеграцию CVE по типу задачи
     _TECHNICAL_KEYWORDS: dict[str, list[str]] = {
         "crypto_text_web": [
             "шифр", "алгоритм", "ключ", "xor", "caesar", "aes", "vigenere", "rot13",
@@ -192,10 +192,10 @@ def check_cve_relevance(
         if entry.cve_id:
             cve_ids.append(entry.cve_id.lower())
 
-    # Check if spec mentions CVE ID
+    # Проверить, упоминает ли спек ID CVE
     mentions_cve = any(cve_id in spec_text for cve_id in cve_ids)
 
-    # Check for technical keywords relevant to task type
+    # Проверить технические ключевые слова, релевантные типу задачи
     tech_keywords = _TECHNICAL_KEYWORDS.get(task_type, [])
     matched_keywords = [kw for kw in tech_keywords if kw in spec_text]
 
@@ -235,7 +235,7 @@ async def validate(
     rag_context: Optional[Any] = None,
     enable_self_test: bool = True,
 ) -> list[RewardCheck]:
-    """Dispatch to the appropriate validator for this task_type."""
+    """Выбрать нужный валидатор для данного task_type."""
     weights = REWARD_WEIGHTS.get(task_type, {})
 
     if task_type == "crypto_text_web":
@@ -254,7 +254,7 @@ async def validate(
             detail=f"No validator for task_type {task_type!r}",
         )]
 
-    # Append soft rewards if context provided
+    # Добавить мягкие награды, если контекст предоставлен
     if rag_context is not None:
         rag_weight = weights.get(RewardType.RAG_GROUNDING, 1.5)
         grounding_check = await check_rag_grounding(spec, rag_context, rag_weight)
@@ -268,7 +268,7 @@ async def validate(
 
 
 def _w(weights: dict, reward_type: RewardType) -> float:
-    return weights.get(reward_type, 1.0)  # Получить вес для типа награды
+    return weights.get(reward_type, 1.0)  # получить вес для типа награды
 
 
 def _validate_crypto(
@@ -292,8 +292,8 @@ def _validate_crypto(
         score=1.0 if format_ok else 0.0,
         weight=_w(weights, RewardType.FORMAT),
         detail=(
-            "All required fields present" if format_ok
-            else f"Missing fields: {missing or set()}; "
+            "Все обязательные поля присутствуют" if format_ok
+            else f"Отсутствующие поля: {missing or set()}; "
                  f"flag_valid={flag_valid}, chain_valid={chain_valid}"
         ),
     ))
@@ -304,7 +304,7 @@ def _validate_crypto(
             type=RewardType.FUNCTIONAL,
             score=0.0,
             weight=_w(weights, RewardType.FUNCTIONAL),
-            detail="Artifact creation failed",
+            detail="Создание артефакта не удалось",
             error=artifact.error,
         ))
     else:
@@ -312,25 +312,25 @@ def _validate_crypto(
             type=RewardType.FUNCTIONAL,
             score=1.0,
             weight=_w(weights, RewardType.FUNCTIONAL),
-            detail="apply_chain ran without error",
+            detail="apply_chain выполнен без ошибок",
         ))
 
     # ── Проверка РАЗРЕШИМОСТИ ────────────────────────────────────────────────────
     ciphertext = artifact.content or ""
     solvable = False
-    solve_detail = "No ciphertext to check"
+    solve_detail = "Нет шифротекста для проверки"
     solve_error = None
 
     if ciphertext and flag and crypto_chain:
         try:
             recovered = reverse_chain(ciphertext, crypto_chain)
             solvable = flag in recovered
-            solve_detail = f"reverse_chain recovered flag: {solvable}"
+            solve_detail = f"reverse_chain восстановил флаг: {solvable}"
         except CryptoError as exc:
-            solve_detail = "reverse_chain raised CryptoError"
+            solve_detail = "reverse_chain вызвал CryptoError"
             solve_error = str(exc)
         except Exception as exc:
-            solve_detail = "reverse_chain unexpected error"
+            solve_detail = "reverse_chain непредвиденная ошибка"
             solve_error = str(exc)
 
     checks.append(RewardCheck(
@@ -346,18 +346,18 @@ def _validate_crypto(
     trivial_reason = ""
 
     if ciphertext and flag:
-        # Проверка 1: флаг не открытый текст в шифротексте
+        # Проверка 1: флаг не в открытом виде в шифротексте
         if flag in ciphertext:
             trivial = True
-            trivial_reason = "flag appears as plaintext in ciphertext"
+            trivial_reason = "флаг появляется открытым текстом в шифротексте"
 
-        # Проверка 2: единое декодирование base64 не раскрывает флаг
+        # Проверка 2: одно декодирование base64 не раскрывает флаг
         if not trivial:
             try:
                 decoded = base64.b64decode(ciphertext.encode("ascii", errors="ignore")).decode("utf-8", errors="ignore")
                 if flag in decoded:
                     trivial = True
-                    trivial_reason = "single base64 decode reveals flag"
+                    trivial_reason = "одно декодирование base64 раскрывает флаг"
             except Exception:
                 pass
 
@@ -365,7 +365,7 @@ def _validate_crypto(
         type=RewardType.NON_TRIVIALITY,
         score=0.0 if trivial else 1.0,
         weight=_w(weights, RewardType.NON_TRIVIALITY),
-        detail=trivial_reason if trivial else "Flag not trivially recoverable",
+        detail=trivial_reason if trivial else "Флаг не восстанавливается тривиально",
     ))
 
     return checks
@@ -399,7 +399,7 @@ async def _validate_forensics(
         score=1.0 if format_ok else 0.0,
         weight=_w(weights, RewardType.FORMAT),
         detail=(
-            "All required fields present" if format_ok
+            "Все обязательные поля присутствуют" if format_ok
             else (
                 f"Missing fields: {missing or set()}; "
                 f"flag_valid={flag_valid}, hide_in_valid={hide_in_valid} ({hide_in!r}), "
@@ -417,7 +417,7 @@ async def _validate_forensics(
             type=RewardType.FUNCTIONAL,
             score=0.0,
             weight=_w(weights, RewardType.FUNCTIONAL),
-            detail="Artifact creation failed",
+            detail="Создание артефакта не удалось",
             error=artifact.error,
         ))
     elif not s3_key:
@@ -425,7 +425,7 @@ async def _validate_forensics(
             type=RewardType.FUNCTIONAL,
             score=0.0,
             weight=_w(weights, RewardType.FUNCTIONAL),
-            detail="No artifact file_url in artifact result",
+            detail="В результате артефакта нет file_url",
         ))
     else:
         try:
@@ -438,7 +438,7 @@ async def _validate_forensics(
                 type=RewardType.FUNCTIONAL,
                 score=1.0,
                 weight=_w(weights, RewardType.FUNCTIONAL),
-                detail=f"Valid JPEG image, {size_kb:.1f}KB",
+                detail=f"Корректное JPEG-изображение, {size_kb:.1f}KB",
             ))
             # Переоткрыть для дальнейшего использования (verify() закрывает файл)
             image_bytes = await asyncio.to_thread(download_image, s3_key)
@@ -458,7 +458,7 @@ async def _validate_forensics(
             type=RewardType.SOLVABILITY,
             score=0.0,
             weight=_w(weights, RewardType.SOLVABILITY),
-            detail="No artifact" if image_bytes is None else "Invalid spec — skipping solvability",
+            detail="Нет артефакта" if image_bytes is None else "Некорректный спек — пропускаем проверку разрешимости",
         ))
     else:
         try:
@@ -468,14 +468,14 @@ async def _validate_forensics(
                     type=RewardType.SOLVABILITY,
                     score=1.0,
                     weight=_w(weights, RewardType.SOLVABILITY),
-                    detail=f"Flag found in {hide_in}",
+                    detail=f"Флаг найден в {hide_in}",
                 ))
             else:
                 checks.append(RewardCheck(
                     type=RewardType.SOLVABILITY,
                     score=0.0,
                     weight=_w(weights, RewardType.SOLVABILITY),
-                    detail=f"Flag NOT found in {hide_in}; extracted={extracted!r}",
+                    detail=f"Флаг НЕ найден в {hide_in}; extracted={extracted!r}",
                 ))
         except Exception as exc:
             checks.append(RewardCheck(
@@ -494,19 +494,19 @@ async def _validate_forensics(
 
     if flag and flag.lower() in description:
         trivial = True
-        trivial_reason = "flag appears in description"
+        trivial_reason = "флаг появляется в описании"
     elif flag and flag.lower() in title:
         trivial = True
-        trivial_reason = "flag appears in title"
+        trivial_reason = "флаг появляется в заголовке"
     elif hide_in and hide_in.replace("_", " ") in description:
         trivial = True
-        trivial_reason = f"hide_in field name {hide_in!r} mentioned in description"
+        trivial_reason = f"имя поля hide_in {hide_in!r} упомянуто в описании"
 
     checks.append(RewardCheck(
         type=RewardType.NON_TRIVIALITY,
         score=0.0 if trivial else 1.0,
         weight=_w(weights, RewardType.NON_TRIVIALITY),
-        detail=trivial_reason if trivial else "Flag location not disclosed in description",
+        detail=trivial_reason if trivial else "Местонахождение флага не раскрыто в описании",
     ))
 
     return checks
@@ -554,22 +554,22 @@ async def _validate_xss(
         detail="HTML page uploaded" if functional_ok else "No artifact / upload failed",
     ))
 
-    # ── РАЗРЕШИМОСТЬ ── via Docker self-test (Playwright) when enabled ─────────
-    # Re-render the page from spec (same logic as artifact_creator, no S3 round-trip)
-    # so the container receives the authoritative HTML without needing S3 access.
+    # ── РАЗРЕШИМОСТЬ ── через Docker self-test (Playwright), если включён ──────
+    # Перерендерить страницу из спека (та же логика, что в artifact_creator, без S3-обхода)
+    # чтобы контейнер получил авторитетный HTML без доступа к S3.
     from app.services.ai_generator.self_test.xss_selftest import run_xss_self_test
     from app.config import settings as _settings
 
     payload = spec.get("payload_solution", "")
-    # These are substring patterns searched in the LLM-generated payload string —
-    # no code is executed here; "eval(" is a literal string to detect, not a call.
+    # Это подстроки для поиска в сгенерированной LLM строке payload —
+    # никакой код здесь не выполняется; "eval(" — это литеральная строка для обнаружения, не вызов.
     xss_keywords = {"<script", "onerror", "onload", "alert(", "eval(", "document.", "window."}
     static_solvable = any(kw in payload.lower() for kw in xss_keywords) and bool(flag)
 
     solvability_score = 1.0 if static_solvable else 0.0
     solvability_detail = (
-        "Payload contains XSS trigger (static heuristic)" if static_solvable
-        else f"Weak payload: {payload[:80]!r}"
+        "Payload содержит XSS-триггер (статическая эвристика)" if static_solvable
+        else f"Слабый payload: {payload[:80]!r}"
     )
 
     if enable_self_test and format_ok and _settings.AI_GEN_ENABLE_SELFTEST:
@@ -578,28 +578,28 @@ async def _validate_xss(
             html = render_xss_page(spec)
             result = await run_xss_self_test(html, spec)
             if result.is_live:
-                # Use authoritative container verdict
+                # Используем авторитетный вердикт контейнера
                 if result.executed and result.flag_reachable:
                     solvability_score = 1.0
-                    solvability_detail = f"Self-test PASS: {result.detail}"
+                    solvability_detail = f"Self-test ПРОЙДЕН: {result.detail}"
                 else:
                     solvability_score = 0.0
                     solvability_detail = (
-                        f"Self-test FAIL: executed={result.executed} "
+                        f"Self-test НЕ ПРОЙДЕН: executed={result.executed} "
                         f"flag_reachable={result.flag_reachable}; {result.detail}"
                     )
             else:
-                # Container unavailable — fall back to static heuristic; log degradation
+                # Контейнер недоступен — переход на статическую эвристику; логируем деградацию
                 logger.warning("XSS self-test fallback (not live): %s", result.detail)
                 solvability_detail = (
-                    f"Static heuristic (self-test fallback: {result.detail}); "
-                    + ("payload has XSS trigger" if static_solvable else f"weak payload: {payload[:60]!r}")
+                    f"Статическая эвристика (self-test fallback: {result.detail}); "
+                    + ("payload содержит XSS-триггер" if static_solvable else f"слабый payload: {payload[:60]!r}")
                 )
         except Exception as exc:
             logger.warning("XSS self-test exception, using static heuristic: %s", exc)
             solvability_detail = (
-                f"Static heuristic (self-test error: {exc}); "
-                + ("payload has XSS trigger" if static_solvable else f"weak payload: {payload[:60]!r}")
+                f"Статическая эвристика (ошибка self-test: {exc}); "
+                + ("payload содержит XSS-триггер" if static_solvable else f"слабый payload: {payload[:60]!r}")
             )
 
     checks.append(RewardCheck(
@@ -614,8 +614,8 @@ async def _validate_xss(
     title = (spec.get("title") or "").lower()
     trivial = (flag and flag.lower() in description) or (flag and flag.lower() in title)
 
-    # Additional: if self-test ran live and baseline is NOT safe, the page is
-    # exploitable without any payload — disqualify as trivial.
+    # Дополнительно: если self-test запускался вживую и baseline небезопасен,
+    # страница эксплуатируется без payload — дисквалифицируем как тривиальную.
     if (enable_self_test and format_ok and _settings.AI_GEN_ENABLE_SELFTEST
             and "self-test" in solvability_detail.lower()):
         if "baseline_safe=False" in solvability_detail or "baseline not safe" in solvability_detail.lower():
@@ -625,13 +625,13 @@ async def _validate_xss(
         type=RewardType.NON_TRIVIALITY,
         score=0.0 if trivial else 1.0,
         weight=_w(weights, RewardType.NON_TRIVIALITY),
-        detail="Flag in description/title" if trivial else "Flag not disclosed",
+        detail="Флаг в описании/заголовке" if trivial else "Флаг не раскрыт",
     ))
 
     return checks
 
 
-# ── chat_llm validator ────────────────────────────────────────────────────────
+# ── валидатор chat_llm ────────────────────────────────────────────────────────
 
 def _validate_chat_llm(
     spec: dict,
@@ -664,7 +664,7 @@ def _validate_chat_llm(
         detail="OK" if format_ok else (
             f"missing={missing}" if missing else
             f"defense_type={defense_type!r}" if defense_type not in valid_defense_types else
-            "system_prompt_template missing {{FLAG}}"
+            "в system_prompt_template отсутствует {{FLAG}}"
         ),
     ))
 
@@ -676,7 +676,7 @@ def _validate_chat_llm(
         score=1.0 if functional_ok else 0.0,
         weight=_w(weights, RewardType.FUNCTIONAL),
         detail=f"prompt_len={prompt_len}" if functional_ok else
-               f"Invalid system prompt (len={prompt_len}, has_placeholder={'{{FLAG}}' in system_prompt})",
+               f"Некорректный системный промпт (len={prompt_len}, has_placeholder={'{{FLAG}}' in system_prompt})",
     ))
 
     # ── РАЗРЕШИМОСТЬ ───────────────────────────────────────────────────────────
@@ -690,7 +690,7 @@ def _validate_chat_llm(
         type=RewardType.SOLVABILITY,
         score=1.0 if solvable else 0.5,
         weight=_w(weights, RewardType.SOLVABILITY),
-        detail="Guard found" if solvable else "No guard instructions or over-restrictive prompt",
+        detail="Защита найдена" if solvable else "Нет защитных инструкций или промпт слишком ограничен",
     ))
 
     # ── НЕ_ТРИВИАЛЬНОСТЬ ────────────────────────────────────────────────────────
@@ -706,7 +706,7 @@ def _validate_chat_llm(
         type=RewardType.NON_TRIVIALITY,
         score=0.0 if trivial else 1.0,
         weight=_w(weights, RewardType.NON_TRIVIALITY),
-        detail="Flag exposed in prompt/description" if trivial else "Flag properly guarded",
+        detail="Флаг раскрыт в промпте/описании" if trivial else "Флаг надёжно защищён",
     ))
 
     return checks

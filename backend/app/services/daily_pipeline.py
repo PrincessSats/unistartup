@@ -34,8 +34,8 @@ ACCESS_TYPE_MAP = {
 DIFFICULTY_INT_MAP = {"beginner": 1, "intermediate": 2, "advanced": 3}
 DIFFICULTY_POINTS_MAP = {"beginner": 50, "intermediate": 100, "advanced": 200}
 
-# Fixed 12-slot distribution: 4 per category, each with 2 easy + 1 intermediate + 1 hard.
-# CVEs are assigned sequentially from the top-12 most interesting (highest CVSS).
+# Фиксированное распределение 12 слотов: 4 на категорию, по 2 лёгких + 1 средний + 1 сложный.
+# CVE назначаются последовательно из топ-12 самых интересных (по наибольшему CVSS).
 _TASK_SLOTS: list[tuple[str, str]] = [
     ("web_static_xss",          "beginner"),
     ("web_static_xss",          "beginner"),
@@ -51,7 +51,7 @@ _TASK_SLOTS: list[tuple[str, str]] = [
     ("forensics_image_metadata","advanced"),
 ]
 
-# How many CVEs to send to digest LLM at most (keep prompt within context window).
+# Максимальное количество CVE для дайджест-LLM (чтобы промпт влезал в контекст).
 _DIGEST_LLM_INPUT_CAP = 60
 
 _ALREADY_DONE_SQL = """
@@ -118,7 +118,7 @@ async def _generate_digest(today_entries: list) -> int | None:
         logger.error("daily_pipeline: failed to load digest_prompt.txt: %s", exc)
         return None
 
-    # All CVE IDs are referenced; LLM input is capped for context-size safety.
+    # Все CVE ID упоминаются; входные данные для LLM ограничены по размеру контекста.
     all_cve_ids = [r["cve_id"] for r in today_entries if r.get("cve_id")]
     llm_input_rows = today_entries[:_DIGEST_LLM_INPUT_CAP]
     input_payload = [
@@ -193,9 +193,9 @@ async def _grpo_generate_task_for_kb_entry(
     task_type: str | None = None,
     difficulty: str | None = None,
 ) -> int | None:
-    """Run GRPO pipeline for one CVE, publish best-passing variant as draft Task.
-    Returns task.id or None.
-    task_type and difficulty override inference when provided."""
+    """Запускает GRPO-пайплайн для одного CVE, публикует лучший вариант как черновик задания.
+    Возвращает task.id или None.
+    task_type и difficulty переопределяют автоматический вывод, если переданы."""
     if task_type is None:
         cwe_ids = list(entry.get("cwe_ids") or [])
         attack_vector = entry.get("attack_vector")
@@ -206,7 +206,7 @@ async def _grpo_generate_task_for_kb_entry(
     cve_id = entry.get("cve_id")
     batch_id = uuid.uuid4()
 
-    # Create batch row (own session — pipeline opens its own sessions internally)
+    # Создаём строку батча (своя сессия — пайплайн открывает свои сессии внутри)
     async with AsyncSessionLocal() as session:
         batch = AIGenerationBatch(
             id=batch_id,
@@ -219,7 +219,7 @@ async def _grpo_generate_task_for_kb_entry(
         session.add(batch)
         await session.commit()
 
-    # Run GRPO pipeline (long-running; opens its own DB sessions inside)
+    # Запускаем GRPO-пайплайн (долгая операция; открывает свои DB-сессии внутри)
     async with AsyncSessionLocal() as pipeline_session:
         try:
             await run_pipeline(
@@ -236,7 +236,7 @@ async def _grpo_generate_task_for_kb_entry(
             logger.error("daily_pipeline: GRPO pipeline failed for cve=%s: %s", cve_id, exc)
             return None
 
-    # Pick best passing variant
+    # Выбираем лучший прошедший вариант
     async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(AIGenerationVariant)
@@ -278,8 +278,8 @@ async def _grpo_generate_task_for_kb_entry(
             participant_desc = base_desc
 
         title = spec.get("title") or f"AI Generated — {batch_row.task_type}"
-        # Avoid duplicate-title conflicts (Task.title is not unique in schema but
-        # admin route enforces uniqueness; we silently skip duplicates here).
+        # Избегаем конфликтов дублирующихся заголовков (Task.title не unique в схеме,
+        # но маршрут адмнки проверяет уникальность; здесь молча пропускаем дубли).
         dup = await session.execute(select(Task.id).where(Task.title == title))
         if dup.scalar_one_or_none():
             logger.warning("daily_pipeline: duplicate task title, skipping cve=%s title=%r", cve_id, title)

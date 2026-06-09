@@ -1,36 +1,36 @@
 """
-Backfill script: Translate existing kb_entries that don't have ru_title/ru_summary/ru_explainer.
+Скрипт бэкфила: переводит существующие kb_entries, у которых нет ru_title/ru_summary/ru_explainer.
 
-Run from backend directory:
+Запуск из директории backend:
     cd backend
     python -m app.scripts.translate_kb_entries
 
-Or directly:
+Или напрямую:
     cd backend
     python app/scripts/translate_kb_entries.py
 
-Examples:
-    # Count entries needing translation (dry run)
+Примеры:
+    # Посчитать записи без перевода (пробный запуск)
     python -m app.scripts.translate_kb_entries --dry-run
 
-    # Test with 5 entries
+    # Протестировать на 5 записях
     python -m app.scripts.translate_kb_entries --limit 5
 
-    # Translate all entries with 0.5s delay between entries
+    # Перевести всё с задержкой 0.5с между записями
     python -m app.scripts.translate_kb_entries
 
-    # Translate all entries without delay (faster, but may hit rate limits)
+    # Перевести без задержки (быстрее, но риск получить rate limit)
     python -m app.scripts.translate_kb_entries --delay 0
 
-Cost estimate (deepseek-v4-flash @ 0.5 RUB/1K tokens input + 0.5 RUB/1K tokens output):
-- ~100 tokens in (title) + ~50 tokens out = 150 tokens for title
-- ~600 tokens in (summary 3000 chars) + ~300 tokens out = 900 tokens for summary
-- ~2000 tokens in (explainer 8000 chars) + ~1000 tokens out = 3000 tokens for explainer
-- Total per CVE: ~4050 tokens × 0.5 RUB/1000 = ~2 RUB per CVE
-- 1000 entries: ~2000 RUB
-- 3863 entries: ~7700 RUB (one-time cost for full Russian KB)
+Оценка стоимости (deepseek-v4-flash @ 0.5 руб/1К токенов вход + 0.5 руб/1К токенов выход):
+- ~100 токенов вход (заголовок) + ~50 выход = 150 токенов на заголовок
+- ~600 токенов вход (summary 3000 символов) + ~300 выход = 900 токенов на summary
+- ~2000 токенов вход (explainer 8000 символов) + ~1000 выход = 3000 токенов на explainer
+- Итого на CVE: ~4050 токенов × 0.5 руб/1000 = ~2 руб за CVE
+- 1000 записей: ~2000 руб
+- 3863 записи: ~7700 руб (разовая стоимость полной русской KB)
 
-Progress is displayed as a progress bar and logged to nvd_sync_log table for admin monitoring.
+Прогресс отображается прогресс-баром и логируется в таблицу nvd_sync_log для мониторинга.
 """
 
 import argparse
@@ -57,12 +57,12 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-BATCH_SIZE = 20  # translate 20 entries per batch to avoid rate limits
-DELAY_SECONDS = 0.5  # pause between batches
+BATCH_SIZE = 20  # переводим по 20 записей за батч, чтобы не получить rate limit
+DELAY_SECONDS = 0.5  # пауза между батчами
 
 
 async def create_translation_log(session: AsyncSession) -> int:
-    """Create a log entry for this translation run."""
+    """Создаёт запись лога для текущего запуска перевода."""
     result = await session.execute(
         text(
             """
@@ -97,7 +97,7 @@ async def update_translation_progress(
     completed: int,
     failed: int,
 ) -> None:
-    """Update translation progress in the log."""
+    """Обновляет прогресс перевода в логе."""
     await session.execute(
         text(
             """
@@ -113,7 +113,7 @@ async def update_translation_progress(
 
 
 async def mark_translation_complete(session: AsyncSession, log_id: int, error: Optional[str]) -> None:
-    """Mark translation run as complete or failed."""
+    """Помечает запуск перевода как завершённый или упавший."""
     status = "failed" if error else "success"
     await session.execute(
         text(
@@ -136,14 +136,14 @@ async def translate_existing_entries(
     delay_seconds: float = 0.5,
 ) -> None:
     """
-    Translate all kb_entries WHERE ru_title IS NULL OR ru_summary IS NULL OR ru_explainer IS NULL.
+    Переводит все kb_entries, где ru_title IS NULL OR ru_summary IS NULL OR ru_explainer IS NULL.
 
-    Translates FULL content: ru_title + ru_summary + ru_explainer using deepseek-v4-flash.
+    Переводит ПОЛНЫЙ контент: ru_title + ru_summary + ru_explainer через deepseek-v4-flash.
 
     Args:
-        dry_run: If True, only count entries without translating
-        limit: Maximum number of entries to translate (for testing)
-        delay_seconds: Pause between entries (seconds), set to 0 to disable
+        dry_run: Если True, только считает записи без перевода
+        limit: Максимальное количество записей для перевода (для тестирования)
+        delay_seconds: Пауза между записями (секунды), 0 — отключить
     """
     async with AsyncSessionLocal() as session:
         # Считаем записи, которым нужен перевод
@@ -173,7 +173,7 @@ async def translate_existing_entries(
             logger.info("DRY RUN: Would translate %d entries (full: title+summary+explainer)", total_count)
             return
 
-        # Create log entry
+        # Создаём запись лога
         log_id = await create_translation_log(session)
         logger.info("Created translation log entry: id=%d", log_id)
 
@@ -183,7 +183,7 @@ async def translate_existing_entries(
 
     try:
         async with AsyncSessionLocal() as session:
-            # Fetch entries needing translation
+            # Загружаем записи, требующие перевода
             query = text(
                 """
                 SELECT id, cve_id, raw_en_text
@@ -204,9 +204,9 @@ async def translate_existing_entries(
         total_entries = len(entries)
         logger.info("Translating %d entries (FULL: title + summary + explainer)...", total_entries)
 
-        # Create async helper for single entry translation
+        # Вспомогательная функция для перевода одной записи
         async def translate_single_entry(entry):
-            """Translate a single entry and update progress."""
+            """Переводит одну запись и обновляет прогресс."""
             nonlocal translated, failed
             entry_id, cve_id, raw_en_text = entry
 
@@ -245,17 +245,17 @@ async def translate_existing_entries(
                 failed += 1
                 logger.error("Translation failed for entry %d (%s): %s", entry_id, cve_id, exc)
 
-            # Update progress in DB every 10 entries to reduce DB load
+            # Обновляем прогресс в БД каждые 10 записей, чтобы снизить нагрузку
             if (translated + failed) % 10 == 0:
                 async with AsyncSessionLocal() as session:
                     await update_translation_progress(session, log_id, translated, failed)
 
-        # Process entries with progress bar (suppress all console logging to keep single line)
+        # Обрабатываем с прогресс-баром (временно отключаем логи, чтобы не ломать одну строку)
         root_logger = logging.getLogger()
         original_handlers = root_logger.handlers[:]
-        root_logger.handlers = []  # Remove all handlers temporarily
+        root_logger.handlers = []  # Временно удаляем все обработчики
 
-        # Open /dev/tty for clean progress bar output
+        # Открываем /dev/tty для чистого вывода прогресс-бара
         tty_file = None
         try:
             tty_file = open("/dev/tty", "w")
@@ -276,16 +276,16 @@ async def translate_existing_entries(
                 for entry in entries:
                     await translate_single_entry(entry)
                     progress_bar.update(1)
-                    # Delay between entries (for rate limiting)
+                    # Задержка между записями (для обхода rate limit)
                     if delay_seconds > 0:
                         await asyncio.sleep(delay_seconds)
         finally:
             if tty_file:
                 tty_file.close()
-            # Restore logging handlers
+            # Восстанавливаем обработчики логирования
             root_logger.handlers = original_handlers
 
-        # Final DB progress update
+        # Финальное обновление прогресса в БД
         async with AsyncSessionLocal() as session:
             await update_translation_progress(session, log_id, translated, failed)
 

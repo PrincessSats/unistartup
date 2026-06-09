@@ -32,7 +32,7 @@ async def get_current_user(
             detail="Токен не предоставлен"
         )
     
-    # Расшифровываем токен (нет английского текста)
+    # Расшифровываем токен
     payload = decode_access_token(token)
     
     if payload is None:

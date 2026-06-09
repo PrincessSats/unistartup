@@ -110,7 +110,7 @@ function StageVisualizer({ currentStage, isFailed }) {
   );
 }
 
-// ── Stage Detail Panel ─────────────────────────────────────────────────────────
+// ── Панель деталей стадии ──────────────────────────────────────────────────────
 
 function StageDetailPanel({ batchStatus }) {
   const {
@@ -218,7 +218,7 @@ function StageDetailPanel({ batchStatus }) {
   );
 }
 
-// ── Review Modal ───────────────────────────────────────────────────────────────
+// ── Модальное окно просмотра ───────────────────────────────────────────────────
 
 function CopyButton({ text }) {
   const [copied, setCopied] = useState(false);
@@ -347,7 +347,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto">
       <div className="bg-[#12111A] border border-white/[0.1] rounded-[20px] w-full max-w-2xl my-8">
-        {/* Header */}
+        {/* Заголовок */}
         <div className="flex items-center justify-between p-5 border-b border-white/[0.07]">
           <div>
             <h3 className="text-[16px] font-semibold text-white">
@@ -364,7 +364,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
 
           {r && (
             <>
-              {/* Spec */}
+              {/* Спецификация */}
               <ReviewSection title="Task Specification">
                 <ReviewField label="Title" value={r.spec_title} />
                 <ReviewField label="Description" value={r.spec_description} />
@@ -414,7 +414,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                       );
                     })}
                   </div>
-                  {/* Reverse path */}
+                  {/* Обратный путь */}
                   <div className="mt-4 pt-3 border-t border-white/[0.06]">
                     <p className="text-[10px] text-white/30 uppercase tracking-[0.05em] mb-2">Player solution path (reversed)</p>
                     <div className="flex flex-wrap gap-1.5 items-center">
@@ -451,7 +451,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 </ReviewSection>
               )}
 
-              {/* Rewards */}
+              {/* Reward-проверки */}
               <ReviewSection title="Reward Checks">
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
@@ -484,7 +484,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 })}
               </ReviewSection>
 
-              {/* Quality details */}
+              {/* Детали качества */}
               {r.quality_details && Object.keys(r.quality_details).length > 0 && (
                 <ReviewSection title="Quality Dimensions">
                   {Object.entries(r.quality_details).map(([k, v]) => (
@@ -498,7 +498,7 @@ function ReviewModal({ batchId, variant, onClose, onPublish, publishing }) {
                 </ReviewSection>
               )}
 
-              {/* Generation stats */}
+              {/* Статистика генерации */}
               <ReviewSection title="Generation Stats">
                 <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3">
                   {[
@@ -614,7 +614,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
         )}
       </div>
 
-      {/* Score bar */}
+      {/* Полоса reward */}
       <div>
         <div className="flex justify-between text-[10px] text-white/40 mb-1">
           <span>Total Reward</span>
@@ -623,7 +623,7 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
         <ScoreBar value={variant.reward_total} />
       </div>
 
-      {/* Metrics */}
+      {/* Метрики */}
       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-white/40">
         {variant.advantage != null && (
           <span>Adv: <span className={`font-mono ${variant.advantage >= 0 ? 'text-emerald-400/80' : 'text-red-400/80'}`}>{variant.advantage.toFixed(3)}</span></span>
@@ -633,24 +633,24 @@ function VariantCard({ batchId, variant, isSelected, onPublish, onReview, publis
         {variant.generation_time_ms != null && <span>{formatMs(variant.generation_time_ms)}</span>}
       </div>
 
-      {/* Spec preview */}
+      {/* Превью спецификации */}
       {variant.spec_title && <p className="text-[12px] text-white/70 font-medium truncate">{variant.spec_title}</p>}
       {variant.spec_description && <p className="text-[10px] text-white/35 line-clamp-2">{variant.spec_description}</p>}
 
-      {/* Failure reason */}
+      {/* Причина отказа */}
       {variant.failure_reason && (
         <p className="text-[10px] text-red-400/80 bg-red-500/5 px-2 py-1.5 rounded-lg border border-red-500/10 break-words line-clamp-3">
           {variant.failure_reason}
         </p>
       )}
 
-      {/* Checks toggle */}
+      {/* Переключатель проверок */}
       <button type="button" onClick={() => setExpanded(!expanded)} className="text-[10px] text-white/30 hover:text-white/60 transition-colors text-left">
         {expanded ? '▲ Hide checks' : '▼ Checks'}
       </button>
       {expanded && <RewardChecks checks={variant.reward_checks} />}
 
-      {/* Actions */}
+      {/* Действия */}
       <div className="flex gap-2 mt-auto pt-1">
         <button
           type="button"
@@ -719,7 +719,7 @@ function ConfirmPublishModal({ variant, onConfirm, onCancel }) {
   );
 }
 
-// ── Main Page ──────────────────────────────────────────────────────────────────
+// ── Главная страница ───────────────────────────────────────────────────────────
 
 export default function Pipeline() {
   const [taskType, setTaskType] = useState('crypto_text_web');
@@ -750,14 +750,14 @@ export default function Pipeline() {
     try {
       const data = await pipelineAPI.listBatches({ limit: 30 });
       setBatches(data.items || []);
-    } catch { /* not critical */ } finally {
+    } catch { /* не критично */ } finally {
       setBatchesLoading(false);
     }
   }, []);
 
   useEffect(() => { loadBatches(); }, [loadBatches]);
 
-  // Polling
+  // Опрос статуса
   const batchStatusStr = batchStatus?.status ?? null;
   useEffect(() => {
     if (!activeBatchId) return;
@@ -839,14 +839,14 @@ export default function Pipeline() {
 
   return (
     <div className="min-h-screen p-6 space-y-5">
-      {/* Toast */}
+      {/* Тост-уведомление */}
       {toast && (
         <div className={`fixed top-6 right-6 z-50 px-4 py-3 rounded-[12px] border text-[13px] font-medium shadow-xl transition-all ${
           toast.type === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-300' : 'bg-red-500/20 border-red-500/30 text-red-300'
         }`}>{toast.message}</div>
       )}
 
-      {/* Modals */}
+      {/* Модальные окна */}
       {publishTarget && (
         <ConfirmPublishModal
           variant={publishTarget}
@@ -867,10 +867,10 @@ export default function Pipeline() {
       <h1 className="text-[28px] leading-[32px] tracking-[0.02em] text-white font-semibold">AI Pipeline</h1>
 
       <div className="flex gap-5 items-start">
-        {/* Main column */}
+        {/* Главная колонка */}
         <div className="flex-1 min-w-0 space-y-4">
 
-          {/* Task Constructor */}
+          {/* Конструктор задачи */}
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-5">
             <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-4">Task Constructor</h2>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5 mb-4">
@@ -913,7 +913,7 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Pipeline Stage Flow + Detail */}
+          {/* Стадии пайплайна + детали */}
           {batchStatus && (
             <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-5">
               <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -931,15 +931,15 @@ export default function Pipeline() {
                 </div>
               </div>
 
-              {/* Stage nodes — wraps naturally */}
+              {/* Узлы стадий — переносятся автоматически */}
               <StageVisualizer currentStage={currentStage} isFailed={isFailed} />
 
-              {/* Live detail panel */}
+              {/* Панель деталей в реальном времени */}
               <StageDetailPanel batchStatus={batchStatus} />
             </div>
           )}
 
-          {/* Variant Cards */}
+          {/* Карточки вариантов */}
           {variants.length > 0 && (
             <div>
               <h2 className="text-[12px] text-white/40 tracking-[0.06em] uppercase mb-3">Variants</h2>
@@ -964,7 +964,7 @@ export default function Pipeline() {
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Пустое состояние */}
           {!batchStatus && (
             <div className="bg-white/[0.03] border border-dashed border-white/[0.07] rounded-[18px] p-12 text-center">
               <p className="text-white/25 text-[13px]">Configure and generate a task to see pipeline results.</p>
@@ -972,7 +972,7 @@ export default function Pipeline() {
           )}
         </div>
 
-        {/* History sidebar */}
+        {/* Боковая панель истории */}
         <div className="w-60 shrink-0">
           <div className="bg-white/[0.05] border border-white/[0.08] rounded-[18px] p-4">
             <div className="flex items-center justify-between mb-3">

@@ -444,7 +444,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
             </div>
           )}
 
-          {/* Basic Info */}
+          {/* Основная информация */}
           <div className="border border-white/[0.08] rounded-[16px] p-5">
             <div className="text-[16px] text-white mb-4">Основная информация</div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -533,7 +533,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Access Type */}
+          {/* Тип доступа */}
           <div className="border border-white/[0.08] rounded-[16px] p-5">
             <div className="text-[16px] text-white mb-4">Тип доступа</div>
             <div className="mb-4">
@@ -551,7 +551,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
               </select>
             </div>
 
-            {/* Chat Settings */}
+            {/* Настройки chat */}
             {taskForm.access_type === 'chat' && (
               <div className="border border-white/[0.08] rounded-[12px] p-4 bg-white/[0.02]">
                 <label className="text-white text-sm mb-2 block">Системный промпт (обязательно {`{{FLAG}}`})</label>
@@ -598,7 +598,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
               </div>
             )}
 
-            {/* VPN Settings */}
+            {/* Настройки VPN */}
             {taskForm.access_type === 'vpn' && (
               <div className="border border-white/[0.08] rounded-[12px] p-4 bg-white/[0.02] space-y-3">
                 <input
@@ -634,7 +634,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
               </div>
             )}
 
-            {/* VM Settings */}
+            {/* Настройки VM */}
             {taskForm.access_type === 'vm' && (
               <div className="border border-white/[0.08] rounded-[12px] p-4 bg-white/[0.02]">
                 <input
@@ -646,7 +646,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
               </div>
             )}
 
-            {/* Link Settings */}
+            {/* Настройки ссылки */}
             {taskForm.access_type === 'link' && (
               <div className="border border-white/[0.08] rounded-[12px] p-4 bg-white/[0.02] space-y-3">
                 <input
@@ -664,7 +664,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
               </div>
             )}
 
-            {/* File Settings */}
+            {/* Настройки файла */}
             {taskForm.access_type === 'file' && (
               <div className="border border-white/[0.08] rounded-[12px] p-4 bg-white/[0.02] space-y-3">
                 <input
@@ -697,7 +697,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
             )}
           </div>
 
-          {/* Description & Story */}
+          {/* Описание и легенда */}
           <div className="border border-white/[0.08] rounded-[16px] p-5">
             <div className="text-[16px] text-white mb-4">Описание и легенда</div>
             <div className="space-y-4">
@@ -728,7 +728,7 @@ function TaskEditDrawer({ open, taskId, onClose, onUpdated }) {
             </div>
           </div>
 
-          {/* Flags */}
+          {/* Флаги */}
           <div className="border border-white/[0.08] rounded-[16px] p-5">
             <div className="text-[16px] text-white mb-4">Флаги</div>
             {taskForm.access_type === 'chat' ? (

@@ -1,1 +1,1 @@
-"""Operational scripts for backend maintenance."""
+"""Скрипты для обслуживания бэкенда."""

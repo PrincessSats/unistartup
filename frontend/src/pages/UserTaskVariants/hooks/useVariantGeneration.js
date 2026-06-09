@@ -13,7 +13,7 @@ import { userVariantsAPI } from '../../../services/api';
 export function useVariantGeneration(parentTaskId) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [requestId, setRequestId] = useState(null);
-  const [status, setStatus] = useState('idle'); // idle, pending, generating, completed, failed
+  const [status, setStatus] = useState('idle'); // idle, pending, generating, completed, failed — статус
   const [error, setError] = useState(null);
   const [generatedVariant, setGeneratedVariant] = useState(null);
   const pollIntervalRef = useRef(null);

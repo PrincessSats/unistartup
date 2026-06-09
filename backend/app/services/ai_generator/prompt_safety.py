@@ -10,7 +10,7 @@ from typing import Optional
 
 @dataclass
 class SafetyCheckResult:
-    """Result of prompt safety check."""
+    """Результат проверки безопасности промпта."""
     is_safe: bool
     rejection_reason: Optional[str] = None
     sanitized_request: str = ""
@@ -38,7 +38,7 @@ class PromptSafetyChecker:
         r"forget\s+(\w+\s+){0,2}(rules|instructions|constraints|programming)",
         r"system\s+prompt|system\s+message|initial\s+instructions",
         r"developer\s+mode|debug\s+mode|debugging\s+mode",
-        r"sudo\s+make\s+me\s+a\s+sandwich",  # Classic xkcd reference
+        r"sudo\s+make\s+me\s+a\s+sandwich",  # классическая отсылка к xkcd
         r"activate\s+god\s+mode",
         r"enable\s+unsafe\s+mode",
         r"turn\s+off\s+content\s+filters",
@@ -62,7 +62,7 @@ class PromptSafetyChecker:
 
     # Паттерны формата флага (не должны появляться в запросах пользователя)
     FLAG_PATTERNS = [
-        r"CTF\{[^}]+\}",  # Standard flag format
+        r"CTF\{[^}]+\}",  # стандартный формат флага
         r"flag\s*[=:]\s*[A-Za-z0-9_]+",
         r"флаг\s*[=:]\s*\S+",
     ]
@@ -78,7 +78,7 @@ class PromptSafetyChecker:
 
     # Паттерны выполнения кода
     CODE_EXEC_PATTERNS = [
-        r"```[a-z]*\n.*```",  # Markdown code blocks
+        r"```[a-z]*\n.*```",  # блоки кода в Markdown
         r"eval\s*\(",
         r"exec\s*\(",
         r"__import__\s*\(",

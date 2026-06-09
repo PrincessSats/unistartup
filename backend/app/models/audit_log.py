@@ -1,8 +1,8 @@
 """
-Audit log model for tracking security-relevant events.
+Модель аудит-лога для отслеживания событий, важных для безопасности.
 
-This model stores an immutable audit trail of important actions
-in the system for compliance, security monitoring, and forensics.
+Хранит неизменяемую историю значимых действий в системе
+для соответствия требованиям, мониторинга безопасности и форензики.
 """
 
 from datetime import datetime, timezone
@@ -15,10 +15,10 @@ from app.database import Base
 
 class AuditLog(Base):
     """
-    Audit log entry.
-    
-    Stores a record of security-relevant actions performed in the system.
-    Entries are immutable - they should never be updated or deleted.
+    Запись аудит-лога.
+
+    Хранит запись о важных для безопасности действиях в системе.
+    Записи неизменяемы — их нельзя обновлять или удалять.
     """
     
     __tablename__ = "audit_logs"
@@ -70,7 +70,7 @@ class AuditLog(Base):
         )
     
     def to_dict(self) -> dict:
-        """Convert to dictionary for API responses."""
+        """Преобразовать в словарь для API-ответов."""
         return {
             "id": self.id,
             "action": self.action,
@@ -87,14 +87,14 @@ class AuditLog(Base):
 # Предотвращение обновлений и удаления (мягкое принудительное выполнение через слушатели событий)
 @event.listens_for(AuditLog, "before_update")
 def prevent_audit_log_update(mapper, connection, target):
-    """Вызвать ошибку, если кто-нибудь попытается обновить запись журнала аудита."""
-    # В продакшене вы можете захотеть зарегистрировать это как событие безопасности
-    # или вместо этого использовать ограничения уровня базы данных
-    pass  # Пока молча игнорируем - позже можно сделать более строгим
+    """Вызвать ошибку, если кто-нибудь попытается обновить запись аудит-лога."""
+    # В проде можно залогировать это как событие безопасности
+    # или использовать ограничения на уровне БД
+    pass  # Пока молча игнорируем — позже можно сделать строже
 
 
 @event.listens_for(AuditLog, "before_delete")
 def prevent_audit_log_delete(mapper, connection, target):
-    """Вызвать ошибку, если кто-нибудь попытается удалить запись журнала аудита."""
-    # В продакшене вы можете захотеть зарегистрировать это как событие безопасности
-    pass  # Пока молча игнорируем - позже можно сделать более строгим
+    """Вызвать ошибку, если кто-нибудь попытается удалить запись аудит-лога."""
+    # В проде можно залогировать это как событие безопасности
+    pass  # Пока молча игнорируем — позже можно сделать строже

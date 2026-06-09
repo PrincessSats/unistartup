@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Generate AI Generation Metrics Report from live database.
-Usage: python scripts/generate_metrics_report.py
+Генерирует отчёт по метрикам AI-генерации из живой базы данных.
+Использование: python scripts/generate_metrics_report.py
 """
 
 import asyncio
@@ -12,7 +12,7 @@ from app.database import AsyncSessionLocal
 
 
 async def fetch_stats():
-    """Fetch all metrics from database."""
+    """Загружает все метрики из базы данных."""
     async with AsyncSessionLocal() as session:
         queries = {
             'batch_stats': '''
@@ -112,7 +112,7 @@ async def fetch_stats():
 
 
 def format_report(stats):
-    """Format statistics into markdown report."""
+    """Форматирует статистику в markdown-отчёт."""
 
     batch = stats['batch_stats'][0] if stats['batch_stats'] else {}
     variant = stats['variant_stats'][0] if stats['variant_stats'] else {}
@@ -123,13 +123,13 @@ def format_report(stats):
 
 ---
 
-## Executive Summary
+## Краткое резюме
 
 Our **GRPO-optimized task generation pipeline** has achieved **{variant.get('pass_rate', 'N/A')}% production-ready task generation** with intelligent variant selection.
 
 ---
 
-## 📊 Key Performance Indicators
+## 📊 Ключевые показатели эффективности
 
 ### Generation Efficiency
 | Metric | Value |
@@ -149,14 +149,14 @@ Our **GRPO-optimized task generation pipeline** has achieved **{variant.get('pas
 
 """
 
-    # Task Type Distribution
+    # Распределение по типам заданий
     if stats['task_type_dist']:
         report += "\n## 📈 Performance by Task Type\n\n"
         for row in stats['task_type_dist']:
             report += f"- **{row['task_type']}** ({row['count']} variants, {row['percentage']}%)\n"
             report += f"  - Pass Rate: {row['pass_rate']}% | Quality: {row['avg_quality']}/10\n"
 
-    # Quality by Difficulty
+    # Качество по уровням сложности
     if stats['quality_by_difficulty']:
         report += "\n## 📋 Quality by Difficulty\n\n"
         report += "| Difficulty | Generated | Pass Rate | Avg Quality |\n"
@@ -164,7 +164,7 @@ Our **GRPO-optimized task generation pipeline** has achieved **{variant.get('pas
         for row in stats['quality_by_difficulty']:
             report += f"| **{row['difficulty'].capitalize()}** | {row['total']} | {row['pass_rate']}% | {row['avg_quality']}/10 |\n"
 
-    # Temperature Analysis
+    # Анализ по температуре
     if stats['temperature_analysis']:
         report += "\n## 🌡️ Temperature Tuning Analysis\n\n"
         report += "| Temperature | Variants | Pass Rate | Avg Tokens |\n"
@@ -172,13 +172,13 @@ Our **GRPO-optimized task generation pipeline** has achieved **{variant.get('pas
         for row in stats['temperature_analysis']:
             report += f"| {row['temperature']} | {row['count']} | {row['pass_rate']}% | {row['avg_tokens']} |\n"
 
-    # RAG Usage
+    # Использование RAG
     if stats['rag_usage']:
         rag = stats['rag_usage'][0]
         report += f"\n## 🧠 Knowledge Base Integration (RAG)\n\n"
         report += f"- **RAG Enabled:** {rag['rag_enabled']}/{rag['total_batches']} batches ({rag['rag_percentage']}%)\n"
 
-    # Failure Analysis
+    # Анализ ошибок
     if stats['top_failures']:
         report += "\n## ❌ Top Rejection Reasons\n\n"
         report += "| Reason | Count | % |\n"
@@ -186,7 +186,7 @@ Our **GRPO-optimized task generation pipeline** has achieved **{variant.get('pas
         for row in stats['top_failures']:
             report += f"| {row['failure_reason']} | {row['count']} | {row['percentage']}% |\n"
 
-    # Monthly Trends
+    # Месячные тренды
     if stats['monthly_tokens']:
         report += "\n## 📊 Monthly Token Usage\n\n"
         for row in stats['monthly_tokens']:

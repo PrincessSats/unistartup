@@ -1,15 +1,15 @@
 """
-Pure cipher functions for crypto_text_web CTF challenges.
+Чистые функции шифрования для CTF-заданий типа crypto_text_web.
 
-All functions are synchronous and have no external dependencies (except
-aes_ecb which uses the `cryptography` package already in requirements.txt).
-apply_chain / reverse_chain are the main entry points.
+Все функции синхронные, без внешних зависимостей (кроме
+aes_ecb, который использует пакет `cryptography` из requirements.txt).
+Основные точки входа: apply_chain / reverse_chain.
 
-Supported cipher names (use in crypto_chain[].cipher):
-  Classical:   caesar, rot13, vigenere, atbash, beaufort, substitution, rail_fence
-  Encoding:    base64, base32, base58, hex, url
-  Modern:      xor, aes_ecb
-  Misc:        reverse
+Поддерживаемые шифры (указывать в crypto_chain[].cipher):
+  Классические: caesar, rot13, vigenere, atbash, beaufort, substitution, rail_fence
+  Кодирование:  base64, base32, base58, hex, url
+  Современные:  xor, aes_ecb
+  Прочие:       reverse
 """
 import base64
 from typing import Any
@@ -259,7 +259,7 @@ def reverse_string(text: str) -> str:
     return text[::-1]
 
 
-# ── Modern symmetric ─────────────────────────────────────────────────────────
+# ── Современная симметричная криптография ────────────────────────────────────
 
 def xor_encrypt(text: str, key: str) -> str:
     if not key:
@@ -322,7 +322,7 @@ def aes_ecb_decrypt(text: str, key_hex: str) -> str:
     return (unpadder.update(padded) + unpadder.finalize()).decode("utf-8", errors="replace")
 
 
-# ── Chain apply / reverse ────────────────────────────────────────────────────
+# ── Цепочка операций / обратный порядок ─────────────────────────────────────
 
 def _apply_single(text: str, op: dict[str, Any]) -> str:  # Применить одну операцию
     name = (op.get("cipher") or op.get("type") or "").lower()

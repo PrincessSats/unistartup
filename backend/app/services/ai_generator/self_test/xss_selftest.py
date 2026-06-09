@@ -1,17 +1,17 @@
 """
-XSS self-test client — calls the Yandex Serverless Container that runs
-headless Chromium (Playwright) to verify a generated XSS task is genuinely
-solvable before it passes the SOLVABILITY binary gate.
+Клиент XSS self-test — вызывает Yandex Serverless Container с headless Chromium (Playwright),
+чтобы убедиться, что сгенерированное XSS-задание реально разрешимо
+до того, как оно пройдёт двоичные ворота SOLVABILITY.
 
-Three signals returned by the container:
-  executed        — injecting payload_solution fires JS (alert / sentinel)
-  flag_reachable  — attacker JS can read document.cookie and get the flag
-  baseline_safe   — loading the page without payload does NOT fire XSS
+Три сигнала, возвращаемых контейнером:
+  executed        — внедрение payload_solution запускает JS (alert / sentinel)
+  flag_reachable  — JS атакующего может прочитать document.cookie и получить флаг
+  baseline_safe   — загрузка страницы без payload НЕ запускает XSS
 
-Only active when settings.AI_GEN_ENABLE_SELFTEST is True and
-settings.AI_GEN_SELFTEST_URL is set.  On any container error/timeout the
-function falls back to static heuristic (fail-open) and records the
-degradation in the detail field.
+Активен только при settings.AI_GEN_ENABLE_SELFTEST == True и
+settings.AI_GEN_SELFTEST_URL задан. При любой ошибке контейнера/таймауте
+функция переходит на статическую эвристику (fail-open) и записывает
+деградацию в поле detail.
 """
 from __future__ import annotations
 
@@ -33,20 +33,20 @@ class XssSelfTestResult:
     baseline_safe: bool = True
     detail: str = ""
     error: Optional[str] = None
-    # True when the result came from the container (not a fallback/disabled path)
+    # True, если результат получен от контейнера (не резервный/отключённый путь)
     is_live: bool = False
 
 
 async def run_xss_self_test(html: str, spec: dict[str, Any]) -> XssSelfTestResult:
     """
-    Send the rendered HTML + spec to the self-test Serverless Container.
-    Returns XssSelfTestResult.
+    Отправить отрендеренный HTML + спек в Serverless Container для self-test.
+    Возвращает XssSelfTestResult.
 
-    Falls back to static heuristic (is_live=False) when:
-      - AI_GEN_ENABLE_SELFTEST is False
-      - AI_GEN_SELFTEST_URL is not set
-      - Container request times out or returns a non-200
-      - Any other network/parse error
+    Переходит на статическую эвристику (is_live=False) при:
+      - AI_GEN_ENABLE_SELFTEST == False
+      - AI_GEN_SELFTEST_URL не задан
+      - Запрос к контейнеру превысил таймаут или вернул не-200
+      - Любая другая сетевая/парсинговая ошибка
     """
     if not settings.AI_GEN_ENABLE_SELFTEST or not settings.AI_GEN_SELFTEST_URL.strip():
         return XssSelfTestResult(
@@ -63,7 +63,7 @@ async def run_xss_self_test(html: str, spec: dict[str, Any]) -> XssSelfTestResul
     }
 
     headers: dict[str, str] = {"Content-Type": "application/json"}
-    # Yandex Serverless Container IAM auth — attach SA token from env if available
+    # IAM-аутентификация Yandex Serverless Container — прикрепить SA-токен из env, если доступен
     iam_token = _get_iam_token()
     if iam_token:
         headers["Authorization"] = f"Bearer {iam_token}"
@@ -119,15 +119,15 @@ async def run_xss_self_test(html: str, spec: dict[str, Any]) -> XssSelfTestResul
 
 def _get_iam_token() -> Optional[str]:
     """
-    Return IAM bearer token for Yandex Serverless Container invocation.
-    Tries metadata-server approach (instance running in Yandex Cloud) first,
-    then falls back to static YANDEX_IAM_TOKEN env var if present.
+    Вернуть IAM bearer-токен для вызова Yandex Serverless Container.
+    Сначала пробует подход через metadata-сервер (экземпляр в Yandex Cloud),
+    затем переходит на статическую переменную YANDEX_IAM_TOKEN из env.
     """
     import os
     static = os.environ.get("YANDEX_IAM_TOKEN", "").strip()
     if static:
         return static
-    # Production: fetch from instance metadata service (169.254.169.254)
+    # Продакшн: получить из metadata-сервиса экземпляра (169.254.169.254)
     try:
         import urllib.request
         req = urllib.request.Request(

@@ -1,7 +1,7 @@
 """
-Translation service for CVE descriptions using Yandex Translate API.
+Сервис перевода описаний CVE через Yandex Translate API.
 
-Single-request batch translation: one REST call returns ru_title, ru_summary, ru_explainer.
+Пакетный перевод одним запросом: один REST-вызов возвращает ru_title, ru_summary, ru_explainer.
 """
 from __future__ import annotations
 
@@ -68,7 +68,7 @@ def _build_llm_client() -> OpenAI:
 
 
 def _generate_enrichment_sync(raw_en_text: str, model_uri: str) -> tuple[str, str]:
-    """Call LLM (sync) to produce (en_summary, en_explainer). Called via asyncio.to_thread."""
+    """Вызвать LLM (синхронно) для получения (en_summary, en_explainer). Вызывается через asyncio.to_thread."""
     client = _build_llm_client()
     response = llm_call_with_retry(lambda: client.chat.completions.create(
         model=model_uri,
@@ -92,19 +92,19 @@ def _generate_enrichment_sync(raw_en_text: str, model_uri: str) -> tuple[str, st
 
 @dataclass
 class FullTranslationResult:
-    """Complete translation result for a CVE entry."""
+    """Полный результат перевода для записи CVE."""
     ru_title: str
     ru_summary: str
     ru_explainer: str
 
 
 class TranslationError(Exception):
-    """Translation service error."""
+    """Ошибка сервиса перевода."""
     pass
 
 
 class _YandexTranslateClient:
-    """Thin async wrapper around Yandex Translate REST API."""
+    """Тонкая асинхронная обёртка вокруг Yandex Translate REST API."""
 
     def __init__(self, api_key: str, folder_id: str):
         self._api_key = api_key
@@ -117,7 +117,7 @@ class _YandexTranslateClient:
         return self._http
 
     async def translate(self, texts: list[str]) -> list[str]:
-        """Translate a batch of texts from EN to RU. Returns translated strings in same order."""
+        """Перевести пакет текстов с EN на RU. Возвращает переведённые строки в том же порядке."""
         payload = {
             "folderId": self._folder_id,
             "texts": texts,
@@ -144,7 +144,7 @@ class _YandexTranslateClient:
 
 
 class TranslationService:
-    """Async translation service via Yandex Translate REST API."""
+    """Асинхронный сервис перевода через Yandex Translate REST API."""
 
     def __init__(self):
         self.api_key = settings.YANDEX_CLOUD_API_KEY
@@ -161,7 +161,7 @@ class TranslationService:
         return self._translator
 
     async def translate_text(self, text: str, max_chars: int = 8000) -> str:
-        """Translate a single text to Russian."""
+        """Перевести один текст на русский язык."""
         if not text or not text.strip():
             return ""
         try:
@@ -175,7 +175,7 @@ class TranslationService:
         cve_id: str,
         raw_en_text: str,
     ) -> tuple[str, str]:
-        """Translate CVE title and summary (legacy method for backward compatibility)."""
+        """Перевести заголовок и краткое описание CVE (устаревший метод для обратной совместимости)."""
         if not raw_en_text:
             return "", ""
 
@@ -200,7 +200,7 @@ class TranslationService:
         raw_en_text: str,
         model: Optional[str] = None,
     ) -> FullTranslationResult:
-        """Translate CVE to Russian. If model key given, LLM synthesises EN first, then Yandex Translate."""
+        """Перевести CVE на русский. Если указан ключ модели, LLM сначала синтезирует EN, затем Yandex Translate."""
         if not raw_en_text:
             return FullTranslationResult(ru_title="", ru_summary="", ru_explainer="")
 

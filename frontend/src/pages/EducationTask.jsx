@@ -171,7 +171,7 @@ async function parseDownloadErrorMessage(err, fallbackMessage) {
         return payload.detail;
       }
     } catch {
-      // noop
+      // ничего не делаем
     }
   }
   const detail = err?.response?.data?.detail;
@@ -1019,7 +1019,7 @@ export default function EducationTask() {
         onClose={() => setGeneratorOpen(false)}
         parentTask={task}
         onGenerationComplete={() => {
-          // Refresh could be implemented here if needed
+          // при необходимости здесь можно добавить обновление данных
         }}
       />
     </div>

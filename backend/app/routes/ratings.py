@@ -59,7 +59,7 @@ def _write_my_stats_cache(user_id: int, bundle: Dict[str, Dict[str, int]]) -> No
 
 
 async def _load_my_stats_bundle_from_db(db: AsyncSession, user_id: int) -> Dict[str, Dict[str, int]]:
-    # Быстрый расчёт ранга относительно текущего пользователя через count "пользователей выше"
+    # Быстрый расчёт ранга: считаем пользователей выше,
     # вместо полного ROW_NUMBER() по всей таблице.
     rank_stmt = text(
         """

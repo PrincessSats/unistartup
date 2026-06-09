@@ -254,7 +254,7 @@ async def admin_panel(
     paid_users = metrics_row["paid_users"] or 0
     pro_requests = metrics_row["pro_requests"] or 0
 
-    # submissions зависит от contest_id — отдельный запрос после gather
+    # submissions зависит от contest_id — делаем отдельный запрос после gather
     submissions_count = 0
     if contest_row is not None:
         submissions_count = (
@@ -345,7 +345,7 @@ async def resolve_feedback(
 
 @router.get("/admin/feedbacks", response_model=list[AdminFeedback])
 async def list_feedbacks_admin(
-    resolved: Optional[bool] = Query(None, description="Filter by resolved status"),
+    resolved: Optional[bool] = Query(None, description="Фильтр по статусу решения"),
     limit: int = 100,
     offset: int = 0,
     current_user_data: tuple = Depends(get_current_admin),
@@ -375,7 +375,7 @@ async def list_feedbacks_admin(
 
 @router.get("/admin/comments", response_model=list[AdminComment])
 async def list_comments_admin(
-    kb_entry_id: Optional[int] = Query(None, description="Filter comments by knowledge base entry"),
+    kb_entry_id: Optional[int] = Query(None, description="Фильтр комментариев по статье базы знаний"),
     limit: int = 100,
     offset: int = 0,
     current_user_data: tuple = Depends(get_current_admin),
@@ -463,20 +463,20 @@ def _normalize_task_materials(raw_materials: Optional[list[AdminTaskMaterial]]) 
 PROMPT_SPECS = [
     {
         "code": "task_prompt",
-        "title": "Task Generation Prompt",
-        "description": "System prompt for generating contest/practice tasks from admin builder.",
+        "title": "Промпт генерации задач",
+        "description": "Системный промпт для генерации контестных/практических задач из билдера админки.",
         "filename": "task_prompt.txt",
     },
     {
         "code": "article_prompt",
-        "title": "Article Generation Prompt",
-        "description": "System prompt for generating RU title, summary, explainer and tags from raw EN text.",
+        "title": "Промпт генерации статей",
+        "description": "Системный промпт для генерации RU заголовка, summary, explainer и тегов из сырого EN-текста.",
         "filename": "article_prompt.txt",
     },
     {
         "code": "championship_prompt",
-        "title": "Championship Task Generation Prompt",
-        "description": "System prompt for generating multi-stage championship tasks from multiple CVEs.",
+        "title": "Промпт генерации чемпионатных задач",
+        "description": "Системный промпт для генерации многоэтапных чемпионатных задач по нескольким CVE.",
         "filename": "championship_prompt.txt",
     },
 ]
@@ -485,7 +485,7 @@ PROMPT_SPEC_BY_CODE = {item["code"]: item for item in PROMPT_SPECS}
 
 async def _fetch_prompt_overrides(db: AsyncSession) -> tuple[dict[str, PromptTemplate], bool]:
     """
-    Returns prompt overrides and whether prompt_templates table is available.
+    Возвращает переопределения промптов и флаг доступности таблицы prompt_templates.
     """
     try:
         rows = (await db.execute(select(PromptTemplate))).scalars().all()
@@ -702,7 +702,7 @@ async def search_cves(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Search kb_entries by CVE ID or title text. Empty q returns most recent entries."""
+    """Поиск kb_entries по CVE ID или тексту заголовка. Пустой q возвращает самые новые записи."""
     _user, _profile = current_user_data
     if q.strip():
         sql = text(
@@ -971,7 +971,7 @@ async def stop_nvd_sync(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Mark the active sync as cancelled. Background task will stop at next chunk boundary."""
+    """Отметить активную синхронизацию как отменённую. Фоновая задача остановится на следующей границе чанка."""
     _user, _profile = current_user_data
     row = await stop_active_sync_log(db)
     return _admin_nvd_sync_from_row(row)
@@ -983,7 +983,7 @@ async def translate_nvd_entries(
     db: AsyncSession = Depends(get_db),
     limit: Optional[int] = Query(None, ge=1, le=50000),
 ):
-    """Translate kb_entries without ru_summary (newest first, optional limit)."""
+    """Перевести kb_entries без ru_summary (сначала новые, опциональный лимит)."""
     _user, _profile = current_user_data
     await ensure_nvd_sync_schema_compatibility()
 
@@ -1017,7 +1017,7 @@ async def embed_nvd_entries(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Embed kb_entries without embeddings (standalone, background)."""
+    """Создать эмбеддинги для kb_entries без эмбеддингов (отдельно, в фоне)."""
     _user, _profile = current_user_data
     await ensure_nvd_sync_schema_compatibility()
 
@@ -1050,7 +1050,7 @@ async def purge_untranslated_entries(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete kb_entries without ru_summary, keeping the newest `keep` rows."""
+    """Удалить kb_entries без ru_summary, оставив `keep` самых новых строк."""
     _user, _profile = current_user_data
     result = await db.execute(
         text("""
@@ -1692,8 +1692,8 @@ async def set_admin_chat_model(
     if row is None:
         row = PromptTemplate(
             code="chat_model",
-            title="Chat Model",
-            description="Active LLM model for chat tasks",
+            title="Модель чата",
+            description="Активная LLM-модель для чат-задач",
             content=model_key,
             updated_by=user.id,
         )
@@ -1742,8 +1742,8 @@ async def set_admin_task_model(
     if row is None:
         row = PromptTemplate(
             code="task_model",
-            title="Task Generation Model",
-            description="Active LLM model for task generation",
+            title="Модель генерации задач",
+            description="Активная LLM-модель для генерации задач",
             content=model_key,
             updated_by=user.id,
         )
@@ -1791,8 +1791,8 @@ async def set_admin_translation_model(
     if row is None:
         row = PromptTemplate(
             code="translation_model",
-            title="Translation Model",
-            description="Active LLM model for CVE translation/enrichment",
+            title="Модель перевода",
+            description="Активная LLM-модель для перевода/обогащения CVE",
             content=model_key,
             updated_by=user.id,
         )
@@ -1829,8 +1829,8 @@ async def set_admin_platform_model(
             detail=f"Invalid model. Available: {list(TASK_MODEL_REGISTRY.keys())}",
         )
     for db_key, title, description in [
-        ("task_model", "Task Generation Model", "Active LLM model for task generation"),
-        ("translation_model", "Translation Model", "Active LLM model for CVE translation/enrichment"),
+        ("task_model", "Модель генерации задач", "Активная LLM-модель для генерации задач"),
+        ("translation_model", "Модель перевода", "Активная LLM-модель для перевода/обогащения CVE"),
     ]:
         try:
             row = (
@@ -2007,7 +2007,7 @@ async def create_admin_contest(
     await db.commit()
     await db.refresh(contest)
 
-    # Log the activity
+    # Логируем активность
     user, _profile = current_user_data
     await log_contest_created(
         db=db,
@@ -2122,9 +2122,9 @@ async def start_championship_generation(
     current_user_data: tuple = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Start a background job that generates standalone (draft pool) championship tasks.
+    """Запустить фоновый джоб для генерации отдельных (черновых) чемпионатных задач.
 
-    Returns a job_id immediately; the frontend polls GET .../jobs/{job_id} for live progress.
+    Сразу возвращает job_id; фронтенд опрашивает GET .../jobs/{job_id} для отслеживания прогресса.
     """
     user, _profile = current_user_data
 
@@ -2250,7 +2250,7 @@ async def update_admin_contest(
 
     await db.commit()
 
-    # Log the activity
+    # Логируем активность
     user, _profile = current_user_data
     task_count = len(data.tasks) if data.tasks else 0
     await log_contest_updated(
@@ -2282,14 +2282,14 @@ async def end_admin_contest_now(
 
     now = datetime.now(timezone.utc)
 
-    # Keep schedule consistent for edge cases (e.g. future contest ended manually).
+    # Сохраняем расписание консистентным для граничных случаев (например, будущий контест завершён вручную).
     if contest.start_at and contest.start_at > now:
         contest.start_at = now
     contest.end_at = now
 
     await db.commit()
 
-    # Log the activity
+    # Логируем активность
     user, _profile = current_user_data
     await log_contest_ended(
         db=db,
@@ -2332,7 +2332,7 @@ async def delete_admin_contest(
             detail=f"Не удалось удалить контест: {exc}",
         ) from exc
 
-    # Log the activity
+    # Логируем активность
     await log_contest_deleted(
         db=db,
         admin_id=user.id,
@@ -2356,32 +2356,32 @@ async def get_activity_log(
     search_text: Optional[str] = None,
 ):
     """
-    Get paginated activity log with optional filters.
+    Получить пагинированный лог активности с опциональными фильтрами.
 
-    Query parameters:
-    - page: Page number (default 1)
-    - page_size: Items per page (default 50, max 500)
-    - event_type: Filter by event type (e.g., "contest_created")
-    - contest_id: Filter by contest ID
-    - source: Filter by source (admin_action, system_event, participant_action)
-    - search_text: Search in action field
+    Query-параметры:
+    - page: Номер страницы (по умолчанию 1)
+    - page_size: Элементов на странице (по умолчанию 50, максимум 500)
+    - event_type: Фильтр по типу события (например, "contest_created")
+    - contest_id: Фильтр по ID контеста
+    - source: Фильтр по источнику (admin_action, system_event, participant_action)
+    - search_text: Поиск по полю action
     """
     _user, _profile = current_user_data
 
     offset = (page - 1) * page_size
 
-    # Build query
+    # Строим запрос
     query = select(ActivityLog)
     count_query = select(func.count()).select_from(ActivityLog)
 
-    # Apply filters
+    # Применяем фильтры
     if event_type:
         try:
             event_enum = EventType(event_type)
             query = query.where(ActivityLog.event_type == event_enum)
             count_query = count_query.where(ActivityLog.event_type == event_enum)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid event_type: {event_type}")
+            raise HTTPException(status_code=400, detail=f"Неверный event_type: {event_type}")
 
     if contest_id:
         query = query.where(ActivityLog.contest_id == contest_id)
@@ -2393,17 +2393,17 @@ async def get_activity_log(
             query = query.where(ActivityLog.source == source_enum)
             count_query = count_query.where(ActivityLog.source == source_enum)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid source: {source}")
+            raise HTTPException(status_code=400, detail=f"Неверный source: {source}")
 
     if search_text:
         search_pattern = f"%{search_text}%"
         query = query.where(ActivityLog.action.ilike(search_pattern))
         count_query = count_query.where(ActivityLog.action.ilike(search_pattern))
 
-    # Count total
+    # Считаем общее количество
     total = (await db.execute(count_query)).scalar_one() or 0
 
-    # Order by created_at desc (newest first), then paginate
+    # Сортируем по created_at desc (сначала новые), затем пагинируем
     query = query.order_by(ActivityLog.created_at.desc()).offset(offset).limit(page_size)
 
     result = await db.execute(query)

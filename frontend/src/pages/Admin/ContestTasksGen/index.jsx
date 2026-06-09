@@ -85,7 +85,7 @@ export default function ContestTasksGen() {
   const done = (job?.completed || 0) + (job?.failed || 0);
   const pct = total ? Math.round((done / total) * 100) : 0;
 
-  // Build a stable list of `total` slots, filling from job.events.
+  // Строим стабильный список из `total` слотов, заполняя из job.events.
   const slots = useMemo(() => {
     const events = job?.events || [];
     if (!total) return events;

@@ -1,7 +1,7 @@
 """
-Service for logging contest-related activities.
+Сервис логирования активности контестов.
 
-Provides utilities for recording admin actions, submissions, and participant events.
+Утилиты для записи действий админов, сабмитов и событий участников.
 """
 
 import logging
@@ -24,19 +24,19 @@ async def log_activity(
     details: Optional[Dict[str, Any]] = None,
 ) -> ActivityLog:
     """
-    Log an activity to the activity_log table.
+    Записывает событие в таблицу activity_log.
 
     Args:
-        db: Database session
-        event_type: Type of event (from EventType enum)
-        action: Human-readable description (e.g., "Created contest 'HackNet Summer'")
-        admin_id: ID of admin who performed the action (optional)
-        contest_id: ID of related contest (optional)
-        source: Source of the event (default: ADMIN_ACTION)
-        details: Additional JSON details (optional)
+        db: Сессия базы данных
+        event_type: Тип события (из enum EventType)
+        action: Читаемое описание (например, "Created contest 'HackNet Summer'")
+        admin_id: ID админа, выполнившего действие (опционально)
+        contest_id: ID связанного контеста (опционально)
+        source: Источник события (по умолчанию: ADMIN_ACTION)
+        details: Дополнительные данные в JSON (опционально)
 
     Returns:
-        The created ActivityLog instance
+        Созданный экземпляр ActivityLog
     """
     try:
         log_entry = ActivityLog(
@@ -49,12 +49,12 @@ async def log_activity(
             created_at=datetime.now(timezone.utc),
         )
         db.add(log_entry)
-        await db.flush()  # Flush to get the ID, but don't commit yet
+        await db.flush()  # Flush для получения ID, без коммита
         logger.debug(f"Logged activity: {event_type.value} - {action}")
         return log_entry
     except Exception as e:
         logger.error(f"Failed to log activity: {e}")
-        # Don't raise - activity logging should not break the main action
+        # Не пробрасываем исключение — логирование не должно ломать основной флоу
         return None
 
 
@@ -65,7 +65,7 @@ async def log_contest_created(
     contest_title: str,
     details: Optional[Dict[str, Any]] = None,
 ) -> ActivityLog:
-    """Log contest creation."""
+    """Логирует создание контеста."""
     action = f"Created contest '{contest_title}'"
     return await log_activity(
         db=db,
@@ -84,7 +84,7 @@ async def log_contest_updated(
     contest_title: str,
     details: Optional[Dict[str, Any]] = None,
 ) -> ActivityLog:
-    """Log contest update."""
+    """Логирует обновление контеста."""
     action = f"Updated contest '{contest_title}'"
     return await log_activity(
         db=db,
@@ -102,7 +102,7 @@ async def log_contest_deleted(
     contest_id: int,
     contest_title: str,
 ) -> ActivityLog:
-    """Log contest deletion."""
+    """Логирует удаление контеста."""
     action = f"Deleted contest '{contest_title}'"
     return await log_activity(
         db=db,
@@ -119,7 +119,7 @@ async def log_contest_ended(
     contest_id: int,
     contest_title: str,
 ) -> ActivityLog:
-    """Log contest being ended."""
+    """Логирует завершение контеста."""
     action = f"Ended contest '{contest_title}'"
     return await log_activity(
         db=db,
@@ -138,7 +138,7 @@ async def log_task_added(
     task_title: str,
     details: Optional[Dict[str, Any]] = None,
 ) -> ActivityLog:
-    """Log task being added to contest."""
+    """Логирует добавление задачи в контест."""
     action = f"Added task '{task_title}' to contest"
     return await log_activity(
         db=db,
@@ -157,7 +157,7 @@ async def log_task_removed(
     task_id: int,
     task_title: str,
 ) -> ActivityLog:
-    """Log task being removed from contest."""
+    """Логирует удаление задачи из контеста."""
     action = f"Removed task '{task_title}' from contest"
     return await log_activity(
         db=db,
@@ -177,7 +177,7 @@ async def log_submission(
     is_correct: bool,
     details: Optional[Dict[str, Any]] = None,
 ) -> ActivityLog:
-    """Log a flag submission."""
+    """Логирует попытку отправки флага."""
     event_type = EventType.SUBMISSION_CORRECT if is_correct else EventType.SUBMISSION_RECEIVED
     action = f"Flag submission by {username} - {'Correct' if is_correct else 'Received'}"
     return await log_activity(
@@ -196,7 +196,7 @@ async def log_participant_joined(
     user_id: int,
     username: str,
 ) -> ActivityLog:
-    """Log participant joining contest."""
+    """Логирует вступление участника в контест."""
     action = f"Participant {username} joined contest"
     return await log_activity(
         db=db,

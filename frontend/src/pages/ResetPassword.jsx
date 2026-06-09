@@ -52,7 +52,7 @@ export default function ResetPassword() {
       setNewPassword('');
       setConfirmPassword('');
 
-      // Auto-redirect after 3 seconds
+      // автоматический редирект через 3 секунды
       setTimeout(() => {
         navigate('/login');
       }, 3000);

@@ -110,7 +110,7 @@ function PromptManagerDrawer({ open, onClose }) {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-        {/* Prompts List */}
+        {/* Список промптов */}
         <div className="border border-white/[0.08] rounded-[16px] p-4 max-h-[560px] overflow-y-auto">
           <div className="text-[14px] text-white/60 mb-3">Шаблоны</div>
           {loading ? (
@@ -151,7 +151,7 @@ function PromptManagerDrawer({ open, onClose }) {
           )}
         </div>
 
-        {/* Editor */}
+        {/* Редактор */}
         <div className="border border-white/[0.08] rounded-[16px] p-5">
           {!selectedPrompt ? (
             <div className="text-white/50 text-[14px] flex items-center justify-center h-full">

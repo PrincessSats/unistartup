@@ -138,6 +138,10 @@ unistartup/
 | `auth_sessions.py` | Управление сессиями и refresh-токенами |
 | `registration.py` | Логика регистрации, верификации, OAuth-привязки |
 | `activity_logger.py` | Лог действий пользователя |
+| `championship_generation.py` | Генерация задач для чемпионатов |
+| `championship_job_runner.py` | Фоновый запуск и мониторинг заданий чемпионата |
+| `storage.py` | Работа с Yandex Object Storage (S3) |
+| `daily_pipeline.py` | Ежедневный пайплайн: NVD-синк, эмбеддинги, перевод |
 
 ---
 

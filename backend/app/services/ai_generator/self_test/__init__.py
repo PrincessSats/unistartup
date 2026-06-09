@@ -1,1 +1,1 @@
-# XSS self-test package — Playwright/Chromium harness for web_static_xss tasks.
+# Пакет XSS self-test — обёртка Playwright/Chromium для заданий типа web_static_xss.

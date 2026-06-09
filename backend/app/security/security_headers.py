@@ -1,7 +1,7 @@
 """
-Security headers middleware for HTTP responses.
+Middleware безопасных заголовков для HTTP-ответов.
 
-Adds essential security headers to all responses:
+Добавляет нужные заголовки безопасности ко всем ответам:
 - Content-Security-Policy (CSP)
 - X-Content-Type-Options
 - X-Frame-Options
@@ -32,10 +32,10 @@ DEFAULT_CSP = (
 
 async def security_headers_middleware(request: Request, call_next):
     """
-    Add security headers to all HTTP responses.
-    
-    This middleware runs for every request and adds essential
-    security headers to the response before it's sent to the client.
+    Добавляет заголовки безопасности ко всем HTTP-ответам.
+
+    Запускается на каждый запрос, добавляет заголовки
+    до отправки ответа клиенту.
     """
     response = await call_next(request)
 

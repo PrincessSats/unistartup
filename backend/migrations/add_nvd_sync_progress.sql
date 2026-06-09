@@ -1,5 +1,5 @@
--- Add progress-tracking columns for background NVD sync + embeddings.
--- Run: psql $DATABASE_URL -f backend/migrations/add_nvd_sync_progress.sql
+-- Добавляем колонки отслеживания прогресса для фонового NVD-синка + эмбеддингов.
+-- Запуск: psql $DATABASE_URL -f backend/migrations/add_nvd_sync_progress.sql
 
 CREATE TABLE IF NOT EXISTS nvd_sync_log (
     id BIGSERIAL PRIMARY KEY,

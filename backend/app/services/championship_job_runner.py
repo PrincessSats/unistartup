@@ -1,9 +1,9 @@
-"""Background runner for the standalone championship-task generation page.
+"""Фоновый runner для страницы генерации заданий чемпионата.
 
-Mirrors the NVD-sync pattern: an asyncio background task generates tasks one cluster at a
-time, persisting per-task progress to the contest_gen_jobs row so the frontend can poll.
-Generated tasks go to the draft pool (NOT attached to any contest). Within a single run,
-themes are de-duplicated (no two tasks share a category).
+Повторяет паттерн NVD-sync: asyncio-задача генерирует задания по одному кластеру за раз,
+сохраняя прогресс в строку contest_gen_jobs, чтобы фронтенд мог опрашивать статус.
+Сгенерированные задания попадают в пул черновиков (НЕ привязаны к конкретному конкурсу).
+В рамках одного запуска темы дедуплицируются (никакие два задания не делят категорию).
 """
 import asyncio
 import logging
@@ -20,7 +20,7 @@ from app.services.championship_generation import (
 
 logger = logging.getLogger(__name__)
 
-# Keep strong refs so background tasks are not garbage-collected mid-flight.
+# Храним сильные ссылки, чтобы фоновые задачи не собрал GC в процессе работы.
 _gen_background_tasks: set[asyncio.Task] = set()
 
 
@@ -48,7 +48,7 @@ async def run_generation_job(
             logger.warning("Contest gen job %s not found", job_id)
             return
 
-        # 1) Pick thematically distinct clusters (dedup within batch).
+        # 1) Выбираем тематически различные кластеры (дедупликация внутри батча).
         try:
             clusters = await select_kb_entry_clusters(
                 db,
@@ -110,7 +110,7 @@ async def run_generation_job(
                 job.created_task_ids = list(created)
                 job.events = list(events)
                 await db.commit()
-            except Exception as exc:  # noqa: BLE001 — record per-task failure, keep going
+            except Exception as exc:  # noqa: BLE001 — записываем ошибку задания, продолжаем
                 await db.rollback()
                 logger.exception("Championship task generation failed (cluster %s)", idx)
                 events[idx].update(status="failed", error=str(exc))

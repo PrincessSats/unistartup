@@ -11,8 +11,8 @@ function getApiErrorMessage(err, fallback) {
   return err?.message || fallback;
 }
 
-// Starts a background championship-generation job and polls its progress, mirroring
-// the NVD-sync polling pattern (useNvdSyncData.js).
+// Запускает фоновое задание генерации чемпионата и опрашивает прогресс,
+// по аналогии с паттерном NVD-синка (useNvdSyncData.js).
 export default function useContestTaskGen() {
   const [job, setJob] = useState(null);
   const [jobId, setJobId] = useState(null);

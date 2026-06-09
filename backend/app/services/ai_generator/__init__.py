@@ -1,1 +1,1 @@
-# AI Generator service package — GRPO-inspired CTF challenge generation pipeline
+# Пакет сервиса AI Generator — конвейер генерации CTF-заданий на основе GRPO

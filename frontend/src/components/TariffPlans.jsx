@@ -47,7 +47,7 @@ function PlanCard({ plan, isCurrent }) {
             : 'border-white/[0.06] bg-white/[0.03]'
       }`}
     >
-      {/* Name + price row */}
+      {/* Название + цена */}
       <div className="flex items-baseline justify-between">
         <h4
           className={`text-[23px] leading-[28px] tracking-[0.02em] ${
@@ -67,10 +67,10 @@ function PlanCard({ plan, isCurrent }) {
         {plan.price}
       </p>
 
-      {/* Divider */}
+      {/* Разделитель */}
       <div className="mt-5 h-px bg-white/[0.06]" />
 
-      {/* Features */}
+      {/* Возможности */}
       <ul className="mt-5 flex flex-col gap-3">
         {plan.features.map((feature, idx) => (
           <li
@@ -84,7 +84,7 @@ function PlanCard({ plan, isCurrent }) {
         ))}
       </ul>
 
-      {/* Status pill — pushed to bottom */}
+      {/* Метка статуса — прибита к низу */}
       <div className="mt-auto pt-6">
         {isCurrent && !muted ? (
           <span className="inline-flex items-center rounded-[8px] bg-[#9B6BFF]/10 px-3 py-1.5 text-[13px] leading-[16px] tracking-[0.04em] text-[#9B6BFF]">

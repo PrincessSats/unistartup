@@ -6,7 +6,7 @@ const ACTIVE_STATUSES = new Set(['fetching', 'embedding', 'translating']);
 
 function useNvdSyncData() {
   const [nvdSync, setNvdSync] = useState(null);
-  const [pendingOp, setPendingOp] = useState(null); // 'fetch' | 'translate' | 'embed' | null
+  const [pendingOp, setPendingOp] = useState(null); // 'fetch' | 'translate' | 'embed' | null — текущая операция
   const [error, setError] = useState(null);
 
   const fetchStatus = useCallback(async () => {

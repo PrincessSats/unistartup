@@ -1,7 +1,7 @@
 """
-Artifact creator: converts a generated spec into a concrete CTF artifact.
+Создатель артефактов: преобразует сгенерированный спек в конкретный CTF-артефакт.
 
-Currently supports: crypto_text_web, forensics_image_metadata, web_static_xss, chat_llm
+Поддерживает: crypto_text_web, forensics_image_metadata, web_static_xss, chat_llm
 """
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ArtifactResult:
-    # For crypto: the ciphertext string
-    # For forensics/xss: not used directly (file_url is the artifact)
+    # Для крипто: строка шифротекста
+    # Для forensics/xss: не используется напрямую (артефакт — file_url)
     content: Optional[str] = None
-    # S3 URL for file-based artifacts (forensics, xss)
+    # S3-URL для файловых артефактов (forensics, xss)
     file_url: Optional[str] = None
-    # Data needed for validation (e.g. the chain used, flag location)
+    # Данные для валидации (например, использованная цепочка, местонахождение флага)
     verification_data: dict[str, Any] = field(default_factory=dict)
-    # Error message if artifact creation failed
+    # Сообщение об ошибке, если создание артефакта не удалось
     error: Optional[str] = None
 
 
@@ -33,7 +33,7 @@ class ArtifactCreationError(RuntimeError):
 
 
 async def create_artifact(task_type: str, spec: dict[str, Any], **kwargs: Any) -> ArtifactResult:
-    """Dispatch to the appropriate artifact creator based on task_type."""
+    """Выбрать нужный создатель артефакта по task_type."""
     if task_type == "crypto_text_web":
         return _create_crypto_text(spec)
     if task_type == "forensics_image_metadata":
@@ -47,9 +47,9 @@ async def create_artifact(task_type: str, spec: dict[str, Any], **kwargs: Any) -
 
 def _create_crypto_text(spec: dict[str, Any]) -> ArtifactResult:
     """
-    Apply the crypto_chain to the flag to produce ciphertext.
+    Применить crypto_chain к флагу и получить шифротекст.
 
-    Expected spec keys: flag, crypto_chain (list of {cipher, params})
+    Ожидаемые ключи спека: flag, crypto_chain (список {cipher, params})
     """
     flag = (spec.get("flag") or "").strip()
     crypto_chain = spec.get("crypto_chain") or []
@@ -79,8 +79,8 @@ async def _create_forensics_image(
     variant_id: Optional[str] = None,
 ) -> ArtifactResult:
     """
-    Pick a random stock image, inject the flag into metadata, upload to S3.
-    All S3/Pillow calls run in threads via asyncio.to_thread.
+    Выбрать случайное стоковое изображение, внедрить флаг в метаданные, загрузить в S3.
+    Все вызовы S3/Pillow выполняются в потоках через asyncio.to_thread.
     """
     from app.services.ai_generator.forensics_utils import (
         ForensicsError, VALID_HIDE_IN,
@@ -98,7 +98,7 @@ async def _create_forensics_image(
     if not batch_id or not variant_id:
         return ArtifactResult(error="Forensics: missing batch_id or variant_id for upload path")
 
-    # Pick and download stock image
+    # Выбрать и скачать стоковое изображение
     try:
         stock_key = await asyncio.to_thread(pick_random_stock_image)
     except ForensicsError as exc:
@@ -109,13 +109,13 @@ async def _create_forensics_image(
     except ForensicsError as exc:
         return ArtifactResult(error=str(exc))
 
-    # Inject metadata
+    # Внедрить метаданные
     try:
         modified_bytes = await asyncio.to_thread(inject_metadata, image_bytes, flag, hide_in, decoy_metadata)
     except ForensicsError as exc:
         return ArtifactResult(error=str(exc))
 
-    # Upload to S3
+    # Загрузить в S3
     try:
         s3_key = await asyncio.to_thread(upload_image, modified_bytes, batch_id, variant_id)
     except ForensicsError as exc:
@@ -138,7 +138,7 @@ async def _create_xss_page(
     variant_id: Optional[str] = None,
 ) -> ArtifactResult:
     """
-    Generate a self-contained XSS challenge HTML page and upload to S3.
+    Сгенерировать самодостаточную HTML-страницу XSS-задания и загрузить в S3.
     """
     from app.services.ai_generator.xss_utils import render_xss_page, upload_xss_page, XSSError
 
@@ -178,8 +178,8 @@ async def _create_xss_page(
 
 def _create_chat_task(spec: dict[str, Any]) -> ArtifactResult:
     """
-    Validate the chat_llm spec and return the system prompt template as content.
-    No S3 upload needed — the template is stored in task.chat_system_prompt_template.
+    Проверить спек chat_llm и вернуть шаблон системного промпта как контент.
+    Загрузка в S3 не нужна — шаблон хранится в task.chat_system_prompt_template.
     """
     flag = (spec.get("flag") or "").strip()
     system_prompt = (spec.get("system_prompt_template") or "").strip()

@@ -50,7 +50,7 @@ async def get_db():
         try:
             yield session  # Отдаем сессию в endpoint
         finally:
-            await session.close()  # Закрываем после использования (нет английского текста)
+            await session.close()  # Закрываем после использования
 
 
 async def ensure_auth_schema_compatibility() -> None:
@@ -59,7 +59,7 @@ async def ensure_auth_schema_compatibility() -> None:
     Нужен для старых БД, где таблица users могла быть создана без новых колонок.
     """
     statements = [
-        # Базовая таблица пользователей (нет английского текста)
+        # Базовая таблица пользователей
         """
         CREATE TABLE IF NOT EXISTS users (
             id BIGSERIAL PRIMARY KEY,
@@ -67,7 +67,7 @@ async def ensure_auth_schema_compatibility() -> None:
             password_hash TEXT NOT NULL
         )
         """,
-        # Колонки добавленные позже (нет английского текста)
+        # Колонки добавленные позже
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE",
         "UPDATE users SET is_active = TRUE WHERE is_active IS NULL",
         "ALTER TABLE users ALTER COLUMN is_active SET DEFAULT TRUE",
@@ -75,7 +75,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ",
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
-        # Профили нужны для get_current_user (join с users) (нет английского текста)
+        # Профили нужны для get_current_user (join с users)
         """
         CREATE TABLE IF NOT EXISTS user_profiles (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -91,7 +91,7 @@ async def ensure_auth_schema_compatibility() -> None:
         """,
         "ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS onboarding_status TEXT",
         "CREATE INDEX IF NOT EXISTS idx_user_profiles_username ON user_profiles(username)",
-        # Стартовые рейтинги для главной и профиля (нет английского текста)
+        # Стартовые рейтинги для главной и профиля
         """
         CREATE TABLE IF NOT EXISTS user_ratings (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -101,7 +101,7 @@ async def ensure_auth_schema_compatibility() -> None:
             last_updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         )
         """,
-        # Обратная связь на главной и в хедере (нет английского текста)
+        # Обратная связь на главной и в хедере
         """
         CREATE TABLE IF NOT EXISTS feedback (
             id BIGSERIAL PRIMARY KEY,
@@ -115,7 +115,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS id BIGSERIAL",
         "ALTER TABLE feedback ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE",
         "CREATE INDEX IF NOT EXISTS idx_feedback_id ON feedback(id)",
-        # Ротационные refresh-токены для 48h скользящей сессии (нет английского текста)
+        # Ротационные refresh-токены для 48h скользящей сессии
         """
         CREATE TABLE IF NOT EXISTS auth_refresh_tokens (
             id BIGSERIAL PRIMARY KEY,
@@ -133,7 +133,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_refresh_tokens_hash ON auth_refresh_tokens(token_hash)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_active_user ON auth_refresh_tokens(user_id, revoked_at, expires_at)",
         "CREATE INDEX IF NOT EXISTS idx_auth_refresh_tokens_expires_at ON auth_refresh_tokens(expires_at)",
-        # OAuth identities для линковки внешних провайдеров (нет английского текста)
+        # OAuth identities для линковки внешних провайдеров
         """
         CREATE TABLE IF NOT EXISTS user_auth_identities (
             id BIGSERIAL PRIMARY KEY,
@@ -163,7 +163,7 @@ async def ensure_auth_schema_compatibility() -> None:
             ON user_auth_identities(user_id, provider)
         """,
         "CREATE INDEX IF NOT EXISTS idx_user_auth_identities_email ON user_auth_identities(provider_email)",
-        # Draft flows регистрации для magic-link и OAuth continuation (нет английского текста)
+        # Draft flows регистрации для magic-link и OAuth continuation
         """
         CREATE TABLE IF NOT EXISTS auth_registration_flows (
             id BIGSERIAL PRIMARY KEY,
@@ -212,7 +212,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_registration_flows_magic_link_hash ON auth_registration_flows(magic_link_token_hash)",
         "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_email ON auth_registration_flows(email)",
         "CREATE INDEX IF NOT EXISTS idx_auth_registration_flows_expires_at ON auth_registration_flows(expires_at)",
-        # Ответы анкеты после регистрации (нет английского текста)
+        # Ответы анкеты после регистрации
         """
         CREATE TABLE IF NOT EXISTS user_registration_data (
             user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -239,7 +239,7 @@ async def ensure_auth_schema_compatibility() -> None:
         "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "ALTER TABLE user_registration_data ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
         "CREATE INDEX IF NOT EXISTS idx_user_registration_data_source ON user_registration_data(registration_source)",
-        # Для пользователей без профиля/рейтинга (нет английского текста)
+        # Для пользователей без профиля/рейтинга
         """
         INSERT INTO user_profiles (user_id, username, role)
         SELECT
@@ -328,17 +328,17 @@ async def ensure_nvd_sync_schema_compatibility() -> None:
 
 
 async def ensure_daily_pipeline_schema_compatibility() -> None:
-    """Add daily-pipeline columns to kb_entries: referenced_cve_ids + visible_in_kb_list.
-    Also enforces one digest per calendar day (partial unique index on source_id WHERE
-    source='digest') and collapses any pre-existing duplicates, keeping the latest id."""
+    """Добавляет колонки daily-pipeline в kb_entries: referenced_cve_ids + visible_in_kb_list.
+    Обеспечивает один дайджест в день (частичный уникальный индекс по source_id WHERE
+    source='digest') и схлопывает дубликаты, оставляя запись с наибольшим id."""
     statements = [
         "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS referenced_cve_ids text[] DEFAULT '{}'::text[]",
         "ALTER TABLE kb_entries ADD COLUMN IF NOT EXISTS visible_in_kb_list boolean NOT NULL DEFAULT true",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source ON kb_entries(source)",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_source_created ON kb_entries(source, created_at DESC)",
         "CREATE INDEX IF NOT EXISTS idx_kb_entries_visible_source_created ON kb_entries(visible_in_kb_list, source, created_at DESC)",
-        # Remove duplicate digest rows (keep highest id = most recent) before creating
-        # the unique index; idempotent — deletes 0 rows when already clean.
+        # Удаляем дубликаты дайджеста (оставляем наибольший id = последний) перед созданием
+        # уникального индекса; идемпотентно — удаляет 0 строк, если дубликатов нет.
         """
         DELETE FROM kb_entries a
         USING kb_entries b
@@ -346,7 +346,7 @@ async def ensure_daily_pipeline_schema_compatibility() -> None:
           AND a.source_id = b.source_id
           AND a.id < b.id
         """,
-        # Partial unique index: at most one digest per source_id value (= one per day).
+        # Частичный уникальный индекс: не более одного дайджеста на source_id (= один в день).
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_kb_entries_digest_source_id
           ON kb_entries(source_id) WHERE source = 'digest'
@@ -359,10 +359,10 @@ async def ensure_daily_pipeline_schema_compatibility() -> None:
 
 
 async def ensure_contest_gen_jobs_schema_compatibility() -> None:
-    """Create the contest_gen_jobs table used by the championship generation page.
+    """Создаёт таблицу contest_gen_jobs для страницы генерации чемпионатных задач.
 
-    Idempotent; runs on every startup so the standalone generation page works on
-    Yandex Cloud without a manual migration step.
+    Идемпотентно; запускается при каждом старте, чтобы страница генерации работала
+    в Yandex Cloud без ручного шага миграции.
     """
     statements = [
         """

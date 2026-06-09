@@ -1,5 +1,5 @@
--- Add embedding column to ai_generation_variants for feedback loop similarity search
--- Run: psql $DATABASE_URL -f add_variant_embedding.sql
+-- Добавляем колонку embedding в ai_generation_variants для поиска похожих в петле обратной связи
+-- Запуск: psql $DATABASE_URL -f add_variant_embedding.sql
 
 ALTER TABLE ai_generation_variants ADD COLUMN IF NOT EXISTS embedding vector(256);
 

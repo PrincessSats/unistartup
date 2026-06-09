@@ -1,5 +1,5 @@
 """
-Pydantic schemas for activity log API.
+Pydantic-схемы для API журнала активности.
 """
 
 from datetime import datetime
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 
 class ActivityLogResponse(BaseModel):
-    """Response model for a single activity log entry."""
+    """Модель ответа для одной записи журнала активности."""
     id: int
     admin_id: Optional[int] = None
     contest_id: Optional[int] = None
@@ -23,7 +23,7 @@ class ActivityLogResponse(BaseModel):
 
 
 class ActivityLogListResponse(BaseModel):
-    """Response model for paginated activity log list."""
+    """Модель ответа для постраничного списка журнала активности."""
     items: List[ActivityLogResponse]
     total: int
     page: int

@@ -1,6 +1,6 @@
 """
-AI generation pipeline test script — real-time output.
-Run from backend/ directory:
+Тестовый скрипт пайплайна AI-генерации — вывод в реальном времени.
+Запуск из директории backend/:
     python test_ai_generate.py
 """
 import asyncio
@@ -11,7 +11,7 @@ import time
 sys.path.insert(0, os.path.dirname(__file__))
 BASE_URL = "http://localhost:8000"
 
-# ── Colors ────────────────────────────────────────────────────────────────────
+# ── Цвета ─────────────────────────────────────────────────────────────────────
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
 GREEN  = "\033[92m"
@@ -51,7 +51,7 @@ async def main():
         os.system(f"{sys.executable} -m pip install httpx -q")
         import httpx
 
-    # ── Step 1: Login ──────────────────────────────────────────────────────────
+    # ── Шаг 1: Вход ───────────────────────────────────────────────────────────
     step("STEP 1 — Login")
     email = input(f"  Admin email [{CYAN}admin@hacknet.ru{RESET}]: ").strip() or "admin@hacknet.ru"
     password = input("  Password: ").strip()
@@ -67,7 +67,7 @@ async def main():
         ok(f"Token obtained: {token[:40]}...")
         headers = {"X-Auth-Token": token, "Content-Type": "application/json"}
 
-        # ── Step 2: Start generation ───────────────────────────────────────────
+        # ── Шаг 2: Запуск генерации ───────────────────────────────────────────
         step("STEP 2 — Start generation batch")
         payload = {
             "task_type": "crypto_text_web",
@@ -87,7 +87,7 @@ async def main():
         ok(f"Batch created: {batch_id}")
         info(f"RAG context used: {data.get('rag_context_used', 0)}")
 
-        # ── Step 3: Poll ───────────────────────────────────────────────────────
+        # ── Шаг 3: Опрос статуса ──────────────────────────────────────────────
         step("STEP 3 — Polling (updates every 3s)")
         info("Waiting for pipeline to start...\n")
 
@@ -108,7 +108,7 @@ async def main():
             attempt  = data.get("attempt", 1)
             variants = data.get("variants", [])
 
-            # Print status change
+            # Выводим изменение статуса
             if status != prev_status:
                 if status == "generating":
                     ok(f"[{elapsed}s] Pipeline started  (attempt {attempt})")
@@ -124,7 +124,7 @@ async def main():
                     dim(f"[{elapsed}s] Waiting for worker...")
                 prev_status = status
 
-            # Print new variants as they appear
+            # Выводим новые варианты по мере появления
             if len(variants) > prev_variant_count:
                 for v in variants[prev_variant_count:]:
                     checks = {c["type"]: c["score"] for c in (v.get("reward_checks") or [])}
@@ -147,7 +147,7 @@ async def main():
             if status in ("completed", "failed"):
                 break
 
-        # ── Step 4: Final summary ──────────────────────────────────────────────
+        # ── Шаг 4: Итоговые результаты ────────────────────────────────────────
         step("STEP 4 — Final results")
 
         status = data["status"]

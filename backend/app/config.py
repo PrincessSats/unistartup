@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     S3_ENDPOINT_URL: str = "https://storage.yandexcloud.net"
     S3_REGION: str = "ru-central1"
 
-    # Yandex Cloud LLM
+    # Yandex Cloud LLM (языковая модель)
     YANDEX_CLOUD_API_KEY: str = Field(
         default="",
         validation_alias=AliasChoices(
@@ -169,19 +169,19 @@ class Settings(BaseSettings):
     PASSWORD_RESET_CONFIRM_RATE_LIMIT_WINDOW: int = 60
     PROMPTS_DIR: str = ""
 
-    # Daily automated NVD pipeline (cron)
+    # Автоматический ежедневный NVD-пайплайн (cron)
     CRON_SECRET: str = ""
     DAILY_DIGEST_ENABLED: bool = True
     DAILY_TASK_COUNT: int = 12
     DAILY_PIPELINE_CONCURRENCY: int = 3
 
-    # AI Generator (GRPO pipeline) (нет английского текста)
+    # AI-генератор (GRPO пайплайн)
     AI_GEN_NUM_VARIANTS: int = 5
-    # Cap concurrent in-flight LLM calls (generation + judge) within one process.
-    # 0 = unlimited (default; preserves production behavior). Set >0 to bound a
-    # process so several concurrent experiment runs stay under the Yandex session
-    # quota (e.g. 2 runs × cap 5 = 10). Shared across the gen fan-out and the judge
-    # fan-out so a single process never exceeds `cap` LLM sessions at once.
+    # Ограничение одновременных LLM-вызовов (генерация + судья) в одном процессе.
+    # 0 = без ограничений (дефолт; сохраняет поведение прода). >0 ограничивает
+    # процесс, чтобы несколько параллельных экспериментов не превысили квоту
+    # Yandex-сессий (например, 2 запуска × 5 = 10). Разделяется между
+    # fan-out генерации и fan-out судьи — один процесс никогда не превышает `cap`.
     AI_GEN_MAX_CONCURRENT_LLM: int = 0
     AI_GEN_MAX_RETRIES: int = 2
     AI_GEN_MIN_REWARD_THRESHOLD: float = 0.6
@@ -192,7 +192,7 @@ class Settings(BaseSettings):
     AI_GEN_EMBEDDING_DIMENSION: int = 256
     AI_GEN_EMBEDDING_MAX_CHARS: int = 3500
 
-    # XSS self-test via Yandex Serverless Container (Playwright/Chromium)
+    # XSS self-тест через Yandex Serverless Container (Playwright/Chromium)
     AI_GEN_ENABLE_SELFTEST: bool = False
     AI_GEN_SELFTEST_URL: str = ""
     AI_GEN_SELFTEST_TIMEOUT_S: int = 20

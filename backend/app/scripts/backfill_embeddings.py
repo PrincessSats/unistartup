@@ -1,11 +1,11 @@
 """
-One-time backfill script: embed all kb_entries where embedding IS NULL.
+Разовый скрипт: добавить эмбеддинги для всех kb_entries, где embedding IS NULL.
 
-Run:
+Запуск:
     python -m app.scripts.backfill_embeddings
 
-Processes entries in batches of 50 with a 0.5s delay between batches
-to avoid rate-limiting the Yandex embedding API.
+Обрабатывает записи пачками по 50 штук с паузой 0.5с между пачками,
+чтобы не превысить лимит запросов к Yandex embedding API.
 """
 from __future__ import annotations
 

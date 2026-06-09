@@ -1,17 +1,17 @@
 """
-GRPO-inspired generation pipeline for AI CTF challenges.
+Конвейер генерации CTF-заданий, вдохновлённый GRPO.
 
-Flow per attempt:
-  1. Generate N specs in parallel (asyncio.gather) with different temperatures
-  2. Create artifacts in parallel
-  3. Run binary reward checks per artifact
-  4. Run LLM-as-judge quality assessment for variants that passed binary checks
-  5. Compute group-relative advantages across ALL variants
-  6. Rejection gate: keep only passed_all_binary == True
-  7. Select variant with highest advantage among passed
-  8. Store ALL variants in DB (winners and losers)
-  9. If selected and reward >= threshold: done
-  10. Otherwise accumulate failure_context and retry
+Поток на каждую попытку:
+  1. Генерировать N спеков параллельно (asyncio.gather) с разными температурами
+  2. Создавать артефакты параллельно
+  3. Запускать двоичные проверки вознаграждения для каждого артефакта
+  4. Запускать оценку качества LLM-as-judge для вариантов, прошедших двоичные проверки
+  5. Вычислять групп-относительные преимущества по ВСЕМ вариантам
+  6. Ворота отбора: сохранять только passed_all_binary == True
+  7. Выбирать вариант с наибольшим преимуществом среди прошедших
+  8. Сохранять ВСЕ варианты в БД (победители и проигравшие)
+  9. Если выбран и вознаграждение >= порога: готово
+  10. Иначе накапливать failure_context и повторять
 """
 from __future__ import annotations
 
@@ -53,10 +53,10 @@ _PROMPT_FILE_MAP: dict[str, str] = {
 
 _generator_client: Optional[OpenAI] = None
 
-# Shared concurrency cap for ALL LLM calls in this process (generation + judge).
-# Sized from settings.AI_GEN_MAX_CONCURRENT_LLM on first use. 0/absent = unlimited.
-# Lets several concurrent experiment processes stay under the Yandex session quota
-# (cap × n_processes ≤ quota) without throttling.
+# Общий лимит параллельности для ВСЕХ вызовов LLM в процессе (генерация + судья).
+# Задаётся из settings.AI_GEN_MAX_CONCURRENT_LLM при первом использовании. 0/отсутствует = без ограничений.
+# Позволяет нескольким параллельным процессам оставаться в рамках квоты сессий Yandex
+# (лимит × n_процессов ≤ квота) без троттлинга.
 _llm_semaphore: Optional[asyncio.Semaphore] = None
 _llm_sem_init = False
 
@@ -73,7 +73,7 @@ def _get_llm_sem() -> Optional[asyncio.Semaphore]:
 
 
 async def _bounded(coro):
-    """Await `coro` under the process-wide LLM semaphore (if one is configured)."""
+    """Ожидать `coro` под процессным семафором LLM (если настроен)."""
     sem = _get_llm_sem()
     if sem is None:
         return await coro
@@ -110,9 +110,9 @@ def _strip_code_fence(text: str) -> str:
         return text
     lines = text.splitlines()
     if lines and lines[0].startswith("```"):
-        lines = lines[1:]  # Удалить открывающий блок кода
+        lines = lines[1:]  # убрать открывающий блок кода
     if lines and lines[-1].strip().startswith("```"):
-        lines = lines[:-1]  # Удалить закрывающий блок кода
+        lines = lines[:-1]  # убрать закрывающий блок кода
     return "\n".join(lines).strip()
 
 
@@ -159,11 +159,11 @@ def _run_one_spec(
     rag_context_text: str = "",
     feedback_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
-    """Sync LLM call — runs in a thread via asyncio.to_thread."""
+    """Синхронный вызов LLM — выполняется в потоке через asyncio.to_thread."""
     client = _build_generator_client()
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
-    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"  # Уровень аргументации для LLM
+    reasoning_effort = settings.YANDEX_REASONING_EFFORT or "high"  # уровень рассуждения для LLM
     system_prompt = _load_system_prompt(task_type)
     user_message = _build_user_message(difficulty, failure_context, rag_context_text, feedback_text)
 
@@ -208,7 +208,7 @@ async def _generate_one_spec(
     rag_context_text: str = "",
     feedback_text: str = "",
 ) -> tuple[Optional[dict], Optional[str], int, int, int]:
-    """Async wrapper — runs sync LLM call in a thread."""
+    """Асинхронная обёртка — запускает синхронный вызов LLM в потоке."""
     return await asyncio.to_thread(
         _run_one_spec,
         task_type=task_type,
@@ -246,8 +246,8 @@ async def run_pipeline(
     enable_self_test: bool = True,
 ) -> None:
     """
-    Main pipeline entry point. Runs inside a BackgroundTask.
-    Updates ai_generation_batches and ai_generation_variants in DB.
+    Главная точка входа конвейера. Выполняется внутри BackgroundTask.
+    Обновляет ai_generation_batches и ai_generation_variants в БД.
     """
     folder = settings.YANDEX_CLOUD_FOLDER.strip()
     model_name = f"gpt://{folder}/{GENERATOR_MODEL_ID}/{GENERATOR_MODEL_VERSION}"
@@ -259,10 +259,10 @@ async def run_pipeline(
 
     # Построить контекст RAG в отдельной сессии, чтобы любая ошибка БД (например, отсутствующая таблица)
     # не могла прервать транзакцию сессии конвейера.
-    # inject_rag=False skips RAG entirely (used by ablation experiments); production always True.
-    # NOTE: AsyncSessionLocal is imported here (not inside the `if inject_rag` block) because
-    # the feedback-context block below also uses it — keeping the import unconditional ensures
-    # the no_rag ablation does NOT accidentally disable the feedback loop too.
+    # inject_rag=False пропускает RAG полностью (используется в ablation-экспериментах); в продакшне всегда True.
+    # ПРИМЕЧАНИЕ: AsyncSessionLocal импортируется здесь (не внутри блока `if inject_rag`), потому что
+    # блок feedback-context ниже тоже его использует — безусловный импорт гарантирует,
+    # что ablation без RAG случайно не отключит и цикл обратной связи.
     from app.database import AsyncSessionLocal
     rag_context: RAGContext = RAGContext()
     rag_context_text: str = ""
@@ -310,7 +310,7 @@ async def run_pipeline(
     else:
         logger.info("RAG injection disabled (inject_rag=False; ablation experiment no_rag condition)")
 
-    # Build feedback context from historical generations (few-shot examples)
+    # Построить контекст обратной связи из исторических генераций (few-shot примеры)
     feedback_ctx = FeedbackContext()
     try:
         async with AsyncSessionLocal() as fb_session:
@@ -380,9 +380,9 @@ async def run_pipeline(
         variant_rewards: list[VariantReward] = []
         variant_data: list[dict] = []
 
-        # ── Phase A: binary validation for every variant (sequential — the XSS
-        #    self-test container is concurrency=1, so gathering wouldn't help there;
-        #    non-XSS checks are fast in-process). ─────────────────────────────────
+        # ── Фаза A: двоичная валидация каждого варианта (последовательно — контейнер
+        #    XSS self-test имеет параллельность=1, так что gather не поможет;
+        #    не-XSS проверки быстрые, внутрипроцессные). ────────────────────────────
         for i, ((spec, gen_err, temp, tok_in, tok_out, gen_ms), artifact) in enumerate(
             zip(specs_and_meta, artifacts)
         ):
@@ -390,7 +390,7 @@ async def run_pipeline(
             if isinstance(artifact, Exception):
                 artifact = ArtifactResult(error=str(artifact))
 
-            # Запустить двоичные проверки
+            # Запустить двоичные проверки вознаграждения
             if spec is not None and not artifact.error:
                 checks = await validate(task_type, spec, artifact, rag_context, enable_self_test=enable_self_test)
             else:
@@ -419,11 +419,11 @@ async def run_pipeline(
                 "quality_details": None,
             })
 
-        # ── Phase B: LLM-as-judge quality review for variants that passed all
-        #    binary gates — run CONCURRENTLY (was sequential per variant). Same
-        #    model/prompts/scoring → identical quality; only the wall-clock of this
-        #    stage drops from sum() to max(). Peak concurrency = #passing ≤ N, which
-        #    only runs after generation finished, so it stays within the LLM quota. ─
+        # ── Фаза B: оценка качества LLM-as-judge для вариантов, прошедших все
+        #    двоичные ворота — выполняется ПАРАЛЛЕЛЬНО (раньше было последовательно).
+        #    Одинаковая модель/промпты/оценка → идентичное качество; только wall-clock
+        #    этого этапа снижается с sum() до max(). Пиковая параллельность = #passed ≤ N,
+        #    запускается после завершения генерации, поэтому остаётся в рамках квоты LLM. ─
         review_idx = [
             i for i, (vr, vd) in enumerate(zip(variant_rewards, variant_data))
             if vr.passed_all_binary and vd["spec"] is not None
@@ -451,7 +451,7 @@ async def run_pipeline(
                     weight=q_weight,
                     detail=f"LLM quality assessment: {quality_score:.3f}",
                 ))
-                vr.compute()  # recalculate with quality included
+                vr.compute()  # пересчитать с учётом качества
                 variant_data[i]["quality_score"] = quality_score
                 variant_data[i]["quality_details"] = quality_details
 
@@ -562,7 +562,7 @@ async def run_pipeline(
             attempt, (len(passed) / max(len(variant_rewards), 1)) * 100, len(new_failures),
         )
 
-    # All attempts exhausted
+    # Все попытки исчерпаны
     batch_result = await db.execute(select(AIGenerationBatch).where(AIGenerationBatch.id == batch_id))
     batch = batch_result.scalar_one_or_none()
     if batch:
@@ -604,7 +604,7 @@ async def _embed_variants_background(variants: list[AIGenerationVariant]) -> Non
                     continue
                 try:
                     embedding = await svc.embed_document(text)
-                    # Re-fetch variant in this session to avoid cross-session state
+                    # Перезагрузить вариант в этой сессии, чтобы избежать перекрёстного состояния
                     result = await db.execute(
                         select(AIGenerationVariant).where(AIGenerationVariant.id == variant.id)
                     )

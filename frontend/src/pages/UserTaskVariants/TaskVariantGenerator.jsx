@@ -32,7 +32,7 @@ function formatElapsed(secs) {
 export default function TaskVariantGenerator({ isOpen, onClose, parentTask, onGenerationComplete }) {
   const [userRequest, setUserRequest] = useState('');
   const [showGame, setShowGame] = useState(false);
-  const [selectedGame, setSelectedGame] = useState(null); // 'tictactoe' or 'snake'
+  const [selectedGame, setSelectedGame] = useState(null); // 'tictactoe' или 'snake'
   const [elapsed, setElapsed] = useState(0);
 
   const {

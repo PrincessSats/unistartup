@@ -1,28 +1,28 @@
 """
-Backfill script: Enrich existing kb_entries with structured NVD metadata
-(CWE IDs, CVSS scores, attack vectors, affected products).
+Скрипт бэкфила: дополняет существующие kb_entries структурированными метаданными NVD
+(CWE ID, оценки CVSS, векторы атаки, затронутые продукты).
 
-Run from backend directory:
+Запуск из директории backend:
     cd backend
     python -m app.scripts.enrich_kb_entries
 
-Examples:
-    # Count entries needing enrichment (dry run)
+Примеры:
+    # Посчитать записи без обогащения (пробный запуск)
     python -m app.scripts.enrich_kb_entries --dry-run
 
-    # Test with 50 entries first
+    # Сначала протестировать на 50 записях
     python -m app.scripts.enrich_kb_entries --limit 50
 
-    # Full backfill with NVD API key (faster: 0.6s delay)
+    # Полный бэкфил с NVD API-ключом (быстрее: задержка 0.6с)
     NVD_API_KEY=<key> python -m app.scripts.enrich_kb_entries
 
-    # Re-embed entries after enrichment (updates pgvector embeddings)
+    # Пересчитать эмбеддинги после обогащения (обновляет pgvector)
     python -m app.scripts.enrich_kb_entries --re-embed
 
-Cost: Zero LLM cost. NVD API is free.
+Стоимость: нулевая (LLM не используется). NVD API бесплатный.
 Rate limits:
-    - Without API key: 5 requests/30 seconds → ~38 min for 3863 entries
-    - With API key:    50 requests/30 seconds → ~4 min for 3863 entries
+    - Без API-ключа: 5 запросов/30 сек → ~38 мин на 3863 записи
+    - С API-ключом:  50 запросов/30 сек → ~4 мин на 3863 записи
 """
 
 import argparse
@@ -52,7 +52,7 @@ NVD_API_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 BATCH_SIZE = 10  # entries per DB commit batch
 
 
-# ── NVD extraction helpers ─────────────────────────────────────────────────────
+# ── Вспомогательные функции для разбора NVD ───────────────────────────────────
 
 def _extract_cwe_ids(cve: dict) -> list[str]:
     cwe_ids: list[str] = []
@@ -61,7 +61,7 @@ def _extract_cwe_ids(cve: dict) -> list[str]:
             val = desc.get("value", "")
             if val.startswith("CWE-") and val not in ("CWE-noinfo", "CWE-Other"):
                 cwe_ids.append(val)
-    return list(dict.fromkeys(cwe_ids))  # deduplicate, preserve order
+    return list(dict.fromkeys(cwe_ids))  # дедупликация с сохранением порядка
 
 
 def _extract_cvss_data(cve: dict) -> dict:
@@ -98,7 +98,7 @@ def _extract_affected_products(cve: dict) -> list[str]:
 
 
 def _build_enriched_embedding_text(row: dict, cwe_ids: list[str], attack_vector: Optional[str]) -> str:
-    """Rebuild embedding text with CWE and attack_vector included."""
+    """Собирает текст для эмбеддинга с учётом CWE и attack_vector."""
     parts = []
     if row.get("cve_id"):
         parts.append(row["cve_id"])
@@ -113,10 +113,10 @@ def _build_enriched_embedding_text(row: dict, cwe_ids: list[str], attack_vector:
     return " ".join(parts)
 
 
-# ── NVD API fetch ──────────────────────────────────────────────────────────────
+# ── Запросы к NVD API ─────────────────────────────────────────────────────────
 
 async def fetch_nvd_cve(cve_id: str, api_key: Optional[str], client: httpx.AsyncClient) -> Optional[dict]:
-    """Fetch a single CVE from NVD API v2. Returns the cve dict or None on error."""
+    """Загружает одну CVE из NVD API v2. Возвращает словарь cve или None при ошибке."""
     headers = {}
     if api_key:
         headers["apiKey"] = api_key
@@ -138,7 +138,7 @@ async def fetch_nvd_cve(cve_id: str, api_key: Optional[str], client: httpx.Async
         return None
 
 
-# ── DB operations ──────────────────────────────────────────────────────────────
+# ── Операции с БД ─────────────────────────────────────────────────────────────
 
 async def count_pending(db) -> int:
     result = await db.execute(text("""
@@ -171,7 +171,7 @@ async def update_entry(db, entry_id: int, cve_data: dict, re_embed: bool, embedd
     attack_complexity = cve_data.get("attack_complexity")
     affected_products = cve_data.get("affected_products", [])
 
-    # Update tags to include CWE IDs
+    # Обновляем теги, добавляя CWE ID
     tag_result = await db.execute(text("SELECT tags FROM kb_entries WHERE id = :id"), {"id": entry_id})
     row = tag_result.fetchone()
     existing_tags = list(row[0]) if row and row[0] else []
@@ -201,7 +201,7 @@ async def update_entry(db, entry_id: int, cve_data: dict, re_embed: bool, embedd
     """), update_params)
 
 
-# ── main ───────────────────────────────────────────────────────────────────────
+# ── Точка входа ───────────────────────────────────────────────────────────────
 
 async def run(args: argparse.Namespace) -> None:
     api_key = os.environ.get("NVD_API_KEY")
@@ -247,26 +247,26 @@ async def run(args: argparse.Namespace) -> None:
                         logger.error("DB update failed for %s: %s", cve_id, exc)
                         failed += 1
 
-                # Commit every BATCH_SIZE entries
+                # Коммитим каждые BATCH_SIZE записей
                 if (i + 1) % BATCH_SIZE == 0:
                     await db.commit()
                     logger.info("Committed batch %d/%d", i + 1, len(entries))
 
-                # Rate limiting
+                # Соблюдаем rate limit
                 if i < len(entries) - 1:
                     time.sleep(delay)
 
-        # Final commit
+        # Финальный коммит
         await db.commit()
 
     print(f"\nDone. succeeded={succeeded}, skipped={skipped}, failed={failed}")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Enrich kb_entries with NVD structured metadata")
-    parser.add_argument("--dry-run", action="store_true", help="Count pending entries and exit")
-    parser.add_argument("--limit", type=int, default=None, help="Process at most N entries")
-    parser.add_argument("--re-embed", action="store_true", help="Re-embed entries after enrichment (not yet implemented)")
+    parser = argparse.ArgumentParser(description="Обогащает kb_entries структурированными метаданными NVD")
+    parser.add_argument("--dry-run", action="store_true", help="Посчитать ожидающие записи и выйти")
+    parser.add_argument("--limit", type=int, default=None, help="Обработать не более N записей")
+    parser.add_argument("--re-embed", action="store_true", help="Пересчитать эмбеддинги после обогащения (ещё не реализовано)")
     args = parser.parse_args()
     asyncio.run(run(args))
 

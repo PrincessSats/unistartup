@@ -180,11 +180,11 @@ function Profile() {
       setLoading(true);
       await authAPI.requestPasswordReset(currentUser.email);
 
-      // Show success toast
+      // показываем тост успеха
       setError('');
       setSuccess('Ссылка для восстановления отправлена на ваш email');
 
-      // Clear message after 3 seconds
+      // убираем сообщение через 3 секунды
       setTimeout(() => {
         setSuccess('');
       }, 3000);

@@ -1,8 +1,8 @@
--- Migration: Seed tariff_plans and create/fix promo trigger
--- Date: 2026-04-03
--- Purpose: Initialize FREE/PRO/CORP tariff plans and ensure first 1000 email-verified users get PRO forever
+-- Миграция: заполнить tariff_plans и создать/исправить promo-триггер
+-- Дата: 2026-04-03
+-- Цель: создать тарифы FREE/PRO/CORP и выдать первым 1000 подтверждённым пользователям PRO навсегда
 
--- Step 1: Seed tariff_plans table with FREE, PRO, CORP
+-- Шаг 1: заполняем таблицу tariff_plans тарифами FREE, PRO, CORP
 INSERT INTO tariff_plans (code, name, monthly_price_rub, description, limits, is_active)
 VALUES
   ('FREE', 'Free', 0,       'Базовый бесплатный доступ', '{}'::jsonb, true),
@@ -10,23 +10,23 @@ VALUES
   ('CORP', 'Corp', 1999.00, 'Корпоративный доступ',      '{}'::jsonb, true)
 ON CONFLICT (code) DO NOTHING;
 
--- Step 2: Create or replace the trigger function
--- When a user verifies their email, grant them PRO for life if they're in the first 1000
+-- Шаг 2: создаём/заменяем функцию триггера
+-- При верификации email выдаём PRO навсегда, если пользователь среди первых 1000
 CREATE OR REPLACE FUNCTION grant_early_promo_on_email_verified()
 RETURNS trigger AS $$
 DECLARE
     promo_count BIGINT;
     pro_plan_id BIGINT;
 BEGIN
-    -- Only fire on first email verification (NEW has value, OLD didn't)
+    -- Срабатываем только при первой верификации email (NEW заполнен, OLD был NULL)
     IF NEW.email_verified_at IS NULL OR OLD.email_verified_at IS NOT NULL THEN
         RETURN NEW;
     END IF;
 
-    -- Serialize to prevent race conditions on the first 1000 check
+    -- Сериализуем, чтобы избежать гонки при проверке первой 1000
     PERFORM pg_advisory_xact_lock(431001);
 
-    -- If user already has a promo tariff, skip
+    -- Если у пользователя уже есть промо-тариф, пропускаем
     IF EXISTS (
         SELECT 1 FROM user_tariffs
         WHERE user_id = NEW.id AND is_promo = TRUE
@@ -34,28 +34,28 @@ BEGIN
         RETURN NEW;
     END IF;
 
-    -- Count existing promo users
+    -- Считаем текущих промо-пользователей
     SELECT COUNT(*) INTO promo_count FROM user_tariffs WHERE is_promo = TRUE;
     IF promo_count >= 1000 THEN
-        -- Already granted 1000 promos, no more
+        -- Уже выдано 1000 промо, больше не выдаём
         RETURN NEW;
     END IF;
 
-    -- Get the PRO plan ID
+    -- Получаем ID тарифа PRO
     SELECT id INTO pro_plan_id FROM tariff_plans WHERE code = 'PRO' LIMIT 1;
     IF pro_plan_id IS NULL THEN
-        -- tariff_plans not seeded yet, bail safely
+        -- tariff_plans ещё не заполнена, выходим безопасно
         RETURN NEW;
     END IF;
 
-    -- Upgrade existing active tariff to PRO, or insert PRO if none exists
+    -- Обновляем активный тариф до PRO или вставляем PRO, если тарифа нет
     UPDATE user_tariffs
     SET tariff_id = pro_plan_id,
         is_promo  = TRUE,
         source    = COALESCE(source, 'early_1000')
     WHERE user_id = NEW.id AND valid_to IS NULL;
 
-    -- If no active tariff was found/updated, insert a new PRO row
+    -- Если активный тариф не найден/не обновлён, вставляем новый PRO
     IF NOT FOUND THEN
         INSERT INTO user_tariffs (user_id, tariff_id, is_promo, source)
         VALUES (NEW.id, pro_plan_id, TRUE, 'early_1000');
@@ -65,8 +65,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Step 3: Create trigger if it doesn't exist
--- The trigger fires AFTER email_verified_at is set on the users table
+-- Шаг 3: создаём триггер, если его ещё нет
+-- Триггер срабатывает AFTER UPDATE email_verified_at в таблице users
 DO $$
 BEGIN
     IF NOT EXISTS (

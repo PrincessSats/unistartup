@@ -130,7 +130,7 @@ function ContestHistoryDrawer({ open, onClose, onEditContest }) {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Фильтры */}
       <div className="flex gap-3 mb-5">
         <input
           type="text"
@@ -151,7 +151,7 @@ function ContestHistoryDrawer({ open, onClose, onEditContest }) {
         </select>
       </div>
 
-      {/* Contest List */}
+      {/* Список контестов */}
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (

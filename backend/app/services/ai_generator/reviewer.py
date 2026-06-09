@@ -1,8 +1,8 @@
 """
-LLM-as-judge quality reviewer for AI-generated CTF challenges.
+Ревьюер качества LLM-as-judge для автоматически сгенерированных CTF-заданий.
 
-Scores 5 dimensions (0.0-1.0 each) and returns the average as composite quality_score.
-Only called for variants that already passed all binary reward checks.
+Оценивает 5 измерений (0.0-1.0 каждое) и возвращает среднее как составной quality_score.
+Вызывается только для вариантов, уже прошедших все двоичные проверки вознаграждения.
 """
 import asyncio
 import json
@@ -138,7 +138,7 @@ def _run_review(spec: dict, task_type: str, difficulty: str) -> tuple[float, dic
 
 async def review_variant(spec: dict, task_type: str, difficulty: str) -> tuple[float, dict]:
     """
-    Score a variant spec using LLM-as-judge.
-    Runs the sync OpenAI client in a thread to avoid blocking the event loop.
+    Оценить спек варианта с помощью LLM-as-judge.
+    Синхронный клиент OpenAI запускается в потоке, чтобы не блокировать event loop.
     """
     return await asyncio.to_thread(_run_review, spec, task_type, difficulty)

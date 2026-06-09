@@ -71,12 +71,12 @@ class ChatTaskError(RuntimeError):
 
 def sanitize_user_message(text: str) -> str:
     """
-    Sanitize a user message before it is stored and sent to the LLM.
+    Очищает сообщение пользователя перед сохранением и отправкой в LLM.
 
-    Removes control characters and special tokenizer role-boundary tokens that
-    could break message-role separation in the LLM API call.  Prompt-injection
-    phrasing ("ignore previous instructions", etc.) is intentionally NOT blocked
-    because bypassing the system prompt is the CTF challenge mechanic.
+    Удаляет управляющие символы и специальные токены границ ролей токенизатора,
+    которые могут нарушить разделение ролей в API-вызове LLM. Фразы prompt-injection
+    ("ignore previous instructions" и т.п.) намеренно НЕ блокируются,
+    так как обход системного промпта — это механика CTF-задания.
     """
     import unicodedata
     # Нормализовать Unicode для предотвращения трюков с омографами / скрытыми символами

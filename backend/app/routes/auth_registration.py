@@ -745,8 +745,8 @@ async def finalize_oauth_login(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Exchange OAuth flow token for access token and set refresh cookie.
-    Called after OAuth callback redirect when browser lands on /auth/bridge.
+    Обменивает токен OAuth-потока на access token и устанавливает refresh cookie.
+    Вызывается после редиректа OAuth-callback, когда браузер попадает на /auth/bridge.
     """
     flow_id = decode_registration_flow_token(payload.flow_token)
     if flow_id is None:

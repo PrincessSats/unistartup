@@ -35,7 +35,7 @@ function Drawer({ open, onClose, title, subtitle, width = '640px', children, foo
         className={drawerBase}
         style={{ width }}
       >
-        {/* Header */}
+        {/* Заголовок */}
         <div className="flex items-start justify-between gap-4 p-8 border-b border-white/[0.09]">
           <div className="flex-1">
             <h3 className="text-white text-[24px] leading-[32px] font-medium">
@@ -56,12 +56,12 @@ function Drawer({ open, onClose, title, subtitle, width = '640px', children, foo
           </button>
         </div>
 
-        {/* Content */}
+        {/* Содержимое */}
         <div className="flex-1 overflow-y-auto p-8">
           {children}
         </div>
 
-        {/* Footer */}
+        {/* Подвал */}
         {footer && (
           <div className="border-t border-white/[0.09] p-8 pt-6">
             {footer}

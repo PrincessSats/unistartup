@@ -593,12 +593,12 @@ async def send_magic_link_email(*, to_email: str, magic_link_url: str) -> None:
 
 def password_reset_email_template(reset_token: str, user_email: str, reset_link_url: str) -> tuple[str, str]:
     """
-    Generate password reset email subject and HTML body.
+    Генерирует тему и HTML-тело письма для сброса пароля.
 
     Args:
-        reset_token: The plaintext reset token (for audit/logging, not sent)
-        user_email: User's email address
-        reset_link_url: Full URL to reset page with token (e.g., https://hacknet.tech/reset-password?token=xyz)
+        reset_token: Токен сброса в открытом виде (для аудита/логов, не отправляется)
+        user_email: Email пользователя
+        reset_link_url: Полный URL страницы сброса с токеном (например, https://hacknet.tech/reset-password?token=xyz)
 
     Returns:
         (subject, html_body)
@@ -650,15 +650,15 @@ def password_reset_email_template(reset_token: str, user_email: str, reset_link_
 
 def _send_password_reset_email_sync(user_email: str, reset_token: str, frontend_base_url: str = "https://hacknet.tech") -> bool:
     """
-    Synchronously send password reset email via Yandex SMTP.
+    Синхронно отправляет письмо для сброса пароля через Yandex SMTP.
 
     Args:
-        user_email: Recipient email
-        reset_token: Plaintext reset token to include in link
-        frontend_base_url: Base URL for reset link (e.g., https://hacknet.tech)
+        user_email: Email получателя
+        reset_token: Токен сброса в открытом виде для вставки в ссылку
+        frontend_base_url: Базовый URL для ссылки сброса (например, https://hacknet.tech)
 
     Returns:
-        True if sent successfully, False otherwise
+        True если отправлено успешно, иначе False
     """
     try:
         reset_link_url = f"{frontend_base_url}/reset-password?token={reset_token}"
@@ -685,13 +685,13 @@ def _send_password_reset_email_sync(user_email: str, reset_token: str, frontend_
 
         return True
     except Exception as e:
-        # Log the error without raising; caller should handle
+        # Логируем ошибку без исключения; пусть вызывающий код разбирается
         return False
 
 
 async def send_password_reset_email(user_email: str, reset_token: str, frontend_base_url: str = "https://hacknet.tech") -> bool:
     """
-    Async wrapper for password reset email sending.
+    Асинхронная обёртка для отправки письма сброса пароля.
     """
     return await anyio.to_thread.run_sync(
         _send_password_reset_email_sync,
@@ -710,7 +710,7 @@ def split_identity_parts(*values: Optional[str]) -> list[str]:
         for part in re.split(r"[^a-z0-9]+", raw):
             if len(part) >= 3:
                 parts.append(part)
-    # preserve order while removing duplicates
+    # Убираем дубликаты, сохраняя порядок
     unique_parts: list[str] = []
     for part in parts:
         if part not in unique_parts:
@@ -740,56 +740,56 @@ def validate_registration_password(
     provider_login: Optional[str] = None,
 ) -> list[str]:
     """
-    Validate password strength according to security requirements.
-    
-    Requirements:
-    - Minimum 12 characters
-    - At least one uppercase letter
-    - At least one lowercase letter  
-    - At least one digit
-    - At least one special character
-    - No personal information from username/email
-    - No common patterns or sequences
+    Проверяет надёжность пароля по требованиям безопасности.
+
+    Требования:
+    - Минимум 12 символов
+    - Хотя бы одна заглавная буква
+    - Хотя бы одна строчная буква
+    - Хотя бы одна цифра
+    - Хотя бы один спецсимвол
+    - Без личных данных из username/email
+    - Без простых паттернов и последовательностей
     """
     issues: list[str] = []
     raw = str(password or "")
     
-    # Check minimum length (12 characters for strong security)
+    # Проверяем минимальную длину (12 символов для надёжной защиты)
     if len(raw) < 12:
         issues.append("Пароль должен быть минимум 12 символов.")
     
-    # Check character set (ASCII printable, no spaces)
+    # Проверяем набор символов (ASCII-печатаемые, без пробелов)
     if not re.fullmatch(r"[\x21-\x7E]+", raw):
         issues.append("Пароль должен содержать только латиницу, цифры и спецсимволы без пробелов.")
     
-    # Require at least one uppercase letter
+    # Требуем хотя бы одну заглавную букву
     if not re.search(r"[A-Z]", raw):
         issues.append("Пароль должен содержать хотя бы одну заглавную букву.")
     
-    # Require at least one lowercase letter
+    # Требуем хотя бы одну строчную букву
     if not re.search(r"[a-z]", raw):
         issues.append("Пароль должен содержать хотя бы одну строчную букву.")
     
-    # Require at least one digit
+    # Требуем хотя бы одну цифру
     if not re.search(r"\d", raw):
         issues.append("Пароль должен содержать хотя бы одну цифру.")
     
-    # Require at least one special character
+    # Требуем хотя бы один спецсимвол
     if not re.search(r"[^A-Za-z0-9]", raw):
         issues.append("Пароль должен содержать хотя бы один специальный символ (!@#$%^&*()_+-=[]{}|;:,.<>?).")
     
-    # Check for personal information in password
+    # Проверяем наличие личных данных в пароле
     email_local = normalize_email(email).split("@", 1)[0] if email else ""
     for part in split_identity_parts(username, email_local, provider_login):
         if part and len(part) >= 3 and part.lower() in raw.lower():
             issues.append("Пароль не должен содержать личные данные из email или никнейма.")
             break
     
-    # Check for forbidden sequences and patterns
+    # Проверяем запрещённые последовательности и паттерны
     if has_forbidden_sequence(raw):
         issues.append("Пароль не должен содержать простые последовательности или повторяющиеся символы.")
     
-    # Check for common weak passwords
+    # Проверяем список распространённых слабых паролей
     common_weak_passwords = {
         "password", "qwerty", "123456", "12345678", "letmein", 
         "welcome", "admin", "login", "passw0rd", "hacknet"
@@ -797,7 +797,7 @@ def validate_registration_password(
     if raw.lower() in common_weak_passwords:
         issues.append("Этот пароль слишком простой. Выберите более уникальный пароль.")
     
-    # Check for keyboard patterns
+    # Проверяем клавиатурные паттерны
     keyboard_patterns = ["qwerty", "asdf", "zxcv", "1234", "!@#$", "qazwsx"]
     for pattern in keyboard_patterns:
         if pattern in raw.lower():

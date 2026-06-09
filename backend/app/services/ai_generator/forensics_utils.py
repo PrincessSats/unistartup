@@ -1,8 +1,8 @@
 """
-Sync S3/image utilities for forensics_image_metadata task type.
+Синхронные утилиты S3/изображений для типа задачи forensics_image_metadata.
 
-All functions here are synchronous and intended to run in threads via
-asyncio.to_thread() from async callers.
+Все функции синхронные и предназначены для запуска в потоках через
+asyncio.to_thread() из асинхронных вызывающих.
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def _task_bucket() -> str:
 
 
 def list_stock_images() -> list[str]:
-    """List all image keys under forensic_stock/ in the task S3 bucket."""
+    """Перечислить все ключи изображений в forensic_stock/ в задачном S3-бакете."""
     client = _get_task_s3_client()
     bucket = _task_bucket()
     try:
@@ -68,13 +68,13 @@ def list_stock_images() -> list[str]:
 
 
 def pick_random_stock_image() -> str:
-    """Pick a random stock image key from S3."""
+    """Выбрать случайный ключ стокового изображения из S3."""
     keys = list_stock_images()
     return random.choice(keys)
 
 
 def download_image(s3_key: str) -> bytes:
-    """Download image bytes from the task S3 bucket."""
+    """Скачать байты изображения из задачного S3-бакета."""
     client = _get_task_s3_client()
     bucket = _task_bucket()
     try:
@@ -91,8 +91,8 @@ def inject_metadata(
     decoy_metadata: dict,
 ) -> bytes:
     """
-    Open image with Pillow, inject flag into the specified metadata field,
-    add decoy EXIF tags, and return JPEG bytes.
+    Открыть изображение через Pillow, внедрить флаг в указанное поле метаданных,
+    добавить поля-приманки EXIF и вернуть байты JPEG.
     """
     if hide_in not in VALID_HIDE_IN:
         raise ForensicsError(f"invalid hide_in: {hide_in!r}")
@@ -129,7 +129,7 @@ def inject_metadata(
 
 
 def upload_image(image_bytes: bytes, batch_id: str, variant_id: str) -> str:
-    """Upload image bytes to forensics_artifacts/{batch_id}/{variant_id}.jpg, return s3_key."""
+    """Загрузить байты изображения в forensics_artifacts/{batch_id}/{variant_id}.jpg, вернуть s3_key."""
     client = _get_task_s3_client()
     bucket = _task_bucket()
     target_key = f"forensics_artifacts/{batch_id}/{variant_id}.jpg"
@@ -147,8 +147,8 @@ def upload_image(image_bytes: bytes, batch_id: str, variant_id: str) -> str:
 
 def extract_metadata_field(image_bytes: bytes, hide_in: str) -> Optional[str]:
     """
-    Extract the value from the specified metadata field.
-    Returns None if the field is absent or unreadable.
+    Извлечь значение из указанного поля метаданных.
+    Возвращает None, если поле отсутствует или нечитаемо.
     """
     if hide_in not in VALID_HIDE_IN:
         return None
@@ -169,31 +169,31 @@ def extract_metadata_field(image_bytes: bytes, hide_in: str) -> Optional[str]:
 
 _EXIF_TAG_MAP: dict[str, tuple[int, str]] = {
     # (piexif IFD ключ, tag_id) — IFD это "0th", "Exif", и т.д.
-    "exif_image_description": ("0th", 270),   # ImageDescription
-    "exif_user_comment":      ("Exif", 37510), # UserComment
-    "exif_artist":            ("0th", 315),    # Artist
-    "exif_copyright":         ("0th", 33432),  # Copyright
+    "exif_image_description": ("0th", 270),   # Описание изображения
+    "exif_user_comment":      ("Exif", 37510), # Комментарий пользователя
+    "exif_artist":            ("0th", 315),    # Автор
+    "exif_copyright":         ("0th", 33432),  # Авторские права
 }
 
 _DECOY_TAG_MAP: dict[str, tuple[str, int]] = {
-    "camera_make":    ("0th",  271),   # Make
-    "camera_model":   ("0th",  272),   # Model
-    "software":       ("0th",  305),   # Software
-    "date_time":      ("0th",  306),   # DateTime
-    "author_name":    ("0th",  315),   # Artist (shared with exif_artist)
-    "copyright_text": ("0th",  33432), # Copyright (shared with exif_copyright)
-    "lens_model":     ("Exif", 42036), # LensModel
-    "iso_speed":      ("Exif", 34855), # ISOSpeedRatings
+    "camera_make":    ("0th",  271),   # Производитель камеры
+    "camera_model":   ("0th",  272),   # Модель камеры
+    "software":       ("0th",  305),   # Программное обеспечение
+    "date_time":      ("0th",  306),   # Дата и время
+    "author_name":    ("0th",  315),   # Автор (совпадает с exif_artist)
+    "copyright_text": ("0th",  33432), # Авторские права (совпадает с exif_copyright)
+    "lens_model":     ("Exif", 42036), # Модель объектива
+    "iso_speed":      ("Exif", 34855), # Значение ISO
 }
 
 
 def _build_exif_with_decoys(decoy_metadata: dict) -> bytes:
-    """Build EXIF bytes with only decoy fields (no flag)."""
+    """Собрать байты EXIF только с полями-приманками (без флага)."""
     return _build_exif_bytes(flag=None, hide_in=None, decoy_metadata=decoy_metadata)
 
 
 def _build_exif_with_flag_and_decoys(hide_in: str, flag: str, decoy_metadata: dict) -> bytes:
-    """Build EXIF bytes with flag in the specified field plus decoy fields."""
+    """Собрать байты EXIF с флагом в указанном поле плюс поля-приманки."""
     return _build_exif_bytes(flag=flag, hide_in=hide_in, decoy_metadata=decoy_metadata)
 
 
@@ -206,17 +206,17 @@ def _build_exif_bytes(
 
     exif_dict: dict = {"0th": {}, "Exif": {}, "GPS": {}, "1st": {}}
 
-    # Inject flag into target field
+    # Внедрить флаг в целевое поле
     if flag and hide_in and hide_in in _EXIF_TAG_MAP:
         ifd, tag_id = _EXIF_TAG_MAP[hide_in]
         if hide_in == "exif_user_comment":
-            # UserComment requires 8-byte charset prefix
+            # UserComment требует 8-байтовый префикс кодировки
             encoded = b"ASCII\x00\x00\x00" + flag.encode("ascii", errors="replace")
         else:
             encoded = flag.encode("utf-8")
         exif_dict[ifd][tag_id] = encoded
 
-    # Inject decoy fields
+    # Внедрить поля-приманки
     _inject_decoys(exif_dict, decoy_metadata, skip_tag=_EXIF_TAG_MAP.get(hide_in or ""))
 
     try:
@@ -231,7 +231,7 @@ def _inject_decoys(exif_dict: dict, decoy_metadata: dict, skip_tag: Optional[tup
         if field_name not in _DECOY_TAG_MAP:
             continue
         ifd, tag_id = _DECOY_TAG_MAP[field_name]
-        # Don't overwrite the flag field
+        # Не перезаписывать поле флага
         if skip_tag and skip_tag == (ifd, tag_id):
             continue
         encoded = str(value).encode("utf-8")
@@ -239,7 +239,7 @@ def _inject_decoys(exif_dict: dict, decoy_metadata: dict, skip_tag: Optional[tup
 
 
 def _build_xmp_with_flag(flag: str) -> bytes:
-    """Build a minimal XMP packet with dc:description containing the flag."""
+    """Собрать минимальный XMP-пакет с dc:description, содержащим флаг."""
     xmp_str = (
         '<?xpacket begin="\xef\xbb\xbf" id="W5M0MpCehiHzreSzNTczkc9d"?>'
         '<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Adobe XMP Core">'
@@ -261,10 +261,10 @@ def _inject_xmp(jpeg_bytes: bytes, xmp_bytes: bytes) -> bytes:
 
     ns = b"http://ns.adobe.com/xap/1.0/\x00"
     payload = ns + xmp_bytes
-    marker_len = 2 + len(payload)  # 2 bytes for the length field itself
+    marker_len = 2 + len(payload)  # 2 байта для самого поля длины
     xmp_segment = b"\xff\xe1" + struct.pack(">H", marker_len) + payload
 
-    # Insert after SOI
+    # Вставить после SOI
     return jpeg_bytes[:2] + xmp_segment + jpeg_bytes[2:]
 
 

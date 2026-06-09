@@ -9,7 +9,7 @@ from app.database import Base
 
 
 class UserTaskVariantRequest(Base):
-    """User request for task variant generation."""
+    """Запрос пользователя на генерацию варианта задания."""
     __tablename__ = "user_task_variant_requests"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -29,7 +29,7 @@ class UserTaskVariantRequest(Base):
 
 
 class UserTaskVariantVote(Base):
-    """Community votes on user-generated task variants."""
+    """Голоса сообщества за варианты заданий, созданные пользователями."""
     __tablename__ = "user_task_variant_votes"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -46,6 +46,6 @@ class UserTaskVariantVote(Base):
 
 
 # Добавить обратные отношения к существующим моделям (импортировано там, где это необходимо)
-# Task.user_variant_requests
-# AIGenerationVariant.user_variant_request
-# AIGenerationVariant.user_votes
+# Task.user_variant_requests — обратная связь
+# AIGenerationVariant.user_variant_request — обратная связь
+# AIGenerationVariant.user_votes — обратная связь

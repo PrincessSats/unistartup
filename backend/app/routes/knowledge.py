@@ -238,7 +238,7 @@ async def search_kb_entries(
     Включает скрытые записи (visible_in_kb_list=false) — доступны через поиск.
     """
     q_clean = q.strip()[:100]
-    # Escape ILIKE special chars
+    # Экранируем спецсимволы ILIKE
     escaped = q_clean.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     pattern = f"%{escaped}%"
 
@@ -439,7 +439,7 @@ async def create_kb_comment(
         rule=RateLimit(max_requests=20, window_seconds=60),
     )
 
-    # Sanitize comment body to prevent XSS
+    # Очищаем тело комментария для защиты от XSS
     body = sanitize_comment(data.body or "", max_length=2000)
     if not body:
         raise HTTPException(

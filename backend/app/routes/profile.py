@@ -45,7 +45,7 @@ async def _maybe_await(value):
 # ========== Схемы (Pydantic модели) ==========
 
 class CurrentTariffInfo(BaseModel):
-    """Информация о текущем тарифе (нет английского текста)"""
+    """Информация о текущем тарифе."""
     code: str
     name: str
     is_promo: bool = False
@@ -56,7 +56,7 @@ class CurrentTariffInfo(BaseModel):
 
 
 class ProfileResponse(BaseModel):
-    """Ответ с данными профиля (нет английского текста)"""
+    """Ответ с данными профиля."""
     id: int
     email: str
     username: str
@@ -75,28 +75,28 @@ class ProfileResponse(BaseModel):
 
 
 class UpdateUsernameRequest(BaseModel):
-    """Запрос на смену username (нет английского текста)"""
+    """Запрос на смену username."""
     username: str
 
 
 class UpdateEmailRequest(BaseModel):
-    """Запрос на смену email (нет английского текста)"""
+    """Запрос на смену email."""
     new_email: EmailStr
 
 
 class UpdatePasswordRequest(BaseModel):
-    """Запрос на смену пароля (нет английского текста)"""
+    """Запрос на смену пароля."""
     current_password: str
     new_password: str
 
 
 class DeleteAccountRequest(BaseModel):
-    """Запрос на удаление аккаунта с подтверждением (нет английского текста)"""
+    """Запрос на удаление аккаунта с подтверждением."""
     username: str
 
 
 class UpdateOnboardingStatusRequest(BaseModel):
-    """Запрос на обновление статуса онбординга (нет английского текста)"""
+    """Запрос на обновление статуса онбординга."""
     status: Literal["dismissed", "completed"]
 
 
