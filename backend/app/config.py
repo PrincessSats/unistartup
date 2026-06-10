@@ -174,6 +174,10 @@ class Settings(BaseSettings):
     DAILY_DIGEST_ENABLED: bool = True
     DAILY_TASK_COUNT: int = 12
     DAILY_PIPELINE_CONCURRENCY: int = 3
+    # Бюджет времени на NVD sync + перевод внутри ежедневного пайплайна.
+    # Контейнер убивает запрос по execution_timeout (1800s) — перевод хвоста
+    # отбрасывается, чтобы дайджест и задания успели сгенерироваться.
+    DAILY_PIPELINE_SYNC_BUDGET_SECONDS: int = 900
 
     # AI-генератор (GRPO пайплайн)
     AI_GEN_NUM_VARIANTS: int = 5

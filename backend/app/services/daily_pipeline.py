@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select, text
 
@@ -399,12 +399,18 @@ async def run_daily_pipeline(*, force: bool = False) -> dict:
         return {"status": "already_done"}
 
     pipeline_start = datetime.now(timezone.utc)
+    # Жёсткий бюджет на sync+перевод: иначе в дни с сотнями CVE (и 429 от
+    # Translate API) контейнер убивает запрос по execution_timeout до дайджеста.
+    translate_deadline = pipeline_start + timedelta(
+        seconds=settings.DAILY_PIPELINE_SYNC_BUDGET_SECONDS
+    )
     logger.info("daily_pipeline: starting NVD sync at %s", pipeline_start.isoformat())
     try:
         sync_result = await run_sync(
             hours=24,
             embed_new_entries=True,
             translate_new_entries=True,
+            translate_deadline=translate_deadline,
         )
         logger.info(
             "daily_pipeline: sync done fetched=%s inserted=%s",

@@ -263,6 +263,7 @@ async def store_kb_entries(
     embed_new_entries: bool = True,
     translate_new_entries: bool = True,
     include_inserted_rows: bool = False,
+    translate_deadline: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     to_insert: List[Dict[str, Any]] = []
     for item in vulns:
@@ -348,7 +349,7 @@ async def store_kb_entries(
             }
             inserted_result = await session.execute(
                 text(
-                    "SELECT id, source, cve_id, raw_en_text, cwe_ids, attack_vector "
+                    "SELECT id, source, cve_id, raw_en_text, cwe_ids, attack_vector, cvss_base_score "
                     "FROM kb_entries "
                     "WHERE source = :source AND cve_id = ANY(:cve_ids)"
                 ),
@@ -366,8 +367,15 @@ async def store_kb_entries(
                             "raw_en_text": row_dict.get("raw_en_text"),
                             "cwe_ids": row_dict.get("cwe_ids") or [],
                             "attack_vector": row_dict.get("attack_vector"),
+                            "cvss_base_score": row_dict.get("cvss_base_score"),
                         }
                     )
+            # Сначала переводим самые критичные CVE: дайджест берёт топ по CVSS,
+            # задания — топ-12, поэтому при нехватке времени хвост можно отбросить.
+            inserted_rows.sort(
+                key=lambda r: r.get("cvss_base_score") if r.get("cvss_base_score") is not None else -1.0,
+                reverse=True,
+            )
 
         # Хук перевода — переводим ru_title, ru_summary, ru_explainer для новых записей
         if translate_new_entries:
@@ -393,6 +401,13 @@ async def store_kb_entries(
 
                     # Обрабатываем порциями
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
+                        if translate_deadline is not None and _utc_now() >= translate_deadline:
+                            remaining = translation_count - translation_completed - translation_failed
+                            logger.warning(
+                                "NVD translation: deadline reached, skipping %d remaining entries",
+                                remaining,
+                            )
+                            break
                         tasks = [translate_task(row) for row in chunk]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
                         
@@ -485,6 +500,9 @@ async def store_kb_entries(
                         return row, None
 
                     for chunk in _chunked(inserted_rows, BATCH_SIZE):
+                        if translate_deadline is not None and _utc_now() >= translate_deadline:
+                            logger.warning("NVD embedding: deadline reached, skipping remaining entries")
+                            break
                         tasks = [embed_task(row) for row in chunk]
                         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -535,6 +553,7 @@ async def run_sync(
     include_inserted_rows: bool = False,
     log_id: Optional[int] = None,
     date_filter: str = "published",
+    translate_deadline: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     if start and end:
         window_start = start
@@ -560,6 +579,7 @@ async def run_sync(
         embed_new_entries=embed_new_entries,
         translate_new_entries=translate_new_entries,
         include_inserted_rows=include_inserted_rows,
+        translate_deadline=translate_deadline,
     )
 
     return {
