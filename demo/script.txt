@@ -1,0 +1,10 @@
+make smooth zoom in and zoom outs
+1. show login page
+2. After loading on a main page show to top part with rating and so on - explain that its your main information and ratinf 
+3. show the task panel "Обучение под мои интересы" - explain that those tasks are chosen for based on your interests
+4. show the panel "Новости" with new article and tasks - explain it here. You can see the latest news and new tasks.
+5. Next is contest page show with Zoom how you press on the contest button on the left menu after that show the main name of the contest zoom to the description of the contest and explain that you can see everything here.
+6. Next is education page again go there with zooming to side bar menu explain that we have a lot of different tasks for example click on the first one Zoom to the description to the name and press start the task after that zoom to the right side with user variance and explain that users can create their own variance here press create button and explain that users can specify the new task that they want
+6. After that, go to the rating page show that we have two ratings for contest and for the education after that, go to the knowledge base
+7. Proceed to the latest digest for example now it is June 3. Explain that we accumulate daily or by daily newest CBE and envy, and because there are a lot of of them, we compacting them to the one digest.
+8. Open the latest digest and showing inside that there are a lot of links and descriptions of the latest CV and MV and after that fish

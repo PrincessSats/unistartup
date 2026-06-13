@@ -1,0 +1,4 @@
+condition,n,total_reward_mean,total_reward_std,total_reward_ci95_lo,total_reward_ci95_hi,quality_score_mean,quality_score_std,quality_score_ci95_lo,quality_score_ci95_hi,pass_rate,pub_ge_06_rate,pub_ge_090_rate,mean_cost_rub,mean_time_s
+full,50,0.975333,0.013971,0.971295,0.978876,0.878,0.057463,0.8618,0.893,1.0,1.0,1.0,12.64474,96.6055
+no_rag,50,0.86461,0.006061,0.862933,0.866286,0.9142,0.031822,0.9054,0.923,1.0,1.0,0.0,9.42007,91.71892
+no_bon,50,0.944419,0.031855,0.9356,0.95299,0.7832,0.095777,0.7554,0.8088,1.0,1.0,0.86,2.607706,71.55106

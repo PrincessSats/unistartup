@@ -1,0 +1,9 @@
+cve_id,condition,batch_id,batch_status,total_reward,quality_score,gate_FORMAT,gate_FUNCTIONAL,gate_SOLVABILITY,gate_NON_TRIVIALITY,soft_RAG_GROUNDING,soft_CVE_RELEVANCE,passed_all_binary,pub_ge_06,pub_ge_090,is_selected,selection_status,solvability_source,xss_selftest_live,n_selftest_live,tokens_in,tokens_out,selftest_cost_rub,cost_rub,wall_clock_s
+CVE-2026-49383,full,ad91183b-db6b-4416-90f1-84b55c863af6,completed,0.982857,0.91,1,1,1,1,1.0,1.0,1,1,1,1,selected,live_pass,1,5,33435,6156,0.0,21.6423,140.087
+CVE-2026-49383,no_rag,f5776a75-b965-4e46-bf1f-1befbe252300,completed,0.877143,0.98,1,1,1,1,0.5,0.5,1,1,0,1,selected,live_pass,1,5,18090,5764,0.0,13.6562,123.239
+CVE-2026-49383,no_bon,7ce106ae-858e-4ed5-91cd-292eaa1d68f3,completed,0.977143,0.88,1,1,1,1,1.0,1.0,1,1,1,1,selected,live_pass,1,1,6723,703,0.0,3.9239,62.977
+CVE-2026-49383,no_self_test,5489d453-f000-4d99-b98f-05cf0d4089b3,completed,0.977143,0.88,1,1,1,1,1.0,1.0,1,1,1,1,selected,static,0,0,33650,7381,0.0,22.7298,113.162
+CVE-2026-42589,full,cad564c6-6490-45a1-b90f-f51cfa652d4d,completed,0.953333,0.98,1,1,1,1,0.7,1.0,1,1,1,1,selected,live_pass,1,5,34550,9130,0.0,24.579,137.733
+CVE-2026-42589,no_rag,f3b60266-9602-4223-83e0-ad89a49cc757,completed,0.873333,0.96,1,1,1,1,0.5,0.5,1,1,0,1,selected,live_pass,1,5,18685,7997,0.0,15.7401,114.215
+CVE-2026-42589,no_bon,5467d03b-3b80-4498-87b6-75e95f2ee0f8,completed,0.938095,0.9,1,1,1,1,0.7,1.0,1,1,1,1,selected,live_pass,1,1,7013,1979,0.0,5.0897,79.157
+CVE-2026-42589,no_self_test,61b0a6b4-bb20-47f2-91b3-cbf1456fcce5,completed,0.980952,0.9,1,1,1,1,1.0,1.0,1,1,1,1,selected,static,0,0,35065,9940,0.0,25.4845,124.896

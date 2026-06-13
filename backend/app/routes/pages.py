@@ -47,6 +47,17 @@ from app.schemas.admin import (
     AdminPromptTemplate,
     AdminPromptUpdateRequest,
 )
+from app.schemas.landing import (
+    LandingAdminResponse,
+    LandingHuntAnalytics,
+    LandingSettingsUpdate,
+)
+from app.models.landing import LandingHuntSession, LandingHuntSessionItem, PromoCode
+from app.services.landing_hunt import (
+    LANDING_HUNT_BUG_KEYS,
+    PROMO_SOURCE_LANDING_HUNT,
+    get_or_create_settings,
+)
 from app.services.nvd_sync import run_sync
 from app.services.task_generation import (
     generate_task_payload_with_prompt,
@@ -302,6 +313,109 @@ async def resolve_feedback(
         resolved=bool(row.get("resolved")),
         created_at=row.get("created_at"),
     )
+
+
+@router.get("/admin/landing", response_model=LandingAdminResponse)
+async def get_admin_landing(
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Настройки лендинга + аналитика по hunt-механике для админки."""
+    _user, _profile = current_user_data
+    settings = await get_or_create_settings(db)
+
+    total_sessions = (
+        await db.execute(select(func.count()).select_from(LandingHuntSession))
+    ).scalar_one()
+    completed_sessions = (
+        await db.execute(
+            select(func.count())
+            .select_from(LandingHuntSession)
+            .where(LandingHuntSession.completed_at.isnot(None))
+        )
+    ).scalar_one()
+
+    per_bug_rows = (
+        await db.execute(
+            select(LandingHuntSessionItem.bug_key, func.count())
+            .group_by(LandingHuntSessionItem.bug_key)
+        )
+    ).all()
+    per_bug_found = {key: int(count) for key, count in per_bug_rows}
+    total_bugs_found = sum(per_bug_found.values())
+
+    promos_issued = (
+        await db.execute(
+            select(func.count())
+            .select_from(PromoCode)
+            .where(PromoCode.source == PROMO_SOURCE_LANDING_HUNT)
+        )
+    ).scalar_one()
+    promos_redeemed = (
+        await db.execute(
+            select(func.count())
+            .select_from(PromoCode)
+            .where(
+                PromoCode.source == PROMO_SOURCE_LANDING_HUNT,
+                PromoCode.redeemed_at.isnot(None),
+            )
+        )
+    ).scalar_one()
+    points_granted = (
+        await db.execute(
+            select(func.coalesce(func.sum(PromoCode.reward_points), 0))
+            .where(
+                PromoCode.source == PROMO_SOURCE_LANDING_HUNT,
+                PromoCode.redeemed_at.isnot(None),
+            )
+        )
+    ).scalar_one()
+
+    await db.commit()
+
+    return LandingAdminResponse(
+        is_visible=bool(settings.is_visible),
+        hunt_enabled=bool(settings.hunt_enabled),
+        reward_points=int(settings.reward_points or 0),
+        hero_eyebrow=settings.hero_eyebrow,
+        hero_title=settings.hero_title,
+        hero_subtitle=settings.hero_subtitle,
+        updated_at=settings.updated_at,
+        bug_keys=list(LANDING_HUNT_BUG_KEYS),
+        analytics=LandingHuntAnalytics(
+            total_sessions=int(total_sessions),
+            completed_sessions=int(completed_sessions),
+            total_bugs_found=int(total_bugs_found),
+            per_bug_found=per_bug_found,
+            promos_issued=int(promos_issued),
+            promos_redeemed=int(promos_redeemed),
+            points_granted=int(points_granted),
+        ),
+    )
+
+
+@router.put("/admin/landing", response_model=LandingAdminResponse)
+async def update_admin_landing(
+    payload: LandingSettingsUpdate,
+    current_user_data: tuple = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Обновить настройки лендинга (видимость, hunt, награда, hero-тексты)."""
+    user, _profile = current_user_data
+    settings = await get_or_create_settings(db)
+
+    data = payload.model_dump(exclude_unset=True)
+    for field in ("is_visible", "hunt_enabled", "reward_points", "hero_eyebrow", "hero_title", "hero_subtitle"):
+        if field in data:
+            value = data[field]
+            if field in ("hero_eyebrow", "hero_title", "hero_subtitle") and isinstance(value, str):
+                value = value.strip() or None
+            setattr(settings, field, value)
+    settings.updated_at = datetime.now(timezone.utc)
+    settings.updated_by_user_id = user.id
+    await db.commit()
+
+    return await get_admin_landing(current_user_data=current_user_data, db=db)
 
 
 def _normalize_tags(raw_tags: Optional[list[str]]) -> list[str]:

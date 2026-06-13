@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 import { LandingFooter, LandingHeader } from '../components/landing/LandingChrome';
 import LandingPromoModal from '../components/landing/LandingPromoModal';
@@ -58,6 +58,7 @@ function RevealBlock({ children, className = '', delay = 0 }) {
 }
 
 function BugButton({ bug, found, onFound, className = '' }) {
+  if (!bug) return null;
   return (
     <button
       type="button"
@@ -303,6 +304,7 @@ function HuntTracker({ huntState, huntError }) {
 }
 
 export default function Landing() {
+  const navigate = useNavigate();
   const benefitsRef = useRef(null);
   const championshipsRef = useRef(null);
   const learningRef = useRef(null);
@@ -317,6 +319,14 @@ export default function Landing() {
   const [cookieDismissed, setCookieDismissed] = useState(() =>
     window.localStorage.getItem(COOKIE_STORAGE_KEY) === '1'
   );
+  const [settings, setSettings] = useState({
+    is_visible: true,
+    hunt_enabled: true,
+    hero_eyebrow: null,
+    hero_title: null,
+    hero_subtitle: null,
+  });
+  const huntEnabled = settings.hunt_enabled !== false;
   const [huntBusy, setHuntBusy] = useState(false);
   const [huntError, setHuntError] = useState('');
   const [huntState, setHuntState] = useState({
@@ -331,12 +341,40 @@ export default function Landing() {
   const audienceCards = landingAudienceTabs.find((tab) => tab.id === audienceTab)?.cards || [];
   const activeSlide = landingChampionshipSlides[championshipIndex];
 
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
   useEffect(() => {
     window.document.title = 'HackNet | Главная';
     window.scrollTo(0, 0);
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadSettings = async () => {
+      try {
+        const response = await landingAPI.getSettings();
+        if (cancelled) return;
+        if (response.is_visible === false) {
+          navigate('/login', { replace: true });
+          return;
+        }
+        setSettings(response);
+      } catch (error) {
+        // Settings are best-effort: fall back to defaults (visible, hunt on).
+      } finally {
+        if (!cancelled) setSettingsLoaded(true);
+      }
+    };
+
+    loadSettings();
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!settingsLoaded || !huntEnabled) return undefined;
     let cancelled = false;
 
     const bootstrapHunt = async () => {
@@ -362,7 +400,7 @@ export default function Landing() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [settingsLoaded, huntEnabled]);
 
   useEffect(() => {
     const rail = audienceRailRef.current;
@@ -413,7 +451,7 @@ export default function Landing() {
     rail.scrollBy({ left: offset, behavior: 'smooth' });
   };
 
-  const getBug = (key) => landingHuntBugs.find((item) => item.key === key);
+  const getBug = (key) => (huntEnabled ? landingHuntBugs.find((item) => item.key === key) : null);
   const isBugFound = (key) => huntState.found_bug_keys.includes(key);
 
   return (
@@ -437,8 +475,8 @@ export default function Landing() {
             />
 
             <RevealBlock className="landing-figma-hero__copy">
-              <span className="landing-figma-hero__eyebrow">{landingHeroDesign.eyebrow}</span>
-              <h1>{landingHeroDesign.title}</h1>
+              <span className="landing-figma-hero__eyebrow">{settings.hero_eyebrow || landingHeroDesign.eyebrow}</span>
+              <h1>{settings.hero_title || landingHeroDesign.title}</h1>
 
               <div className="landing-figma-hero__pills">
                 <span className="is-active">Чемпионаты по хакингу</span>
@@ -446,7 +484,7 @@ export default function Landing() {
                 <span>База знаний</span>
               </div>
 
-              <p className="landing-figma-hero__subtitle">{landingHeroDesign.subtitle}</p>
+              <p className="landing-figma-hero__subtitle">{settings.hero_subtitle || landingHeroDesign.subtitle}</p>
             </RevealBlock>
 
             {!cookieDismissed ? (

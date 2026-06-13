@@ -2577,6 +2577,247 @@ function PromptManagerModal({ open, onClose }) {
   );
 }
 
+const LANDING_BUG_LABELS = {
+  hero_console: 'Главный экран',
+  championship_card: 'Чемпионаты',
+  learning_split: 'Обучение',
+  audience_slider: 'Для кого',
+  faq_console: 'FAQ',
+  footer_logo: 'Футер',
+};
+
+function LandingModal({ open, onClose, onSaved }) {
+  const [status, setStatus] = useState('idle');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [data, setData] = useState(null);
+  const [form, setForm] = useState({
+    is_visible: true,
+    hunt_enabled: true,
+    reward_points: 10,
+    hero_eyebrow: '',
+    hero_title: '',
+    hero_subtitle: '',
+  });
+
+  const load = useCallback(async () => {
+    setStatus('loading');
+    setError('');
+    try {
+      const res = await adminAPI.getLanding();
+      setData(res);
+      setForm({
+        is_visible: !!res.is_visible,
+        hunt_enabled: !!res.hunt_enabled,
+        reward_points: Number(res.reward_points ?? 10),
+        hero_eyebrow: res.hero_eyebrow || '',
+        hero_title: res.hero_title || '',
+        hero_subtitle: res.hero_subtitle || '',
+      });
+      setStatus('ready');
+    } catch (err) {
+      setStatus('error');
+      setError(getApiErrorMessage(err, 'Не удалось загрузить настройки лендинга'));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      load();
+    }
+  }, [open, load]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const res = await adminAPI.updateLanding({
+        is_visible: form.is_visible,
+        hunt_enabled: form.hunt_enabled,
+        reward_points: Number(form.reward_points) || 0,
+        hero_eyebrow: form.hero_eyebrow,
+        hero_title: form.hero_title,
+        hero_subtitle: form.hero_subtitle,
+      });
+      setData(res);
+      if (onSaved) onSaved();
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Не удалось сохранить настройки'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOverlayClick = (e) => {
+    if (e.target === e.currentTarget) onClose();
+  };
+
+  if (!open) return null;
+
+  const a = data?.analytics || {};
+  const statCards = [
+    { label: 'Сессий хантa', value: a.total_sessions ?? 0 },
+    { label: 'Завершено', value: a.completed_sessions ?? 0 },
+    { label: 'Промокодов выдано', value: a.promos_issued ?? 0 },
+    { label: 'Промокодов активировано', value: a.promos_redeemed ?? 0 },
+    { label: 'Очков начислено', value: a.points_granted ?? 0 },
+    { label: 'Багов найдено', value: a.total_bugs_found ?? 0 },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 px-4"
+      onClick={handleOverlayClick}
+    >
+      <div className="bg-[#0B0A10] border border-white/[0.09] rounded-[20px] p-8 w-full max-w-4xl mx-4 font-sans-figma max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h3 className="text-white text-[24px] leading-[32px] font-medium">Лендинг</h3>
+            <p className="text-white/60 text-[14px] mt-2">
+              Видимость, охота за багами, награда и тексты hero-блока
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-white/60 hover:text-white transition-colors"
+          >
+            Закрыть
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-2 rounded-[12px] mb-4 text-sm">
+            {error}
+          </div>
+        )}
+
+        {status === 'loading' && (
+          <div className="text-white/60 text-[14px]">Загрузка...</div>
+        )}
+
+        {status !== 'loading' && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+              {statCards.map((card) => (
+                <div key={card.label} className="border border-white/[0.08] rounded-[14px] p-4">
+                  <div className="text-white text-[22px] leading-[26px] font-medium">{card.value}</div>
+                  <div className="text-white/50 text-[12px] mt-1">{card.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {data?.bug_keys?.length > 0 && (
+              <div className="border border-white/[0.08] rounded-[16px] p-4 mb-6">
+                <div className="text-[14px] text-white/60 mb-3">Найдено по элементам</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {data.bug_keys.map((key) => (
+                    <div key={key} className="flex items-center justify-between text-[13px] text-white/80 bg-white/[0.04] rounded-[10px] px-3 py-2">
+                      <span>{LANDING_BUG_LABELS[key] || key}</span>
+                      <span className="text-[#CBB6FF]">{a.per_bug_found?.[key] ?? 0}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-center justify-between border border-white/[0.08] rounded-[12px] px-4 py-3">
+                <div>
+                  <div className="text-white text-[15px]">Лендинг виден</div>
+                  <div className="text-white/50 text-[12px]">Если выключено — /landing редиректит на /login</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={form.is_visible}
+                  onChange={(e) => setForm((f) => ({ ...f, is_visible: e.target.checked }))}
+                  className="h-5 w-5 accent-[#9B6BFF]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between border border-white/[0.08] rounded-[12px] px-4 py-3">
+                <div>
+                  <div className="text-white text-[15px]">Охота за багами включена</div>
+                  <div className="text-white/50 text-[12px]">Выдача промокода за 6 найденных секретов</div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={form.hunt_enabled}
+                  onChange={(e) => setForm((f) => ({ ...f, hunt_enabled: e.target.checked }))}
+                  className="h-5 w-5 accent-[#9B6BFF]"
+                />
+              </div>
+
+              <label className="block">
+                <span className="text-white/60 text-[13px]">Награда (очки рейтинга)</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={form.reward_points}
+                  onChange={(e) => setForm((f) => ({ ...f, reward_points: e.target.value }))}
+                  className="mt-1 w-full h-11 px-3 rounded-[10px] bg-white/[0.04] border border-white/[0.08] text-white text-[14px] focus:border-[#9B6BFF] outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-white/60 text-[13px]">Hero — надзаголовок</span>
+                <input
+                  type="text"
+                  value={form.hero_eyebrow}
+                  placeholder="по умолчанию из дизайна"
+                  onChange={(e) => setForm((f) => ({ ...f, hero_eyebrow: e.target.value }))}
+                  className="mt-1 w-full h-11 px-3 rounded-[10px] bg-white/[0.04] border border-white/[0.08] text-white text-[14px] focus:border-[#9B6BFF] outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-white/60 text-[13px]">Hero — заголовок</span>
+                <input
+                  type="text"
+                  value={form.hero_title}
+                  placeholder="по умолчанию из дизайна"
+                  onChange={(e) => setForm((f) => ({ ...f, hero_title: e.target.value }))}
+                  className="mt-1 w-full h-11 px-3 rounded-[10px] bg-white/[0.04] border border-white/[0.08] text-white text-[14px] focus:border-[#9B6BFF] outline-none"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-white/60 text-[13px]">Hero — подзаголовок</span>
+                <input
+                  type="text"
+                  value={form.hero_subtitle}
+                  placeholder="по умолчанию из дизайна"
+                  onChange={(e) => setForm((f) => ({ ...f, hero_subtitle: e.target.value }))}
+                  className="mt-1 w-full h-11 px-3 rounded-[10px] bg-white/[0.04] border border-white/[0.08] text-white text-[14px] focus:border-[#9B6BFF] outline-none"
+                />
+              </label>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <a
+                href="/#/landing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-11 px-4 inline-flex items-center rounded-[10px] border border-white/[0.12] text-white/80 hover:text-white transition-colors"
+              >
+                Открыть лендинг
+              </a>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || status === 'error'}
+                className="h-11 px-4 rounded-[10px] bg-[#9B6BFF] hover:bg-[#8452FF] text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Сохранение...' : 'Сохранить'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Admin() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -2586,6 +2827,7 @@ function Admin() {
   const [isTaskOpen, setIsTaskOpen] = useState(false);
   const [isContestPlanningOpen, setIsContestPlanningOpen] = useState(false);
   const [isPromptManagerOpen, setIsPromptManagerOpen] = useState(false);
+  const [isLandingOpen, setIsLandingOpen] = useState(false);
   const [isNvdRunning, setIsNvdRunning] = useState(false);
   const [nvdError, setNvdError] = useState('');
   const [feedbackToResolve, setFeedbackToResolve] = useState(null);
@@ -2752,6 +2994,21 @@ function Admin() {
             >
               База знаний
             </button>
+            <button
+              type="button"
+              onClick={() => setIsLandingOpen(true)}
+              className="h-10 px-4 rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
+            >
+              Landing
+            </button>
+            <a
+              href="/#/landing"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="h-10 px-4 inline-flex items-center rounded-[12px] bg-white/10 border border-white/10 text-white/80 text-[14px] tracking-[0.04em] transition-colors duration-200 hover:border-[#9B6BFF]/60 hover:text-white"
+            >
+              Открыть лендинг
+            </a>
           </div>
           {nvdError && (
             <div className="text-[14px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded-[12px] px-4 py-2">
@@ -3011,6 +3268,11 @@ function Admin() {
       <PromptManagerModal
         open={isPromptManagerOpen}
         onClose={() => setIsPromptManagerOpen(false)}
+      />
+      <LandingModal
+        open={isLandingOpen}
+        onClose={() => setIsLandingOpen(false)}
+        onSaved={() => loadDashboard()}
       />
     </div>
   );

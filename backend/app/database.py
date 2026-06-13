@@ -209,6 +209,28 @@ async def ensure_landing_hunt_schema_compatibility() -> None:
         ON promo_codes(redeemed_by_user_id)
         WHERE source = 'landing_hunt' AND redeemed_by_user_id IS NOT NULL
         """,
+        """
+        CREATE TABLE IF NOT EXISTS landing_settings (
+            id BIGINT PRIMARY KEY DEFAULT 1,
+            is_visible BOOLEAN NOT NULL DEFAULT true,
+            hunt_enabled BOOLEAN NOT NULL DEFAULT true,
+            reward_points INTEGER NOT NULL DEFAULT 10,
+            hero_eyebrow TEXT,
+            hero_title TEXT,
+            hero_subtitle TEXT,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            updated_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS is_visible BOOLEAN NOT NULL DEFAULT true",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS hunt_enabled BOOLEAN NOT NULL DEFAULT true",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS reward_points INTEGER NOT NULL DEFAULT 10",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS hero_eyebrow TEXT",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS hero_title TEXT",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS hero_subtitle TEXT",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE landing_settings ADD COLUMN IF NOT EXISTS updated_by_user_id BIGINT",
+        "INSERT INTO landing_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING",
     ]
 
     async with engine.begin() as conn:

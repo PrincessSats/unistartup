@@ -14,6 +14,7 @@ from app.schemas.landing import (
     LandingHuntFoundRequest,
     LandingHuntResponse,
     LandingHuntSessionRequest,
+    LandingSettingsPublic,
 )
 from app.services.landing_hunt import (
     LANDING_HUNT_BUG_KEYS,
@@ -23,6 +24,7 @@ from app.services.landing_hunt import (
     apply_found_bug,
     create_promo_code,
     create_session_token,
+    get_or_create_settings,
     is_valid_bug_key,
     normalize_bug_key,
     normalize_session_token,
@@ -80,11 +82,14 @@ async def _ensure_session_promo_code(db: AsyncSession, session: LandingHuntSessi
     if existing is not None:
         return existing
 
+    settings = await get_or_create_settings(db)
+    reward_points = int(settings.reward_points if settings.reward_points is not None else PROMO_REWARD_POINTS)
+
     for _ in range(20):
         candidate = PromoCode(
             code=create_promo_code(),
             source=PROMO_SOURCE_LANDING_HUNT,
-            reward_points=PROMO_REWARD_POINTS,
+            reward_points=reward_points,
             expires_at=utcnow() + PROMO_TTL,
             issued_hunt_session_id=session.id,
         )
@@ -162,8 +167,24 @@ async def mark_hunt_bug_found(
     if just_completed and session.completed_at is None:
         session.completed_at = utcnow()
         await db.flush()
-        await _ensure_session_promo_code(db, session)
+        settings = await get_or_create_settings(db)
+        if settings.hunt_enabled:
+            await _ensure_session_promo_code(db, session)
 
     session.updated_at = utcnow()
     await db.commit()
     return await _build_hunt_response(db, session=session, just_completed=just_completed)
+
+
+@router.get("/settings", response_model=LandingSettingsPublic)
+async def get_landing_settings(db: AsyncSession = Depends(get_db)):
+    """Public landing config for the frontend (visibility, hunt toggle, hero overrides)."""
+    settings = await get_or_create_settings(db)
+    await db.commit()
+    return LandingSettingsPublic(
+        is_visible=bool(settings.is_visible),
+        hunt_enabled=bool(settings.hunt_enabled),
+        hero_eyebrow=settings.hero_eyebrow,
+        hero_title=settings.hero_title,
+        hero_subtitle=settings.hero_subtitle,
+    )

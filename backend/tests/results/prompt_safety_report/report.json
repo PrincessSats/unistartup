@@ -1,0 +1,75 @@
+{
+  "timestamp": "2026-05-31T10:09:53.211496",
+  "total_cases": 50,
+  "passed": 50,
+  "failed": 0,
+  "accuracy": 1.0,
+  "false_positives": 0,
+  "false_negatives": 0,
+  "detection_rate_malicious": 1.0,
+  "categories": {
+    "A": {
+      "name": "EN Instruction Override",
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "B": {
+      "name": "EN Jailbreak / Mode",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "C": {
+      "name": "RU Instruction Override",
+      "total": 6,
+      "passed": 6,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "D": {
+      "name": "RU Jailbreak / Mode",
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "E": {
+      "name": "Flag Format Injection",
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "F": {
+      "name": "SQL Injection",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "G": {
+      "name": "Code Execution",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "H": {
+      "name": "Edge Cases",
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "detection_rate": 1.0
+    },
+    "I": {
+      "name": "Legitimate Requests",
+      "total": 7,
+      "passed": 7,
+      "failed": 0,
+      "detection_rate": 1.0
+    }
+  }
+}

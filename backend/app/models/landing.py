@@ -1,9 +1,29 @@
-from sqlalchemy import Column, BigInteger, Integer, Text, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, Text, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class LandingSettings(Base):
+    """Singleton row (id=1) holding admin-editable landing configuration."""
+
+    __tablename__ = "landing_settings"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=False)
+    is_visible = Column(Boolean, nullable=False, server_default="true")
+    hunt_enabled = Column(Boolean, nullable=False, server_default="true")
+    reward_points = Column(Integer, nullable=False, server_default="10")
+    hero_eyebrow = Column(Text, nullable=True)
+    hero_title = Column(Text, nullable=True)
+    hero_subtitle = Column(Text, nullable=True)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    updated_by_user_id = Column(
+        BigInteger,
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
 
 class LandingHuntSession(Base):

@@ -5,6 +5,12 @@ import re
 import secrets
 from typing import Iterable
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.landing import LandingSettings
+
+LANDING_SETTINGS_ID = 1
 PROMO_SOURCE_LANDING_HUNT = "landing_hunt"
 PROMO_REWARD_POINTS = 10
 PROMO_TTL = timedelta(days=3)
@@ -72,4 +78,15 @@ def normalize_promo_code(value: str | None) -> str:
 
 def create_promo_code() -> str:
     return "".join(secrets.choice(PROMO_CODE_ALPHABET) for _ in range(PROMO_CODE_LENGTH))
+
+
+async def get_or_create_settings(db: AsyncSession) -> LandingSettings:
+    """Return the singleton landing settings row, creating it if absent."""
+    settings = await db.get(LandingSettings, LANDING_SETTINGS_ID)
+    if settings is not None:
+        return settings
+    settings = LandingSettings(id=LANDING_SETTINGS_ID, reward_points=PROMO_REWARD_POINTS)
+    db.add(settings)
+    await db.flush()
+    return settings
 

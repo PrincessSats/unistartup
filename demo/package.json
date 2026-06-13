@@ -1,0 +1,17 @@
+{
+  "name": "hacknet-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cinematic Playwright + ffmpeg demo video generator for HackNet",
+  "scripts": {
+    "setup": "playwright install chromium",
+    "capture": "node capture.mjs",
+    "build": "node build.mjs",
+    "demo": "node capture.mjs && node build.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "playwright": "^1.48.0"
+  }
+}

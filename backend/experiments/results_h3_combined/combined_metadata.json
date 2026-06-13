@@ -1,0 +1,67 @@
+{
+  "crypto_text_web": {
+    "dir": "experiments/results_h3_crypto_text_web",
+    "seed": 1337,
+    "pool_size": 50,
+    "n_cves": 50,
+    "model_uri": "gpt://b1goei423tq1phl6o0av/deepseek-v4-flash/latest",
+    "num_variants_full": 5,
+    "git_commit": "76203bd490918264c37132062c5ce34280e7832b",
+    "date_utc": "2026-05-30T16:19:22.096545+00:00",
+    "conditions_run": [
+      "full",
+      "no_rag",
+      "no_bon"
+    ],
+    "dry_run": false
+  },
+  "forensics_image_metadata": {
+    "dir": "experiments/results_h3_forensics_image_metadata",
+    "seed": 1337,
+    "pool_size": 50,
+    "n_cves": 50,
+    "model_uri": "gpt://b1goei423tq1phl6o0av/deepseek-v4-flash/latest",
+    "num_variants_full": 5,
+    "git_commit": "76203bd490918264c37132062c5ce34280e7832b",
+    "date_utc": "2026-05-30T16:44:21.316177+00:00",
+    "conditions_run": [
+      "full",
+      "no_rag",
+      "no_bon"
+    ],
+    "dry_run": false
+  },
+  "chat_llm": {
+    "dir": "experiments/results_h3_chat_llm",
+    "seed": 1337,
+    "pool_size": 50,
+    "n_cves": 50,
+    "model_uri": "gpt://b1goei423tq1phl6o0av/deepseek-v4-flash/latest",
+    "num_variants_full": 5,
+    "git_commit": "76203bd490918264c37132062c5ce34280e7832b",
+    "date_utc": "2026-05-30T19:51:54.194159+00:00",
+    "conditions_run": [
+      "full",
+      "no_rag",
+      "no_bon"
+    ],
+    "dry_run": false
+  },
+  "web_static_xss": {
+    "dir": "experiments/results_h3_web_static_xss",
+    "seed": 1337,
+    "pool_size": 50,
+    "n_cves": 50,
+    "model_uri": "gpt://b1goei423tq1phl6o0av/deepseek-v4-flash/latest",
+    "num_variants_full": 5,
+    "git_commit": "76203bd490918264c37132062c5ce34280e7832b",
+    "date_utc": "2026-05-30T22:10:25.939646+00:00",
+    "conditions_run": [
+      "full",
+      "no_rag",
+      "no_bon",
+      "no_self_test"
+    ],
+    "dry_run": false
+  }
+}

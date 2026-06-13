@@ -1,0 +1,839 @@
+# Пайплайн генерации CTF-заданий (GRPO Pipeline)
+
+## Обзор
+
+Платформа HackNet использует **GRPO-подобный пайплайн** (Group-Relative Policy Optimization) для автоматической генерации CTF-заданий с помощью LLM. Этот подход адаптирован из статьи DeepSeek-R1 (arXiv:2501.12948) и позволяет генерировать качественные задания через конкуренцию нескольких вариантов.
+
+**Основная идея:** вместо генерации одного варианта, система создаёт N вариантов параллельно, оценивает их по множеству критериев, и выбирает лучший относительно группы.
+
+---
+
+## Архитектура пайплайна
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         ЗАПРОС НА ГЕНЕРАЦИЮ                             │
+│  (task_type, difficulty, cve_id/topic, num_variants=5)                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ЭТАП 1: RAG CONTEXT BUILDING                                           │
+│  • Семантический поиск CVE через pgvector (косинусное расстояние)       │
+│  • 2-этапный поиск: CWE-фильтр → семантический fallback                 │
+│  • Контекст: CVE ID, описание, CWE, CVSS, теги                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ЭТАП 2: FEEDBACK CONTEXT                                               │
+│  • Извлечение исторических примеров (few-shot learning)                 │
+│  • Положительные примеры (passed_all_binary=true)                       │
+│  • Отрицательные паттерны (частые ошибки)                               │
+│  • Pass rate за последние 20 генераций                                  │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ЦИКЛ ПОПЫТОК (max_retries=2)                                           │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 1: ГЕНЕРАЦИЯ N СПЕЦИФИКАЦИЙ (параллельно)                    │  │
+│  │  • asyncio.gather() с разными температурами                        │  │
+│  │  • Температуры: base_temp + i * temp_step (0.7, 0.8, 0.9, ...)    │  │
+│  │  • Модель: deepseek-v32 (Yandex Cloud LLM)                         │  │
+│  │  • Промпт: системный (из файла) + user (RAG + feedback + ошибки)  │  │
+│  │                                                                     │  │
+│  │  Для каждого варианта:                                              │  │
+│  │  {                                                                  │  │
+│  │    "title": "...",                                                  │  │
+│  │    "description": "...",                                            │  │
+│  │    "flag": "CTF{...}",                                              │  │
+│  │    "crypto_chain": [...],  // или hide_in, xss_type, и т.д.        │  │
+│  │    "writeup": "...",                                                │  │
+│  │    "hints": [...]                                                   │  │
+│  │  }                                                                  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 2: СОЗДАНИЕ АРТЕФАКТОВ (параллельно)                         │  │
+│  │                                                                     │  │
+│  │  crypto_text_web:                                                   │  │
+│  │    • apply_chain(flag, crypto_chain) → ciphertext                   │  │
+│  │    • Проверка обратимости                                           │  │
+│  │                                                                     │  │
+│  │  forensics_image_metadata:                                          │  │
+│  │    • Выбор стокового изображения (S3)                               │  │
+│  │    • Инъекция флага в метаданные (EXIF/XMP/IPTC)                   │  │
+│  │    • Загрузка модифицированного JPEG в S3                          │  │
+│  │                                                                     │  │
+│  │  web_static_xss:                                                    │  │
+│  │    • Рендер HTML-страницы с уязвимостью                            │  │
+│  │    • Загрузка в S3                                                  │  │
+│  │                                                                     │  │
+│  │  chat_llm:                                                          │  │
+│  │    • Валидация system_prompt_template                               │  │
+│  │    • Проверка {{FLAG}} placeholder                                  │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 3: БИНАРНАЯ ВАЛИДАЦИЯ (последовательно)                      │  │
+│  │                                                                     │  │
+│  │  4 бинарных проверки (0.0 или 1.0):                                │  │
+│  │                                                                     │  │
+│  │  1. FORMAT:                                                         │  │
+│  │     • Все требуемые поля присутствуют                               │  │
+│  │     • Флаг соответствует CTF{...}                                   │  │
+│  │     • crypto_chain не пустой (для crypto)                           │  │
+│  │                                                                     │  │
+│  │  2. FUNCTIONAL:                                                     │  │
+│  │     • Артефакт создан без ошибок                                   │  │
+│  │     • JPEG валиден, HTML корректен, ciphertext получен              │  │
+│  │                                                                     │  │
+│  │  3. SOLVABILITY:                                                    │  │
+│  │     • Флаг может быть извлечён через reverse_chain                  │  │
+│  │     • Для forensics: extract_metadata_field находит флаг            │  │
+│  │     • Для XSS: payload содержит XSS-триггеры                        │  │
+│  │                                                                     │  │
+│  │  4. NON_TRIVIALITY:                                                 │  │
+│  │     • Флаг не в plaintext в ciphertext                              │  │
+│  │     • Флаг не в description/title                                   │  │
+│  │     • Флаг не в filename                                            │  │
+│  │     • Single base64 decode не раскрывает флаг                       │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 4: LLM QUALITY REVIEW (только для прошедших бинарные)        │  │
+│  │                                                                     │  │
+│  │  Модель: deepseek-v32 (LLM-as-judge)                               │  │
+│  │                                                                     │  │
+│  │  5 критериев (0.0-1.0 каждый):                                      │  │
+│  │  • educational_value — учит ли реальному навыку                     │  │
+│  │  • scenario_realism — реалистичен ли сценарий                      │  │
+│  │  • hint_quality — подсказки дозированы                             │  │
+│  │  • writeup_clarity — решение понятно                               │  │
+│  │  • difficulty_calibration — соответствует сложности                 │  │
+│  │                                                                     │  │
+│  │  quality_score = среднее арифметическое 5 оценок                   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 5: RAG GROUNDING + CVE RELEVANCE (мягкие проверки)           │  │
+│  │                                                                     │  │
+│  │  RAG_GROUNDING:                                                     │  │
+│  │    • Embedding spec (title + description)                          │  │
+│  │    • Косинусное сходство с CVE из контекста                        │  │
+│  │    • Score: 1.0 (≥0.7), 0.7 (≥0.5), 0.4 (≥0.3), 0.1 (<0.3)        │  │
+│  │                                                                     │  │
+│  │  CVE_RELEVANCE:                                                     │  │
+│  │    • Проверка технических keywords из CVE                          │  │
+│  │    • Упоминание CWE/CVE ID в spec                                  │  │
+│  │    • Score: 1.0 (3+ keywords + CVE), 0.7 (2+ keywords + CVE),     │  │
+│  │           0.4 (только CVE или 2+ keywords), 0.1 (ничего)           │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 6: ВЫЧИСЛЕНИЕ НАГРАД                                         │  │
+│  │                                                                     │  │
+│  │  Веса по типам заданий (REWARD_WEIGHTS):                           │  │
+│  │  ┌─────────────────────┬──────────┬──────────┬──────────┬─────────┐│  │
+│  │  │ Проверка            │ crypto   │ foren    │ xss      │ chat    ││  │
+│  │  ├─────────────────────┼──────────┼──────────┼──────────┼─────────┤│  │
+│  │  │ FORMAT              │ 1.0      │ 1.0      │ 1.0      │ 1.0     ││  │
+│  │  │ FUNCTIONAL          │ 1.5      │ 2.0      │ 1.5      │ 1.5     ││  │
+│  │  │ SOLVABILITY         │ 2.0      │ 2.0      │ 2.0      │ 2.0     ││  │
+│  │  │ NON_TRIVIALITY      │ 1.5      │ 1.0      │ 1.5      │ 2.0     ││  │
+│  │  │ QUALITY             │ 2.0      │ 2.0      │ 2.0      │ 2.0     ││  │
+│  │  │ RAG_GROUNDING       │ 1.5      │ 1.5      │ 1.5      │ 1.5     ││  │
+│  │  │ CVE_RELEVANCE       │ 1.0      │ 1.0      │ 1.0      │ 1.0     ││  │
+│  │  └─────────────────────┴──────────┴──────────┴──────────┴─────────┘│  │
+│  │                                                                     │  │
+│  │  total_reward = Σ(score × weight) / Σ(weight)                      │  │
+│  │  binary_reward = Σ(binary_score × weight) / Σ(binary_weight)       │  │
+│  │  passed_all_binary = все бинарные проверки = 1.0                   │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 7: GRPO GROUP-RELATIVE ADVANTAGE                             │  │
+│  │                                                                     │  │
+│  │  Для каждого варианта i:                                            │  │
+│  │  advantage_i = (reward_i - mean) / std                             │  │
+│  │                                                                     │  │
+│  │  • mean = среднее всех total_reward в группе                       │  │
+│  │  • std = стандартное отклонение всех total_reward                  │  │
+│  │  • Если std ≈ 0 → advantage = 0.0 для всех                         │  │
+│  │                                                                     │  │
+│  │  Ранжирование: варианты с passed_all_binary=true сортируются       │  │
+│  │  по advantage (по убыванию)                                        │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 8: СОХРАНЕНИЕ ВСЕХ ВАРИАНТОВ В БД                            │  │
+│  │                                                                     │  │
+│  │  ai_generation_variants:                                            │  │
+│  │  • id, batch_id, variant_number                                     │  │
+│  │  • generated_spec (JSONB) — полная спецификация                    │  │
+│  │  • artifact_result (JSONB) — контент, file_url, verification_data  │  │
+│  │  • reward_checks (JSONB) — все проверки с деталями                 │  │
+│  │  • reward_total, reward_binary, passed_all_binary                  │  │
+│  │  • quality_score, quality_details                                  │  │
+│  │  • advantage, rank_in_group                                        │  │
+│  │  • is_selected, failure_reason                                     │  │
+│  │  • embedding (Vector(256)) — для future feedback search            │  │
+│  │                                                                     │  │
+│  │  ai_generation_batches:                                             │  │
+│  │  • group_mean_reward, group_std_reward, pass_rate                  │  │
+│  │  • selected_variant_id, status                                     │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                                    ▼                                      │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  ШАГ 9: ВЫБОР ЛУЧШЕГО ВАРИАНТА                                    │  │
+│  │                                                                     │  │
+│  │  Критерии выбора:                                                   │  │
+│  │  1. passed_all_binary == True                                      │  │
+│  │  2. highest advantage среди прошедших                              │  │
+│  │  3. total_reward >= threshold (0.6 по умолчанию)                   │  │
+│  │                                                                     │  │
+│  │  Если найден:                                                       │  │
+│  │  • is_selected = True                                              │  │
+│  │  • rank_in_group = 1                                               │  │
+│  │  • batch.status = "completed"                                      │  │
+│  │  • batch.selected_variant_id = id варианта                         │  │
+│  │  • Пайплайн завершён успешно                                       │  │
+│  └───────────────────────────────────────────────────────────────────┘  │
+│                                    │                                      │
+│                          ┌─────────┴─────────┐                           │
+│                          │                   │                           │
+│                     УСПЕХ              НЕУДАЧА                           │
+│                          │                   │                           │
+│                          │                   ▼                           │
+│                          │         ┌───────────────────────┐             │
+│                          │         │ ШАГ 10: FAILURE CONTEXT │           │
+│                          │         │                         │           │
+│                          │         │ • Сбор причин провала   │           │
+│                          │         │   (failed_checks)       │           │
+│                          │         │ • Добавление в          │           │
+│                          │         │   failure_context       │           │
+│                          │         │ • Новая попытка цикла   │           │
+│                          │         └───────────────────────┘             │
+│                          │                   │                           │
+│                          │                   ▼                           │
+│                          │         Если max_retries исчерпаны:           │
+│                          │         • batch.status = "failed"             │
+│                          │         • failure_reasons_summary             │
+│                          │                                               │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Детали этапов
+
+### 1. RAG Context Building
+
+**Цель:** Найти релевантные CVE из базы знаний (kb_entries) для использования в качестве основы задания.
+
+**Процесс:**
+1. **Построение запроса:**
+   - Если указан `cve_id` → прямой поиск по CVE
+   - Если указана `topic` → поиск по теме
+   - Иначе → использование шаблона запроса для task_type
+
+2. **Шаблоны запросов (на английском для лучшего semantic search):**
+   ```python
+   _QUERY_TEMPLATES = {
+       "crypto_text_web": (
+           "cryptographic cipher encryption decryption weak algorithm key exchange "
+           "authentication session token cookie network traffic interception ..."
+       ),
+       "forensics_image_metadata": (
+           "image metadata forensics EXIF JPEG PNG file analysis hidden data ..."
+       ),
+       "web_static_xss": (
+           "cross-site scripting XSS injection web vulnerability DOM manipulation ..."
+       ),
+       "chat_llm": (
+           "prompt injection LLM manipulation AI security jailbreak system prompt ..."
+       ),
+   }
+   ```
+
+3. **2-этапный поиск:**
+   - **Этап 1 (CWE-фильтр):** Поиск среди CVE, у которых `cwe_ids` пересекаются с релевантными для task_type
+     - Формула: `score = 0.6 * similarity + 0.4` (бонус за CWE match)
+   - **Этап 2 (Semantic fallback):** Заполнение оставшихся слотов через обычный семантический поиск
+     - Формула: `score = 0.6 * similarity`
+
+4. **Порог отсечения:** `MIN_SIMILARITY = 0.35` (косинусное сходство)
+
+5. **Результат:** RAGContext с CVEEntry, включающий:
+   - `cve_id`, `ru_title`, `ru_summary`
+   - `cwe_ids` (список), `cvss_base_score`, `attack_vector`
+   - `stored_embedding` (вектор из БД)
+   - `_retrieval_score` (композитный)
+
+---
+
+### 2. Feedback Context
+
+**Цель:** Предоставить LLM few-shot примеры успешных и неудачных генераций.
+
+**Источники:**
+- `ai_generation_variants` за последние 7 дней
+- Группировка по `task_type` и `difficulty`
+
+**Структура:**
+```python
+FeedbackContext(
+    positive_examples=[  # passed_all_binary=true, quality_score > 0.7
+        {"title": "...", "description": "...", "quality_score": 0.85},
+        ...
+    ],
+    negative_patterns={  # aggregated failure reasons
+        "NON_TRIVIALITY": 5,  # 5 раз провалено
+        "SOLVABILITY": 2,
+        ...
+    },
+    recent_pass_rate=0.65  # 65% успехов за последние 20 генераций
+)
+```
+
+**Форматирование для промпта:**
+```
+## Положительные примеры (хорошие задания)
+1. [title] — quality=0.85
+   Description: ...
+
+## Частые ошибки (избегай этого)
+- NON_TRIVIALITY: флаг появляется в description (5 случаев)
+- SOLVABILITY: reverse_chain не находит флаг (2 случая)
+
+## Статистика
+Pass rate за последние 20 генераций: 65%
+```
+
+---
+
+### 3. Генерация спецификаций (N вариантов)
+
+**Параллелизм:** `asyncio.gather()` для одновременного запуска N запросов к LLM.
+
+**Температуры:**
+```python
+temperatures = [base_temp + i * temp_step for i in range(num_variants)]
+# Пример: base_temp=0.7, temp_step=0.1 → [0.7, 0.8, 0.9, 1.0, 1.1]
+```
+
+**Системный промпт:** Загружается из файла (`crypto_generator.txt`, `forensics_generator.txt`, и т.д.)
+
+**User промпт:**
+```
+Создай задание уровня сложности {difficulty_ru}.
+
+{feedback_text}        # Положительные примеры + частые ошибки
+
+{rag_context_text}     # CVE контекст с шаблонами сценариев
+
+Избегай этих ошибок из предыдущих попыток:
+- {failure_reason_1}
+- {failure_reason_2}
+...
+```
+
+**Модель:** `deepseek-v32` (Yandex Cloud LLM)
+**Reasoning effort:** `high` (для сложных рассуждений)
+
+**Пост-обработка ответа:**
+1. Удаление code fences (```json ... ```)
+2. Парсинг JSON
+3. Валидация структуры (dict, не list)
+
+---
+
+### 4. Создание артефактов
+
+**crypto_text_web:**
+```python
+ciphertext = apply_chain(flag, crypto_chain)
+# apply_chain: последовательное применение шифров из цепочки
+# Пример: flag → base64 → xor → caesar → ciphertext
+```
+
+**forensics_image_metadata:**
+```python
+1. pick_random_stock_image() → S3 key стокового JPEG
+2. download_image(s3_key) → bytes
+3. inject_metadata(bytes, flag, hide_in="XMP", decoy_metadata={...})
+4. upload_image(modified_bytes, batch_id, variant_id) → S3 key
+```
+
+**web_static_xss:**
+```python
+1. render_xss_page(spec) → HTML string
+   - Подстановка title, description, flag, vulnerable_param
+   - Генерация формы поиска/комментариев с уязвимостью
+2. upload_xss_page(html_content, batch_id, variant_id) → S3 key
+```
+
+**chat_llm:**
+```python
+1. Валидация system_prompt_template
+   - Проверка наличия {{FLAG}} placeholder
+   - Длина 50-3000 символов
+2. Возврат template как content (без S3)
+```
+
+---
+
+### 5. Бинарная валидация
+
+**FORMAT:**
+```python
+required_keys = {"title", "description", "flag", ...}
+missing = required_keys - set(spec.keys())
+flag_valid = bool(re.match(r"^CTF\{[^}]+\}$", flag))
+chain_valid = isinstance(crypto_chain, list) and len(crypto_chain) > 0
+format_ok = (not missing) and flag_valid and chain_valid
+```
+
+**FUNCTIONAL:**
+```python
+# crypto
+if artifact.error:
+    score = 0.0  # "Artifact creation failed"
+else:
+    score = 1.0  # "apply_chain ran without error"
+
+# forensics
+try:
+    img = Image.open(io.BytesIO(image_bytes))
+    img.verify()  # PIL validation
+    score = 1.0
+except:
+    score = 0.0
+```
+
+**SOLVABILITY:**
+```python
+# crypto
+recovered = reverse_chain(ciphertext, crypto_chain)
+solvable = flag in recovered
+
+# forensics
+extracted = extract_metadata_field(image_bytes, hide_in="XMP")
+solvable = flag in extracted
+
+# xss
+xss_keywords = {"<script", "onerror", "alert(", "document."}
+solvable = any(kw in payload.lower() for kw in xss_keywords)
+
+# chat_llm
+has_guard = any(kw in prompt_lower for kw in ["не раскрывай", "секрет", ...])
+solvable = has_guard and not over_restrictive
+```
+
+**NON_TRIVIALITY:**
+```python
+# crypto
+if flag in ciphertext:
+    trivial = True  # "flag appears as plaintext"
+try:
+    decoded = base64.b64decode(ciphertext)
+    if flag in decoded:
+        trivial = True  # "single base64 decode reveals flag"
+except:
+    pass
+
+# forensics/xss/chat
+if flag.lower() in description.lower():
+    trivial = True  # "flag appears in description"
+if flag.lower() in title.lower():
+    trivial = True  # "flag appears in title"
+```
+
+---
+
+### 6. LLM Quality Review
+
+**Когда вызывается:** Только если `passed_all_binary == True`
+
+**Модель:** `deepseek-v32` (Yandex Cloud LLM)
+
+**Системный промпт:**
+```
+Ты — эксперт по оценке качества CTF-заданий. Оцени предоставленный CTF challenge spec по 5 критериям.
+
+КРИТИЧЕСКОЕ ТРЕБОВАНИЕ ВЫХОДА:
+- Отвечай ТОЛЬКО валидным JSON (один объект), без Markdown, без пояснений...
+
+ВЫХОДНОЙ JSON:
+{
+  "educational_value": <float 0.0-1.0>,
+  "scenario_realism": <float 0.0-1.0>,
+  "hint_quality": <float 0.0-1.0>,
+  "writeup_clarity": <float 0.0-1.0>,
+  "difficulty_calibration": <float 0.0-1.0>,
+  "reasoning": "<одно предложение>"
+}
+```
+
+**Расчёт:**
+```python
+scores = [educational_value, scenario_realism, hint_quality, writeup_clarity, difficulty_calibration]
+quality_score = sum(scores) / len(scores)  # среднее арифметическое
+```
+
+---
+
+### 7. Вычисление наград
+
+**Формула total_reward:**
+```python
+total_weight = sum(c.weight for c in checks)
+total_reward = sum(c.score * c.weight for c in checks) / total_weight
+```
+
+**Пример для crypto:**
+```
+Проверка              Score  Weight  Score×Weight
+──────────────────────────────────────────────────
+FORMAT                1.0    1.0     1.0
+FUNCTIONAL            1.0    1.5     1.5
+SOLVABILITY           1.0    2.0     2.0
+NON_TRIVIALITY        1.0    1.5     1.5
+QUALITY               0.8    2.0     1.6
+RAG_GROUNDING         1.0    1.5     1.5
+CVE_RELEVANCE         0.7    1.0     0.7
+──────────────────────────────────────────────────
+Σ weight = 10.5               Σ = 9.8
+
+total_reward = 9.8 / 10.5 = 0.933
+binary_reward = (1.0+1.5+2.0+1.5) / (1.0+1.5+2.0+1.5) = 1.0
+passed_all_binary = True
+```
+
+---
+
+### 8. GRPO Group-Relative Advantage
+
+**Формула:**
+```python
+scores = [v.total_reward for v in variant_rewards]
+mean = sum(scores) / len(scores)
+variance = sum((s - mean) ** 2 for s in scores) / len(scores)
+std = sqrt(variance)
+
+for v in variant_rewards:
+    if std > 1e-9:
+        v.advantage = (v.total_reward - mean) / std
+    else:
+        v.advantage = 0.0
+```
+
+**Пример:**
+```
+Вариант  Reward  Mean=0.75  Std=0.15  Advantage
+────────────────────────────────────────────────
+V1       0.93    0.75       0.15      +1.20    ← лучший
+V2       0.82    0.75       0.15      +0.47
+V3       0.75    0.75       0.15       0.00
+V4       0.68    0.75       0.15      -0.47
+V5       0.57    0.75       0.15      -1.20
+```
+
+**Ранжирование:**
+```python
+passed = [(i, vr) for i, vr in enumerate(variant_rewards) if vr.passed_all_binary]
+passed_sorted = sorted(passed, key=lambda x: x[1].advantage, reverse=True)
+rank_map = {idx: rank + 1 for rank, (idx, _) in enumerate(passed_sorted)}
+```
+
+---
+
+### 9. Выбор лучшего варианта
+
+**Критерии:**
+1. `passed_all_binary == True` (обязательно)
+2. `highest advantage` среди прошедших
+3. `total_reward >= threshold` (0.6 по умолчанию)
+
+**Если успех:**
+```python
+best_variant.is_selected = True
+best_variant.rank_in_group = 1
+batch.status = "completed"
+batch.selected_variant_id = best_variant.id
+batch.group_mean_reward = mean
+batch.group_std_reward = std
+batch.pass_rate = len(passed) / len(variant_rewards)
+```
+
+**Если неудача (все провалили или reward < threshold):**
+```python
+# Accumulate failure context
+new_failures = []
+for vr in variant_rewards:
+    if not vr.passed_all_binary:
+        failed = [c for c in vr.checks if c.score < 1.0 and c.is_binary()]
+        new_failures.extend(f"{c.type.value}: {c.detail}" for c in failed)
+failure_context.extend(new_failures[:5])
+
+# Retry loop (max_retries=2)
+for attempt in range(1, max_retries + 1):
+    ...
+```
+
+---
+
+### 10. Публикация задания
+
+**Endpoint:** `POST /ai-generate/batch/{batch_id}/publish/{variant_id}`
+
+**Процесс:**
+1. **Валидация:**
+   - `passed_all_binary == True`
+   - `published_task_id is None` (не опубликовано ранее)
+
+2. **Создание Task:**
+   ```python
+   task = Task(
+       title=spec["title"],
+       category=batch.task_type.split("_")[0].capitalize(),
+       difficulty={"beginner": 1, "intermediate": 2, "advanced": 3}[batch.difficulty],
+       points={"beginner": 50, "intermediate": 100, "advanced": 200}[batch.difficulty],
+       access_type=access_type_map[batch.task_type],
+       story=spec.get("story") or spec["description"],
+       participant_description=participant_desc,  # description + ciphertext
+       llm_raw_response=spec,  # full spec for admin reference
+   )
+   ```
+
+3. **Создание TaskFlag:**
+   ```python
+   TaskFlag(
+       task_id=task.id,
+       flag_id="main",
+       format="static",
+       expected_value=spec["flag"],
+   )
+   ```
+
+4. **Создание TaskMaterial:**
+   ```python
+   TaskMaterial(
+       task_id=task.id,
+       type="artifact",
+       name="Generated artifact",
+       url=file_url,
+       meta={"content": ciphertext, "crypto_chain": crypto_chain, ...},
+   )
+   ```
+
+5. **Создание TaskAuthorSolution:**
+   ```python
+   TaskAuthorSolution(
+       task_id=task.id,
+       summary="Reverse the encryption chain: base64 → xor → caesar",
+       creation_solution=spec["writeup"],
+       steps={"encrypt": [...], "decrypt": [...]},
+   )
+   ```
+
+6. **Обновление variant:**
+   ```python
+   variant.is_selected = True
+   variant.published_task_id = task.id
+   ```
+
+---
+
+## Хранение данных
+
+### ai_generation_batches
+```sql
+id                  UUID PRIMARY KEY
+requested_by        INTEGER REFERENCES users.id
+task_type           TEXT
+difficulty          TEXT
+num_variants        INTEGER
+attempt             INTEGER
+status              TEXT (pending, generating, completed, failed)
+current_stage       TEXT (rag_context, spec_generation, artifact_creation, ...)
+stage_started_at    TIMESTAMPTZ
+stage_meta          JSONB
+group_mean_reward   FLOAT
+group_std_reward    FLOAT
+pass_rate           FLOAT
+selected_variant_id UUID
+failure_reasons_summary JSONB
+rag_context_ids     INTEGER[]
+rag_context_summary TEXT
+rag_query_text      TEXT
+created_at          TIMESTAMPTZ
+completed_at        TIMESTAMPTZ
+```
+
+### ai_generation_variants
+```sql
+id                  UUID PRIMARY KEY
+batch_id            UUID REFERENCES ai_generation_batches.id
+variant_number      INTEGER
+model_used          TEXT
+temperature         FLOAT
+tokens_input        INTEGER
+tokens_output       INTEGER
+generation_time_ms  INTEGER
+generated_spec      JSONB
+artifact_result     JSONB
+reward_checks       JSONB
+reward_total        FLOAT
+reward_binary       FLOAT
+passed_all_binary   BOOLEAN
+quality_score       FLOAT
+quality_details     JSONB
+advantage           FLOAT
+rank_in_group       INTEGER
+is_selected         BOOLEAN
+published_task_id   INTEGER REFERENCES tasks.id
+failure_reason      TEXT
+embedding           VECTOR(256)
+created_at          TIMESTAMPTZ
+```
+
+---
+
+## Конфигурация (Environment Variables)
+
+```ini
+# AI Generator
+AI_GEN_MODEL=yandexgpt
+AI_GEN_NUM_VARIANTS=5              # N вариантов для генерации
+AI_GEN_MAX_RETRIES=2               # Максимум попыток
+AI_GEN_MIN_REWARD_THRESHOLD=0.6    # Минимальный reward для публикации
+AI_GEN_BASE_TEMPERATURE=0.7        # Базовая температура
+AI_GEN_TEMPERATURE_STEP=0.1        # Шаг температуры для следующего варианта
+AI_GEN_RAG_CONTEXT_LIMIT=5         # Максимум CVE в RAG контексте
+
+# Yandex Cloud LLM
+YANDEX_CLOUD_API_KEY=...
+YANDEX_CLOUD_FOLDER=...
+YANDEX_REASONING_EFFORT=high       # high/medium/low
+```
+
+---
+
+## Типы заданий и специфика
+
+### crypto_text_web
+- **Артефакт:** ciphertext (текст)
+- **Шифры:** caesar, rot13, vigenere, atbash, beaufort, substitution, rail_fence, base64, base32, base58, hex, url, xor, aes_ecb, reverse
+- **Сложность:** beginner (1-2 операции), intermediate (3-4), advanced (5-6)
+
+### forensics_image_metadata
+- **Артефакт:** JPEG изображение (S3)
+- **Hide in:** EXIF, XMP, IPTC, comment
+- **Проверка:** PIL validation, extract_metadata_field
+
+### web_static_xss
+- **Артефакт:** HTML страница (S3)
+- **XSS types:** reflected, stored, dom
+- **Проверка:** наличие XSS keywords в payload
+
+### chat_llm
+- **Артефакт:** system_prompt_template (текст)
+- **Defense types:** instructions, role, context_boundary
+- **Проверка:** наличие {{FLAG}}, guard instructions
+
+---
+
+## Оптимизации
+
+### 1. Параллелизм
+- `asyncio.gather()` для генерации N спецификаций
+- `asyncio.gather()` для создания N артефактов
+- LLM вызовы в `asyncio.to_thread()` (не блокируют event loop)
+
+### 2. RAG оптимизации
+- **2-этапный поиск:** CWE-фильтр → семантический fallback
+- **Pre-computed embeddings:** использование `kb_entries.embedding` вместо вычисления на лету
+- **Порог MIN_SIMILARITY:** отсечение нерелевантных CVE
+
+### 3. Token efficiency
+- **LLM quality review:** только для прошедших бинарные проверки
+- **Embedding variants:** фоновая задача (не блокирует пайплайн)
+
+### 4. Failure tracking
+- **failure_context:** накопление ошибок между попытками
+- **Few-shot learning:** передача успешных/неуспешных примеров в промпт
+
+---
+
+## Расширение (Future Enhancements)
+
+### Планируемые улучшения:
+1. **Adaptive temperature:** динамический выбор температур на основе historical success rate
+2. **Multi-turn refinement:** итеративное улучшение spec через диалог с LLM
+3. **Human-in-the-loop:** админ-фидбек как дополнительный reward signal
+4. **A/B testing:** сравнение разных промптов/моделей
+5. **Curriculum learning:** генерация заданий возрастающей сложности
+
+### Метрики для мониторинга:
+- **Pass rate:** % вариантов, прошедших все бинарные проверки
+- **Avg quality score:** средняя оценка LLM-as-judge
+- **Common failures:** агрегация причин провалов
+- **Best temperature:** температура с наивысшим success rate
+- **Token cost:** среднее потребление токенов на генерацию
+
+---
+
+## Примеры
+
+### Успешная генерация (crypto)
+```
+Батч: abc123
+Варианты: 5
+Прошли бинарные: 3/5 (60%)
+Лучший вариант: V2
+  - reward_total: 0.93
+  - advantage: +1.20
+  - quality_score: 0.85
+  - passed_all_binary: True
+Статус: completed
+Опубликовано: task_id=456
+```
+
+### Неудачная генерация (forensics)
+```
+Батч: def456
+Варианты: 5
+Прошли бинарные: 0/5 (0%)
+Причины провалов:
+  - FUNCTIONAL: Invalid JPEG image (3 случая)
+  - SOLVABILITY: Flag NOT found in XMP (2 случая)
+Попытка: 2/2
+Статус: failed
+failure_context: ["FUNCTIONAL: ...", "SOLVABILITY: ..."]
+```
+
+---
+
+## Ссылки на код
+
+| Компонент | Файл |
+|-----------|------|
+| Основной пайплайн | `backend/app/services/ai_generator/pipeline.py` |
+| RAG контекст | `backend/app/services/ai_generator/rag_context.py` |
+| Бинарная валидация | `backend/app/services/ai_generator/validator.py` |
+| Reward система | `backend/app/services/ai_generator/reward.py` |
+| LLM reviewer | `backend/app/services/ai_generator/reviewer.py` |
+| Создание артефактов | `backend/app/services/ai_generator/artifact_creator.py` |
+| API routes | `backend/app/routes/ai_generate.py` |
+| DB модели | `backend/app/models/ai_generation.py` |
+| Промпты | `backend/app/prompts/{crypto,forensics,xss,chat_llm}_generator.txt` |

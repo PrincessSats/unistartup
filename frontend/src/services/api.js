@@ -478,6 +478,14 @@ export const adminAPI = {
     const response = await api.delete(`/admin/tasks/${taskId}`);
     return response.data;
   },
+  getLanding: async () => {
+    const response = await api.get('/admin/landing');
+    return response.data;
+  },
+  updateLanding: async (payload) => {
+    const response = await api.put('/admin/landing', payload);
+    return response.data;
+  },
   listPrompts: async () => {
     const response = await api.get('/admin/prompts');
     return response.data;
@@ -680,6 +688,11 @@ export const profileAPI = {
 };
 
 export const landingAPI = {
+  getSettings: async () => {
+    const response = await api.get('/landing/settings');
+    return response.data;
+  },
+
   getHuntSession: async (sessionToken) => {
     const response = await api.post('/landing/hunt/session', {
       session_token: sessionToken || null,

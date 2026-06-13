@@ -1,6 +1,12 @@
+import {
+  LANDING_PLACEHOLDER_IMAGE,
+  LANDING_PLACEHOLDER_AVATAR,
+  LANDING_PLACEHOLDER_HERO,
+} from './landingPlaceholders';
+
 export const landingHeroDesign = {
   backgroundImage:
-    'https://www.figma.com/api/mcp/asset/93deb18d-052b-42bc-b68f-213cbbc1aa15',
+    LANDING_PLACEHOLDER_HERO,
   eyebrow: 'HackNet',
   title: 'Соревнуйся с лучшими, развивайся и тренируй команду!',
   subtitle: 'для новичков и опытных специалистов',
@@ -16,13 +22,13 @@ export const landingBenefitCards = [
     participantsLabel: 'хакеров участвует',
     participantsValue: '+132',
     participantAvatars: [
-      'https://www.figma.com/api/mcp/asset/0d4451cf-1297-46c3-95e3-2bdfdbb75fc5',
-      'https://www.figma.com/api/mcp/asset/7743ad10-0d81-4846-ba2f-45640d8c0f25',
-      'https://www.figma.com/api/mcp/asset/e2854a88-4329-4bf6-97c0-b1c30c2b72c8',
-      'https://www.figma.com/api/mcp/asset/081f8216-bcb3-41c2-8d12-038551e1ab53',
+      LANDING_PLACEHOLDER_AVATAR,
+      LANDING_PLACEHOLDER_AVATAR,
+      LANDING_PLACEHOLDER_AVATAR,
+      LANDING_PLACEHOLDER_AVATAR,
     ],
     extraAvatar:
-      'https://www.figma.com/api/mcp/asset/48387098-4a6d-4bb0-985b-8bfa37a92b4e',
+      LANDING_PLACEHOLDER_AVATAR,
   },
   {
     id: 'practice',
@@ -31,7 +37,7 @@ export const landingBenefitCards = [
     badgeTitle: '140 заданий',
     badgeSubtitle: 'на платформе',
     figureImage:
-      'https://www.figma.com/api/mcp/asset/8b86fa47-d633-41f0-8557-9918bf9ea685',
+      LANDING_PLACEHOLDER_IMAGE,
   },
   {
     id: 'progress',
@@ -49,8 +55,8 @@ export const landingBenefitCards = [
     title: 'Задачи для всех: от новичков до профи',
     description: 'Выбирай свой уровень и ломай голову',
     figureImages: [
-      'https://www.figma.com/api/mcp/asset/101ef335-37bd-4f22-9197-8a73d726ffd5',
-      'https://www.figma.com/api/mcp/asset/838dba51-8441-458e-a18c-ec64d5039fad',
+      LANDING_PLACEHOLDER_IMAGE,
+      LANDING_PLACEHOLDER_IMAGE,
     ],
   },
 ];
@@ -65,11 +71,11 @@ export const landingChampionshipSlides = [
     composition: 'flow',
     panelLayers: [
       {
-        image: 'https://www.figma.com/api/mcp/asset/2fcca71c-da6c-4f31-9f2d-6e707732ca1e',
+        image: LANDING_PLACEHOLDER_IMAGE,
         className: 'landing-figma-slide-shot landing-figma-slide-shot--rear',
       },
       {
-        image: 'https://www.figma.com/api/mcp/asset/ece28213-3d8f-4e27-9098-01ff2fbf4b68',
+        image: LANDING_PLACEHOLDER_IMAGE,
         className: 'landing-figma-slide-shot landing-figma-slide-shot--front',
       },
     ],
@@ -82,7 +88,7 @@ export const landingChampionshipSlides = [
     composition: 'formats',
     badges: ['Виртуальные машины', 'Файлы для анализа', 'Веб-страницы', 'Удаленные серверы'],
     panelImage:
-      'https://www.figma.com/api/mcp/asset/ff511c06-0495-4eef-8ca7-3a568be8126d',
+      LANDING_PLACEHOLDER_IMAGE,
   },
   {
     id: 'rating',
@@ -92,7 +98,7 @@ export const landingChampionshipSlides = [
       'Обновляем после каждого нового турнира. Учитываем, кто первый нашел флаг, количество и сложность найденных флагов',
     composition: 'rating',
     panelImage:
-      'https://www.figma.com/api/mcp/asset/26e140bb-42c5-41f7-afb8-aa5ad23105ad',
+      LANDING_PLACEHOLDER_IMAGE,
     floatingScore: {
       place: '8141',
       user: 'CyberNinja',
@@ -109,12 +115,12 @@ export const landingChampionshipSlides = [
       'Если сложно решить турнирное задание - сформируем план обучения под нужную область знаний. После завершения турнира выкладываем решения по поиску флагов',
     composition: 'fallback',
     panelImage:
-      'https://www.figma.com/api/mcp/asset/e406cfd3-3ed3-43d9-a8a2-b8756725d91f',
+      LANDING_PLACEHOLDER_IMAGE,
     hintPopup: {
       imageOne:
-        'https://www.figma.com/api/mcp/asset/56e45b2a-4510-4dbb-8f82-45ebb3360614',
+        LANDING_PLACEHOLDER_IMAGE,
       imageTwo:
-        'https://www.figma.com/api/mcp/asset/016c6b8f-7d78-4a2d-9ff5-a558f2eb8345',
+        LANDING_PLACEHOLDER_IMAGE,
       title: 'Не беда - потренируйся на похожих заданиях',
       body: 'Отобрали задания такой же категории и сложности в разделе «Обучение»',
       action: 'Тренироваться',
@@ -131,10 +137,10 @@ export const landingLearningCards = [
     cardTone: 'light',
     frontLabel: 'Теория',
     frontImage:
-      'https://www.figma.com/api/mcp/asset/0671eedf-da00-43f0-a836-fcd7591c1e61',
+      LANDING_PLACEHOLDER_IMAGE,
     backLabel: 'Практика',
     backImage:
-      'https://www.figma.com/api/mcp/asset/ca40309a-af16-46a4-9451-fa1d420615a4',
+      LANDING_PLACEHOLDER_IMAGE,
   },
   {
     id: 'practice',
@@ -144,19 +150,19 @@ export const landingLearningCards = [
     cardTone: 'light',
     frontLabel: 'Практика',
     frontImage:
-      'https://www.figma.com/api/mcp/asset/ca40309a-af16-46a4-9451-fa1d420615a4',
+      LANDING_PLACEHOLDER_IMAGE,
     backLabel: 'Теория',
     backImage:
-      'https://www.figma.com/api/mcp/asset/0671eedf-da00-43f0-a836-fcd7591c1e61',
+      LANDING_PLACEHOLDER_IMAGE,
   },
 ];
 
 export const landingLearningPanel = {
   title:
     'За прохождение модулей и задач получай баллы, соревнуйся с другими участниками и повышай свои компетенции',
-  glowImage: 'https://www.figma.com/api/mcp/asset/23cdc6e7-4f5e-42ea-9819-a7e4d731daf3',
+  glowImage: LANDING_PLACEHOLDER_IMAGE,
   decorImage:
-    'https://www.figma.com/api/mcp/asset/24f5d06e-24f9-4729-baad-63f8588ca88e',
+    LANDING_PLACEHOLDER_IMAGE,
   toastTitle: 'Модуль пройден!',
   toastBody: 'Уже начислили очки в твой рейтинг',
 };
@@ -171,35 +177,35 @@ export const landingAudienceTabs = [
         body:
           'Выполни одну тестовую задачу, чтобы мы оценили твой текущий уровень, и получи трек развития на основе твоих интересов',
         tone: 'violet',
-        image: 'https://www.figma.com/api/mcp/asset/e8627aee-a67f-48f2-b068-d62f5ebf39b3',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Пошаговое обучение на реальных кейсах',
         body:
           'Освой основы кибербезопасности по практическим модулям, чтобы сразу понимать, как все работает в реальной жизни',
         tone: 'dark',
-        image: 'https://www.figma.com/api/mcp/asset/e2b3aff9-09cd-48d4-9667-95a7e9cf4954',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Регулярно обновляемая База знаний',
         body:
           'Следи за важными изменениями и актуальными подходами к хакингу. WriteUps от пользователей, новости и тренды — все для твоего профессионального роста!',
         tone: 'blue',
-        image: 'https://www.figma.com/api/mcp/asset/021e5397-e71b-451a-829d-ed71b4aa3429',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Практика с заданиями разных уровней',
         body:
           'Начни с простых задач и постепенно переходи к более сложным, улучшая свои навыки шаг за шагом',
         tone: 'dark',
-        image: 'https://www.figma.com/api/mcp/asset/95f662ed-589c-4930-9335-1268fb51af8d',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Отслеживание прогресса',
         body:
           'Следи за успехами в дашборде, прокачивай навыки и соревнуйся в обучении с другими пользователями',
         tone: 'violet',
-        image: 'https://www.figma.com/api/mcp/asset/daf6cf08-c2e0-449b-92e3-a68cf1568810',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
     ],
   },
@@ -212,28 +218,28 @@ export const landingAudienceTabs = [
         body:
           'Получай очки первой крови за турниры, зарабатывай баллы за практические задания и повышай свою позицию в рейтинге среди профессионалов. А мы гарантируем честное формирование турнирной таблицы',
         tone: 'violet',
-        image: 'https://www.figma.com/api/mcp/asset/3f94561b-1ab2-4d74-88a8-a13f28be547a',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Повышение компетенций в конкретной категории знаний',
         body:
           'Изучай актуальные решения хакеров платформы в Базе знаний, проходи модули и выполняй задания из определенной категории кибербезопасности, а мы отследим твой прогресс',
         tone: 'dark',
-        image: 'https://www.figma.com/api/mcp/asset/ec83ee64-0a2d-4e69-99f5-6ac409e4f196',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Регулярные турниры с практическими задачами',
         body:
           'Каждую неделю ты можешь проверить свои навыки на новых заданиях, которые имитируют реальные ситуации. Если оказалось слишком сложно — учись на решениях, которые мы публикуем в Базе знаний после завершения турнира',
         tone: 'blue',
-        image: 'https://www.figma.com/api/mcp/asset/4691bbb6-cb21-474a-93d4-d1a9b1fa4048',
+        image: LANDING_PLACEHOLDER_IMAGE,
       },
       {
         title: 'Аналитика прохождения турниров',
         body:
           'После каждого турнира мы даем детализированную аналитику: где ты застрял, сколько времени потратил и какие флаги были наиболее сложными. Это поможет выявить слабые места и сформировать трек развития',
         tone: 'dark',
-        image: 'https://www.figma.com/api/mcp/asset/42636db9-c443-4613-ad09-062d6936ef56',
+        image: LANDING_PLACEHOLDER_IMAGE,
         locked: true,
       },
       {
@@ -241,7 +247,7 @@ export const landingAudienceTabs = [
         body:
           'Уже решил все практические задания на платформе или они оказались слишком простыми? Сгенерируй уникальные задачи под свой уровень компетенций',
         tone: 'violet',
-        image: 'https://www.figma.com/api/mcp/asset/89fab7b3-ac94-4725-9341-963b9fa99ca2',
+        image: LANDING_PLACEHOLDER_IMAGE,
         locked: true,
       },
     ],
@@ -313,8 +319,8 @@ export const landingWaitlistCloud = [
 ];
 
 export const landingTrackerIcon =
-  'https://www.figma.com/api/mcp/asset/dcbc1243-2c63-40e3-ba44-9469e32ee428';
+  LANDING_PLACEHOLDER_IMAGE;
 
 export const landingPromoModalAssets = {
-  backdrop: 'https://www.figma.com/api/mcp/asset/74990863-1dad-4e55-8045-f7b291a0d9a6',
+  backdrop: LANDING_PLACEHOLDER_IMAGE,
 };

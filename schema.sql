@@ -117,6 +117,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_promo_codes_landing_redeemed_user_unique
     ON promo_codes(redeemed_by_user_id)
     WHERE source = 'landing_hunt' AND redeemed_by_user_id IS NOT NULL;
 
+-- 3.5 Настройки лендинга (singleton, id=1)
+CREATE TABLE IF NOT EXISTS landing_settings (
+    id                  BIGINT PRIMARY KEY DEFAULT 1,
+    is_visible          BOOLEAN NOT NULL DEFAULT true,
+    hunt_enabled        BOOLEAN NOT NULL DEFAULT true,
+    reward_points       INTEGER NOT NULL DEFAULT 10,
+    hero_eyebrow        TEXT,
+    hero_title          TEXT,
+    hero_subtitle       TEXT,
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_by_user_id  BIGINT REFERENCES users(id) ON DELETE SET NULL
+);
+INSERT INTO landing_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
 -- 4. Тарифные планы
 CREATE TABLE tariff_plans (
     id                  BIGSERIAL PRIMARY KEY,
